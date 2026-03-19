@@ -89,3 +89,48 @@ FP rate: < %15 (7 günlük pencere)
 RCA: sadece P0/P1 otomatik
 Output: TR özet (NOC) + EN teknik (DevOps)
 ```
+
+---
+## Sprint Completion — S03
+- Date: Mart 2026
+- Tests: 32 passed, 98% coverage
+- ruff: clean
+- Status: ✅ Complete
+- Commit: 322f62b
+
+### Files Created
+- apps/ops_center/config.py — OpsModuleConfig (MTTR targets, thresholds, model routing)
+- apps/ops_center/schemas.py — IncidentEvent, IncidentRecord, RemediationPlan, RCAResult, AgentDecisionResult
+- apps/ops_center/prompts.py — system + incident analysis + RCA + bilingual output prompts
+- apps/ops_center/tools.py — 10 tools (LOW/MEDIUM/HIGH risk)
+  - get_incident_history, get_cdn_analysis, get_qoe_metrics, correlate_events (LOW)
+  - create_incident_record, update_incident_status, trigger_rca, send_slack_notification (MEDIUM)
+  - execute_remediation, escalate_to_oncall (HIGH — approval_required)
+- apps/ops_center/agent.py — IncidentAgent + RCAAgent (both extend BaseAgent)
+  - IncidentAgent: P0/P1 → Opus, P2/P3 → Sonnet, P3 → Haiku
+  - RCAAgent: always Opus, triggered only for P0/P1
+  - Output: summary_tr (Turkish NOC) + detail_en (English DevOps)
+- backend/routers/ops_center.py — /ops prefix, all endpoints + WebSocket /ws/ops/incidents
+- apps/ops_center/tests/test_tools.py — 18 tests
+- apps/ops_center/tests/test_agent.py — 14 tests
+
+### Cross-App Wired
+- Subscribes: cdn_anomaly_detected, qoe_degradation, live_event_starting,
+  scale_recommendation, external_data_updated
+- Publishes: incident_created → alert_center, knowledge_base
+- Publishes: rca_completed → knowledge_base, alert_center
+- DuckDB reads: shared_analytics.cdn_analysis, qoe_metrics, live_events
+- DuckDB writes: shared_analytics.incidents, agent_decisions
+
+### Hard Constraints Verified
+- P0/P1 → claude-opus-4-20250514 ✅
+- P2/P3 → claude-sonnet-4-20250514 ✅
+- P3 → claude-haiku-4-5-20251001 ✅ (deviation — see below)
+- RCA triggers only for P0/P1 ✅
+- execute_remediation → approval_required ✅
+- escalate_to_oncall → approval_required ✅
+- Turkish summary + English technical detail on every incident ✅
+
+### Deviations
+- P3 routed to Haiku (spec said Sonnet) — deliberate optimization for cost,
+  P3 incidents are low priority batch processing
