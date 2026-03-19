@@ -1,0 +1,100 @@
+# alert_center.spec.md — Alert Center
+> Kapsam: M13 Alert Router | Sprint: S04 | Kritiklik: P0
+
+## 1. KULLANICI
+NOC Operatör, On-call Mühendisi — Merkezi alert yönetimi, dedup, routing, escalation
+
+## 2. TABS
+| Tab | Açıklama |
+|---|---|
+| Live Feed | Gerçek zamanlı alert akışı (WebSocket) |
+| Alert List | Tüm alert'ler, ack/resolve |
+| Rules | Routing kuralları CRUD |
+| Channels | Slack/PagerDuty/Email kanal yönetimi |
+| Suppression | Maintenance window + suppress |
+| Analytics | Alert volume, MTTA, kanal performansı |
+
+## 3. AGENT MİMARİSİ
+```python
+class AlertRouterAgent(BaseAgent):
+    app_name = "alert_center"
+    # Routing kararı  → claude-haiku-4-5-20251001 (hızlı, ucuz)
+    # Mesaj üretimi   → claude-sonnet-4-20250514
+    # context_loader: Redis dedup → SQLite kurallar → DuckDB son 1 saat
+    # Dedup window: 900s (Redis fingerprint)
+    # Storm threshold: > 10 alert / 5 dakika → storm mode
+```
+
+## 4. TOOLS
+| Tool | Risk | Tetikleyici |
+|---|---|---|
+| check_dedup | LOW | auto |
+| get_routing_rules | LOW | auto |
+| check_suppression | LOW | auto |
+| detect_alert_storm | LOW | auto |
+| set_dedup_cache | LOW | auto |
+| route_to_slack | MEDIUM | auto+notify |
+| route_to_email | MEDIUM | auto+notify |
+| write_alert_to_db | MEDIUM | auto+notify |
+| route_to_pagerduty | HIGH | approval_required (P0 only) |
+| suppress_alert_storm | HIGH | approval_required |
+
+## 5. ROUTING MANTIĞI
+```
+Alert gelir → Dedup? DROP → Suppressed? DROP → Storm? Özet alert
+  P0 → Slack + PagerDuty (PD: approval_required)
+  P1 → Slack (ONAY GEREKLİ badge)
+  P2 → Slack
+  P3 → Email
+→ DuckDB: alerts_sent YAZ + Redis: dedup SET
+```
+
+## 6. API
+```
+prefix:    /alerts
+websocket: /ws/alerts/stream
+ref:       API_CONTRACTS.md → Bölüm 5
+```
+
+## 7. CROSS-APP
+```
+INPUT (TÜM EVENT'LERİ DİNLER):
+  cdn_anomaly_detected, incident_created, rca_completed,
+  qoe_degradation, live_event_starting, churn_risk_detected,
+  scale_recommendation
+
+DuckDB YAZMA: shared_analytics.alerts_sent
+DuckDB OKUMA: shared_analytics.incidents, agent_decisions
+```
+
+## 8. LOKAL VERİ
+### SQLite
+```sql
+CREATE TABLE alert_rules (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+    name TEXT NOT NULL, event_types TEXT NOT NULL,
+    severity_min TEXT NOT NULL, channels TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1
+);
+CREATE TABLE alert_channels (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+    channel_type TEXT NOT NULL, name TEXT NOT NULL,
+    config_json TEXT NOT NULL, is_active INTEGER DEFAULT 1
+);
+CREATE TABLE suppression_rules (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+    name TEXT NOT NULL, start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL, is_active INTEGER DEFAULT 1
+);
+```
+### Redis
+```
+alert:dedup:{tenant_id}:{fingerprint}   TTL: 900s
+alert:storm:{tenant_id}                 TTL: 300s
+```
+
+## 9. TEST
+```bash
+pytest apps/alert_center/tests/ -v --cov=apps/alert_center --cov-fail-under=80
+```
+Senaryolar: Dedup (2x event → 1x Slack) | Storm (15/5dk → 1 özet) | Suppress (maintenance → DROP) | P0 routing (approval_required)

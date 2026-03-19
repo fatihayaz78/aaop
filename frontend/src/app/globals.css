@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design Tokens (CSS Custom Properties) ── */
+:root {
+  /* Brand */
+  --color-brand-primary: #4c6ef5;
+  --color-brand-secondary: #3b5bdb;
+
+  /* Surface — Light */
+  --color-bg: #ffffff;
+  --color-surface: #f8f9fa;
+  --color-surface-card: #ffffff;
+  --color-surface-hover: #f1f3f5;
+
+  /* Text — Light */
+  --color-text-primary: #1a1d2e;
+  --color-text-secondary: #495057;
+  --color-text-muted: #868e96;
+
+  /* Border */
+  --color-border: #dee2e6;
+
+  /* Severity */
+  --color-p0: #ff6b6b;
+  --color-p1: #ffa94d;
+  --color-p2: #ffd43b;
+  --color-p3: #69db7c;
+
+  /* Spacing */
+  --sidebar-width: 260px;
+  --header-height: 56px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+.dark {
+  --color-bg: #0f1117;
+  --color-surface: #1a1d2e;
+  --color-surface-card: #252940;
+  --color-surface-hover: #2c3154;
+  --color-text-primary: #e9ecef;
+  --color-text-secondary: #adb5bd;
+  --color-text-muted: #868e96;
+  --color-border: #343a40;
+}
+
+/* ── Base styles ── */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+}

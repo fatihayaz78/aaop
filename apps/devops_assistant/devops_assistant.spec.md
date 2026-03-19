@@ -1,0 +1,66 @@
+# devops_assistant.spec.md — DevOps Assistant
+> Kapsam: M08 AI DevOps Assistant | Sprint: S08-C | Kritiklik: P2
+> Not: Terminal-like UX, teknik kullanıcı
+
+## 1. KULLANICI
+Platform Mühendisi, DevOps Mühendisi — Deployment, tanılama, runbook çalıştırma
+
+## 2. TABS
+| Tab | Açıklama |
+|---|---|
+| Assistant | Ana sohbet + komut öneri (terminal-like) |
+| Diagnostics | Servis sağlık kontrolü |
+| Deployments | Deployment geçmişi ve durum |
+| Runbooks | Runbook listesi ve çalıştırma |
+
+## 3. AGENT MİMARİSİ
+```python
+class DevOpsAssistantAgent(BaseAgent):
+    app_name = "devops_assistant"
+    # claude-sonnet-4-20250514 (teknik Q&A)
+    # Bağlam: platform durumu + aktif incident + deployment geçmişi
+    # Komut önerisi: güvenli → öner, tehlikeli → işaretle
+    # Knowledge Base'den runbook ara (ChromaDB)
+```
+
+## 4. TOOLS
+| Tool | Risk | Tetikleyici |
+|---|---|---|
+| check_service_health | LOW | auto |
+| get_deployment_history | LOW | auto |
+| search_runbooks | LOW | auto |
+| get_platform_metrics | LOW | auto |
+| suggest_command | LOW | auto |
+| create_deployment_record | MEDIUM | auto+notify |
+| execute_runbook | HIGH | approval_required |
+| restart_service | HIGH | approval_required |
+
+## 5. API
+```
+prefix: /devops
+ref:    API_CONTRACTS.md → Bölüm 11
+```
+
+## 6. CROSS-APP
+```
+DuckDB OKUMA: shared_analytics.incidents, agent_decisions
+ChromaDB OKUMA: 'runbooks' collection (knowledge_base'den)
+```
+
+## 7. LOKAL VERİ
+### SQLite
+```sql
+CREATE TABLE deployments (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+    service TEXT NOT NULL, version TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    deployed_by TEXT, notes TEXT,
+    started_at TEXT, completed_at TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+```
+
+## 8. TEST
+```bash
+pytest apps/devops_assistant/tests/ -v --cov=apps/devops_assistant --cov-fail-under=80
+```

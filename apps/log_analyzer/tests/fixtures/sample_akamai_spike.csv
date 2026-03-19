@@ -1,0 +1,11 @@
+reqTimeSec,CP,Bytes,cliIP,statusCode,proto,reqHost,reqPath,UA,referer,tlsVersion,tlsOH,headersCnt,headersSize,bodySize,cacheable,cacheStatus,errorCode,edgeIP,country,city
+1710849600.123,12345,4096,203.0.113.1,502,HTTP/2,cdn.example.com,/video/stream1.m3u8,Mozilla/5.0,,TLSv1.3,h2,12,512,4096,1,MISS,ERR_CONNECT_FAIL,198.51.100.1,TR,Istanbul
+1710849601.456,12345,0,198.51.100.50,503,HTTP/2,cdn.example.com,/video/stream2.ts,Mozilla/5.0,,TLSv1.3,h2,10,480,0,1,MISS,ERR_READ_TIMEOUT,198.51.100.1,TR,Ankara
+1710849602.789,12345,0,203.0.113.2,504,HTTP/1.1,cdn.example.com,/api/manifest.json,curl/7.68,,TLSv1.2,h1,8,320,0,0,MISS,ERR_CONNECT_FAIL,198.51.100.2,DE,Berlin
+1710849603.012,12345,4096,203.0.113.3,200,HTTP/2,cdn.example.com,/video/stream3.ts,Mozilla/5.0,,TLSv1.3,h2,12,512,4096,1,HIT,,198.51.100.1,TR,Istanbul
+1710849604.345,12345,0,198.51.100.51,500,HTTP/2,cdn.example.com,/video/stream4.ts,Mozilla/5.0,,TLSv1.3,h2,8,256,0,1,MISS,ERR_CONNECT_FAIL,198.51.100.2,US,NewYork
+1710849605.678,12345,0,203.0.113.4,502,HTTP/2,cdn.example.com,/video/stream5.ts,Mozilla/5.0,,TLSv1.3,h2,12,512,0,1,MISS,ERR_READ_TIMEOUT,198.51.100.1,TR,Izmir
+1710849606.901,12345,2048,203.0.113.5,200,HTTP/1.1,cdn.example.com,/api/config,curl/7.68,,TLSv1.2,h1,6,240,2048,0,MISS,,198.51.100.3,GB,London
+1710849607.234,12345,0,198.51.100.52,503,HTTP/2,cdn.example.com,/video/stream6.ts,Mozilla/5.0,,TLSv1.3,h2,12,512,0,1,MISS,ERR_CONNECT_FAIL,198.51.100.1,TR,Istanbul
+1710849608.567,12345,0,203.0.113.6,500,HTTP/2,cdn.example.com,/video/stream7.ts,Mozilla/5.0,,TLSv1.3,h2,10,480,0,1,MISS,ERR_READ_TIMEOUT,198.51.100.2,TR,Ankara
+1710849609.890,12345,4096,203.0.113.7,200,HTTP/2,cdn.example.com,/video/stream8.ts,Mozilla/5.0,,TLSv1.3,h2,12,512,4096,1,HIT,,198.51.100.1,TR,Istanbul
