@@ -5,15 +5,15 @@
 
 ---
 
-## AKTİF SPRINT: S04 — Alert Center (M13)
+## AKTİF SPRINT: S05 — Viewer Experience (M02 + M09)
 
-**Hedef:** Alert Center app — Alert routing, Slack/PagerDuty channels, dedup
-**Bitti Kriteri:** `pytest apps/alert_center/tests/` yeşil | `/alerts` API 200 | Alert route flow
+**Hedef:** Viewer Experience app — QoE monitoring, complaint analysis
+**Bitti Kriteri:** `pytest apps/viewer_experience/tests/` yeşil | `/viewer` API 200
 **Test Komutu:**
 ```bash
 source ~/.venvs/aaop/bin/activate
-pytest apps/alert_center/tests/ -v --cov=apps/alert_center --cov-report=term-missing
-curl http://localhost:8000/alerts/health
+pytest apps/viewer_experience/tests/ -v --cov=apps/viewer_experience --cov-report=term-missing
+curl http://localhost:8000/viewer/health
 ```
 
 ---
@@ -25,7 +25,7 @@ curl http://localhost:8000/alerts/health
 | **S01** | Foundation Layer | — | ✅ Tamamlandı (2026-03-19) |
 | **S02** | Log Analyzer (Akamai sub-module + agent) | S01 | ✅ Tamamlandı (2026-03-19) |
 | **S03** | Ops Center (M01 + M06) | S01, S02 (event bus) | ✅ Tamamlandı (2026-03-19) |
-| **S04** | Alert Center (M13) | S01, S03 | 2-3 gün |
+| **S04** | Alert Center (M13) | S01, S03 | ✅ Tamamlandı (2026-03-19) |
 | **S05** | Viewer Experience (M02 + M09) | S01 | 3-4 gün |
 | **S06** | Live Intelligence (M05 + M11) | S01, S03 | 4-5 gün |
 | **S07** | Growth & Retention + Capacity & Cost | S01, S05 | 4-5 gün |
@@ -112,6 +112,26 @@ Tamamlanan:
   - Bilingual output: Turkish summary + English technical detail
 - `backend/routers/ops_center.py` — /ops prefix (health, dashboard, incidents)
 - 4 test files: test_agent (14), test_tools (8), test_schemas (8), test_config (2)
+
+### S04 — Alert Center (2026-03-19)
+
+**Sonuç:** 29 test yeşil | 98% coverage | ruff sıfır hata | 154 toplam test regresyon yok
+
+Tamamlanan:
+- `apps/alert_center/config.py` — AlertCenterConfig (dedup 900s, storm 10/5min)
+- `apps/alert_center/schemas.py` — Alert, AlertRule, AlertChannel, SuppressionRule, RoutingDecision, compute_fingerprint
+- `apps/alert_center/prompts.py` — system + alert message prompts
+- `apps/alert_center/tools.py` — 10 tools:
+  - LOW: check_dedup, get_routing_rules, check_suppression, detect_alert_storm, set_dedup_cache
+  - MEDIUM: route_to_slack, route_to_email, write_alert_to_db
+  - HIGH (approval_required): route_to_pagerduty (P0 only), suppress_alert_storm
+- `apps/alert_center/agent.py` — AlertRouterAgent:
+  - Subscribes to ALL 7 events (cdn_anomaly, incident_created, rca_completed, qoe_degradation, live_event_starting, churn_risk, scale_recommendation)
+  - Routing: P0→Slack+PD, P1→Slack, P2→Slack, P3→Email
+  - Dedup: 900s Redis TTL fingerprint window
+  - Storm: >10 alerts/5min → storm mode → approval_required
+- `backend/routers/alert_center.py` — /alerts prefix (health, list, rules, channels)
+- 4 test files: test_agent (7), test_tools (12), test_schemas (7), test_config (2)
 
 ---
 

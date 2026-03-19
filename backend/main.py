@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.auth import router as auth_router
 from backend.dependencies import init_clients, shutdown_clients
 from backend.routers.log_analyzer import router as log_analyzer_router
+from backend.routers.alert_center import router as alert_center_router
 from backend.routers.ops_center import router as ops_center_router
 
 logger = structlog.get_logger(__name__)
@@ -48,6 +49,7 @@ app.include_router(auth_router)
 # App routers
 app.include_router(log_analyzer_router)
 app.include_router(ops_center_router)
+app.include_router(alert_center_router)
 
 
 @app.get("/health")

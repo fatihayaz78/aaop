@@ -7,12 +7,27 @@
 ## [Unreleased] — Aktif Geliştirme
 
 ### Planlanıyor
-- S04: Alert Center (M13)
 - S05: Viewer Experience (M02 + M09)
 - S06: Live Intelligence (M05 + M11)
 - S07: Growth & Retention + Capacity & Cost
 - S08: Remaining apps + Admin & Governance
 - S09: Cross-app integrations + Frontend (Next.js)
+
+---
+
+## [0.4.0] — 2026-03-19 — S04: Alert Center
+
+### Eklendi
+- `apps/alert_center/` — Alert Center (M13 Alert Router)
+- AlertRouterAgent: subscribes to all 7 cross-app events
+- Routing logic: P0→Slack+PagerDuty, P1→Slack, P2→Slack, P3→Email
+- Dedup: 900s Redis TTL fingerprint window (alert:dedup:{tenant_id}:{fingerprint})
+- Storm detection: >10 alerts/5min → storm mode → single summary (approval_required)
+- route_to_pagerduty → approval_required=True (P0 only)
+- suppress_alert_storm → approval_required=True
+- DuckDB writes: shared_analytics.alerts_sent
+- `/alerts` API endpoints: health, list, rules, channels
+- 29 unit tests, 98% coverage
 
 ---
 
