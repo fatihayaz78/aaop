@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S05 — Viewer Experience (M02 + M09)
-**Detay:** `docs/SPRINT_PLAN.md` → S05 bölümü
-**Son commit:** S04 kapanış — Alert Center tamamlandı (2026-03-19)
+**Aktif Sprint:** S06 — Live Intelligence (M05 + M11)
+**Detay:** `docs/SPRINT_PLAN.md` → S06 bölümü
+**Son commit:** S05 kapanış — Viewer Experience tamamlandı (2026-03-19)
 
 ---
 

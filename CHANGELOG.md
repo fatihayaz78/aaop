@@ -7,11 +7,26 @@
 ## [Unreleased] — Aktif Geliştirme
 
 ### Planlanıyor
-- S05: Viewer Experience (M02 + M09)
 - S06: Live Intelligence (M05 + M11)
 - S07: Growth & Retention + Capacity & Cost
 - S08: Remaining apps + Admin & Governance
 - S09: Cross-app integrations + Frontend (Next.js)
+
+---
+
+## [0.5.0] — 2026-03-19 — S05: Viewer Experience
+
+### Eklendi
+- `apps/viewer_experience/` — Viewer Experience (M02 QoE + M09 Complaints)
+- QoEAgent: exact QoE score formula (0.0-5.0), score < 2.5 → qoe_degradation event
+- ComplaintAgent: NLP category + sentiment + priority, ChromaDB similar search
+- Session dedup: same session_id within 5 min window skipped
+- escalate_complaint → approval_required=True
+- EventBus publishes: qoe_degradation → ops_center, alert_center
+- EventBus subscribes: analysis_complete, live_event_starting
+- DuckDB writes: shared_analytics.qoe_metrics, agent_decisions
+- `/viewer` API endpoints: health, qoe/metrics, complaints
+- 37 unit tests, 95% coverage
 
 ---
 

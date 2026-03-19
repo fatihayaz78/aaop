@@ -95,3 +95,34 @@ ctx:{tenant_id}:qoe:active_anomalies  TTL: 120s
 pytest apps/viewer_experience/tests/ -v --cov=apps/viewer_experience --cov-fail-under=80
 ```
 Senaryolar: QoE anomaly (buffering>5% → event) | Complaint NLP | MATCH_DAY (yüksek concurrent)
+
+---
+## Sprint Completion — S05
+- Date: Mart 2026
+- Tests: 37 passed, 95% coverage
+- ruff: clean
+- Status: ✅ Complete
+
+### Files Created
+- apps/viewer_experience/config.py — ViewerExperienceConfig
+- apps/viewer_experience/schemas.py — QoESession, QoEAnomaly, Complaint, ComplaintAnalysis
+- apps/viewer_experience/prompts.py — QoE + complaint analysis prompts
+- apps/viewer_experience/tools.py — 10 tools (LOW/MEDIUM/HIGH risk)
+- apps/viewer_experience/agent.py — QoEAgent + ComplaintAgent (both extend BaseAgent)
+- backend/routers/viewer_experience.py — /viewer prefix
+- 4 test files (37 tests total)
+
+### Hard Constraints Verified
+- QoE score formula exact match to spec Section 4 ✅
+- score < 2.5 → qoe_degradation published ✅
+- Session dedup: same session_id within 5 min → skip ✅
+- escalate_complaint → approval_required ✅
+- ComplaintAgent: NLP category + sentiment + priority ✅
+- ChromaDB: similar complaints searched ✅
+- DuckDB writes: qoe_metrics, agent_decisions ✅
+- DuckDB reads: cdn_analysis, live_events ✅
+- EventBus subscribes: analysis_complete, live_event_starting ✅
+- EventBus publishes: qoe_degradation ✅
+
+### Deviations
+- None

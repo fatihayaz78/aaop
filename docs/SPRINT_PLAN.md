@@ -5,15 +5,15 @@
 
 ---
 
-## AKTİF SPRINT: S05 — Viewer Experience (M02 + M09)
+## AKTİF SPRINT: S06 — Live Intelligence (M05 + M11)
 
-**Hedef:** Viewer Experience app — QoE monitoring, complaint analysis
-**Bitti Kriteri:** `pytest apps/viewer_experience/tests/` yeşil | `/viewer` API 200
+**Hedef:** Live Intelligence app — Live event management, external data sync
+**Bitti Kriteri:** `pytest apps/live_intelligence/tests/` yeşil | `/live` API 200
 **Test Komutu:**
 ```bash
 source ~/.venvs/aaop/bin/activate
-pytest apps/viewer_experience/tests/ -v --cov=apps/viewer_experience --cov-report=term-missing
-curl http://localhost:8000/viewer/health
+pytest apps/live_intelligence/tests/ -v --cov=apps/live_intelligence --cov-report=term-missing
+curl http://localhost:8000/live/health
 ```
 
 ---
@@ -26,7 +26,7 @@ curl http://localhost:8000/viewer/health
 | **S02** | Log Analyzer (Akamai sub-module + agent) | S01 | ✅ Tamamlandı (2026-03-19) |
 | **S03** | Ops Center (M01 + M06) | S01, S02 (event bus) | ✅ Tamamlandı (2026-03-19) |
 | **S04** | Alert Center (M13) | S01, S03 | ✅ Tamamlandı (2026-03-19) |
-| **S05** | Viewer Experience (M02 + M09) | S01 | 3-4 gün |
+| **S05** | Viewer Experience (M02 + M09) | S01 | ✅ Tamamlandı (2026-03-19) |
 | **S06** | Live Intelligence (M05 + M11) | S01, S03 | 4-5 gün |
 | **S07** | Growth & Retention + Capacity & Cost | S01, S05 | 4-5 gün |
 | **S08** | AI Lab + Knowledge Base + DevOps + Admin | S01 | 4-5 gün |
@@ -132,6 +132,30 @@ Tamamlanan:
   - Storm: >10 alerts/5min → storm mode → approval_required
 - `backend/routers/alert_center.py` — /alerts prefix (health, list, rules, channels)
 - 4 test files: test_agent (7), test_tools (12), test_schemas (7), test_config (2)
+
+### S05 — Viewer Experience (2026-03-19)
+
+**Sonuç:** 37 test yeşil | 95% coverage | ruff sıfır hata | 183 toplam test regresyon yok
+
+Tamamlanan:
+- `apps/viewer_experience/config.py` — ViewerExperienceConfig (QoE threshold, dedup window)
+- `apps/viewer_experience/schemas.py` — QoESession, QoEAnomaly, Complaint, ComplaintAnalysis
+- `apps/viewer_experience/tools.py` — 10 tools:
+  - LOW: score_qoe_session, get_session_context, detect_qoe_anomaly, search_similar_issues, categorize_complaint, find_related_complaints
+  - MEDIUM: write_qoe_metrics, write_complaint, trigger_qoe_alert
+  - HIGH (approval_required): escalate_complaint
+- `apps/viewer_experience/agent.py` — QoEAgent (M02) + ComplaintAgent (M09):
+  - QoE score formula exact match (0.0-5.0 scale, spec Section 4)
+  - score < 2.5 → qoe_degradation event published
+  - Session dedup: same session_id within 5 min → skip
+  - ComplaintAgent: NLP category + sentiment + priority
+  - ChromaDB: similar complaints searched
+- EventBus subscribes: analysis_complete, live_event_starting
+- EventBus publishes: qoe_degradation → ops_center, alert_center
+- DuckDB writes: shared_analytics.qoe_metrics, agent_decisions
+- DuckDB reads: shared_analytics.cdn_analysis, live_events
+- `backend/routers/viewer_experience.py` — /viewer prefix
+- 4 test files: test_agent (10), test_tools (21), test_schemas (4), test_config (2)
 
 ---
 
