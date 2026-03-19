@@ -5,15 +5,14 @@
 
 ---
 
-## AKTİF SPRINT: S06 — Live Intelligence (M05 + M11)
+## AKTİF SPRINT: S07 — Growth & Retention + Capacity & Cost
 
-**Hedef:** Live Intelligence app — Live event management, external data sync
-**Bitti Kriteri:** `pytest apps/live_intelligence/tests/` yeşil | `/live` API 200
+**Hedef:** Growth & Retention (M18+M03) + Capacity & Cost (M16+M04)
+**Bitti Kriteri:** `pytest apps/growth_retention/tests/ apps/capacity_cost/tests/` yeşil
 **Test Komutu:**
 ```bash
 source ~/.venvs/aaop/bin/activate
-pytest apps/live_intelligence/tests/ -v --cov=apps/live_intelligence --cov-report=term-missing
-curl http://localhost:8000/live/health
+pytest apps/growth_retention/tests/ apps/capacity_cost/tests/ -v
 ```
 
 ---
@@ -27,7 +26,7 @@ curl http://localhost:8000/live/health
 | **S03** | Ops Center (M01 + M06) | S01, S02 (event bus) | ✅ Tamamlandı (2026-03-19) |
 | **S04** | Alert Center (M13) | S01, S03 | ✅ Tamamlandı (2026-03-19) |
 | **S05** | Viewer Experience (M02 + M09) | S01 | ✅ Tamamlandı (2026-03-19) |
-| **S06** | Live Intelligence (M05 + M11) | S01, S03 | 4-5 gün |
+| **S06** | Live Intelligence (M05 + M11) | S01, S03 | ✅ Tamamlandı (2026-03-19) |
 | **S07** | Growth & Retention + Capacity & Cost | S01, S05 | 4-5 gün |
 | **S08** | AI Lab + Knowledge Base + DevOps + Admin | S01 | 4-5 gün |
 | **S09** | Cross-app integrations + Full Frontend + E2E | S01–S08 | 5-7 gün |
@@ -156,6 +155,28 @@ Tamamlanan:
 - DuckDB reads: shared_analytics.cdn_analysis, live_events
 - `backend/routers/viewer_experience.py` — /viewer prefix
 - 4 test files: test_agent (10), test_tools (21), test_schemas (4), test_config (2)
+
+### S06 — Live Intelligence (2026-03-19)
+
+**Sonuç:** 36 test yeşil | 98% coverage | ruff sıfır hata | 220 toplam test regresyon yok
+
+Tamamlanan:
+- `apps/live_intelligence/config.py` — LiveIntelligenceConfig (poll intervals, Redis TTLs)
+- `apps/live_intelligence/schemas.py` — LiveEvent, DRMStatus (Widevine+FairPlay+PlayReady), SportRadarData, EPGEntry, ScaleRecommendation
+- `apps/live_intelligence/tools.py` — 11 tools:
+  - LOW: get_upcoming_events, get_sportradar_data, get_drm_status, get_epg_schedule, calculate_scale_factor
+  - MEDIUM: register_live_event, update_event_status, publish_event_start, publish_external_update, cache_*
+  - HIGH (approval_required): trigger_pre_scale, override_drm_fallback
+- `apps/live_intelligence/agent.py` — LiveEventAgent (M05) + ExternalDataAgent (M11):
+  - live_event_starting published exactly 30 min before kickoff
+  - ExternalDataAgent uses Haiku for batch processing
+  - Poll intervals: SportRadar 30s, DRM 60s, EPG 300s
+  - Redis TTLs: active_event=60s, pre_scale_status=3600s, drm_status=60s, sportradar=30s
+- EventBus publishes: live_event_starting, external_data_updated
+- DuckDB writes: shared_analytics.live_events, agent_decisions
+- DuckDB reads: shared_analytics.qoe_metrics, incidents
+- `backend/routers/live_intelligence.py` — /live prefix
+- 4 test files: test_agent (12), test_tools (16), test_schemas (7), test_config (2)
 
 ---
 

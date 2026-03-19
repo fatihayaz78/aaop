@@ -238,8 +238,8 @@ EVENT_ROUTING = {
     EventType.INCIDENT_CREATED:        {"pub": "ops_center",          "subs": ["alert_center", "knowledge_base"]},  # ✅ S03+S04
     EventType.RCA_COMPLETED:           {"pub": "ops_center",          "subs": ["knowledge_base", "alert_center"]},  # ✅ S03+S04
     EventType.QOE_DEGRADATION:         {"pub": "viewer_experience",   "subs": ["ops_center", "alert_center"]},      # ✅ S05+S03+S04
-    EventType.LIVE_EVENT_STARTING:     {"pub": "live_intelligence",   "subs": ["ops_center", "log_analyzer", "alert_center"]},
-    EventType.EXTERNAL_DATA_UPDATED:   {"pub": "live_intelligence",   "subs": ["ops_center", "growth_retention"]},
+    EventType.LIVE_EVENT_STARTING:     {"pub": "live_intelligence",   "subs": ["ops_center", "log_analyzer", "alert_center"]},  # ✅ S06+S03+S02+S04
+    EventType.EXTERNAL_DATA_UPDATED:   {"pub": "live_intelligence",   "subs": ["ops_center", "growth_retention"]},             # ✅ S06+S03
     EventType.CHURN_RISK_DETECTED:     {"pub": "growth_retention",    "subs": ["alert_center"]},
     EventType.SCALE_RECOMMENDATION:    {"pub": "capacity_cost",       "subs": ["ops_center", "alert_center"]},
     EventType.ANALYSIS_COMPLETE:       {"pub": "log_analyzer",        "subs": ["growth_retention", "viewer_experience"]},

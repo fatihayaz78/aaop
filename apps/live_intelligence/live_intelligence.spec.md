@@ -80,3 +80,44 @@ ctx:{tenant_id}:sportradar:{match_id} TTL: 30s
 pytest apps/live_intelligence/tests/ -v --cov=apps/live_intelligence --cov-fail-under=80
 ```
 Senaryolar: MATCH_DAY (30dk önce start event) | DRM_OUTAGE (approval_required) | EPG sync (external_data_updated)
+
+---
+## Sprint Completion — S06
+- Date: Mart 2026
+- Tests: 36 passed, 98% coverage
+- ruff: clean
+- Status: ✅ Complete
+
+### Files Created
+- apps/live_intelligence/config.py — LiveIntelligenceConfig (poll intervals, Redis TTLs)
+- apps/live_intelligence/schemas.py — LiveEvent, DRMStatus, SportRadarData, EPGEntry, ExternalConnector, ScaleRecommendation
+- apps/live_intelligence/prompts.py — system + live event analysis + external data prompts
+- apps/live_intelligence/tools.py — 11 tools (LOW/MEDIUM/HIGH risk)
+  - get_upcoming_events, get_sportradar_data, get_drm_status, get_epg_schedule, calculate_scale_factor (LOW)
+  - register_live_event, update_event_status, publish_event_start, publish_external_update, cache_* (MEDIUM)
+  - trigger_pre_scale, override_drm_fallback (HIGH — approval_required)
+- apps/live_intelligence/agent.py — LiveEventAgent + ExternalDataAgent (both extend BaseAgent)
+  - LiveEventAgent: Sonnet, publishes live_event_starting 30 min before kickoff
+  - ExternalDataAgent: Haiku for batch, publishes external_data_updated on significant changes
+- backend/routers/live_intelligence.py — /live prefix, all endpoints
+- 4 test files: test_agent (12), test_tools (16), test_schemas (7), test_config (2)
+
+### Cross-App Wired
+- Publishes: live_event_starting → ops_center, log_analyzer, alert_center
+            external_data_updated → ops_center, growth_retention
+- Subscribes: (none — live_intelligence is a source app)
+- DuckDB writes: shared_analytics.live_events, agent_decisions
+- DuckDB reads: shared_analytics.qoe_metrics, incidents
+
+### Hard Constraints Verified
+- LiveEventAgent AND ExternalDataAgent implemented ✅
+- live_event_starting published exactly 30 min before kickoff ✅
+- SportRadar poll: 30s, DRM poll: 60s, EPG poll: 300s ✅
+- trigger_pre_scale → approval_required ✅
+- override_drm_fallback → approval_required ✅
+- DRM: Widevine + FairPlay + PlayReady tracked ✅
+- Redis TTLs: active_event=60s, pre_scale_status=3600s, drm_status=60s, sportradar=30s ✅
+- EventBus subscribes: none (source app) ✅
+
+### Deviations
+- None

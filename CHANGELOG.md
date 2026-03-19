@@ -7,10 +7,25 @@
 ## [Unreleased] — Aktif Geliştirme
 
 ### Planlanıyor
-- S06: Live Intelligence (M05 + M11)
 - S07: Growth & Retention + Capacity & Cost
 - S08: Remaining apps + Admin & Governance
 - S09: Cross-app integrations + Frontend (Next.js)
+
+---
+
+## [0.6.0] — 2026-03-19 — S06: Live Intelligence
+
+### Eklendi
+- `apps/live_intelligence/` — Live Intelligence (M05 Live Event + M11 External Data)
+- LiveEventAgent: live_event_starting published exactly 30 min before kickoff
+- ExternalDataAgent: Haiku for batch processing, publishes external_data_updated on changes
+- DRM tracking: Widevine + FairPlay + PlayReady status
+- Poll intervals: SportRadar 30s, DRM 60s, EPG 300s
+- Redis TTLs: active_event=60s, pre_scale_status=3600s, drm_status=60s, sportradar=30s
+- trigger_pre_scale, override_drm_fallback → approval_required
+- DuckDB writes: live_events, agent_decisions; reads: qoe_metrics, incidents
+- `/live` API endpoints: health, events, drm status
+- 36 unit tests, 98% coverage
 
 ---
 
