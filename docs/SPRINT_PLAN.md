@@ -5,15 +5,15 @@
 
 ---
 
-## AKTİF SPRINT: S03 — Ops Center (M01 + M06)
+## AKTİF SPRINT: S04 — Alert Center (M13)
 
-**Hedef:** Ops Center app — Incident management, RCA agent, Event Bus subscribe
-**Bitti Kriteri:** `pytest apps/ops_center/tests/` yeşil | `/ops` API 200 | Incident create/resolve flow
+**Hedef:** Alert Center app — Alert routing, Slack/PagerDuty channels, dedup
+**Bitti Kriteri:** `pytest apps/alert_center/tests/` yeşil | `/alerts` API 200 | Alert route flow
 **Test Komutu:**
 ```bash
 source ~/.venvs/aaop/bin/activate
-pytest apps/ops_center/tests/ -v --cov=apps/ops_center --cov-report=term-missing
-curl http://localhost:8000/ops/dashboard
+pytest apps/alert_center/tests/ -v --cov=apps/alert_center --cov-report=term-missing
+curl http://localhost:8000/alerts/health
 ```
 
 ---
@@ -24,7 +24,7 @@ curl http://localhost:8000/ops/dashboard
 |---|---|---|---|
 | **S01** | Foundation Layer | — | ✅ Tamamlandı (2026-03-19) |
 | **S02** | Log Analyzer (Akamai sub-module + agent) | S01 | ✅ Tamamlandı (2026-03-19) |
-| **S03** | Ops Center (M01 + M06) | S01, S02 (event bus) | 4-5 gün |
+| **S03** | Ops Center (M01 + M06) | S01, S02 (event bus) | ✅ Tamamlandı (2026-03-19) |
 | **S04** | Alert Center (M13) | S01, S03 | 2-3 gün |
 | **S05** | Viewer Experience (M02 + M09) | S01 | 3-4 gün |
 | **S06** | Live Intelligence (M05 + M11) | S01, S03 | 4-5 gün |
@@ -91,6 +91,27 @@ Tamamlanan:
 - `backend/routers/log_analyzer.py` — /log-analyzer prefix, health, sub-modules, projects, results
 - `apps/log_analyzer/sub_modules/medianova/` — placeholder stub
 - Test fixtures: sample_akamai_normal.csv, sample_akamai_spike.csv
+
+### S03 — Ops Center (2026-03-19)
+
+**Sonuç:** 32 test yeşil | 98% coverage | ruff sıfır hata | 122 toplam test regresyon yok
+
+Tamamlanan:
+- `apps/ops_center/config.py` — OpsCenterConfig (MTTR target, auto-RCA severities, FP threshold)
+- `apps/ops_center/schemas.py` — Incident, IncidentCreate, RCARequest, RCAResult, OpsMetrics (bilingual TR/EN fields)
+- `apps/ops_center/prompts.py` — INCIDENT_SYSTEM/ANALYSIS + RCA_SYSTEM/ANALYSIS prompts (TR+EN output)
+- `apps/ops_center/tools.py` — 10 tools:
+  - LOW: get_incident_history, get_cdn_analysis, get_qoe_metrics, correlate_events
+  - MEDIUM: create_incident_record, update_incident_status, trigger_rca, send_slack_notification, publish_*
+  - HIGH (approval_required): execute_remediation, escalate_to_oncall
+- `apps/ops_center/agent.py` — IncidentAgent (M01) + RCAAgent (M06):
+  - P0/P1 → Opus, P2 → Sonnet, P3 → Haiku (severity-based model routing)
+  - RCA only triggers for P0/P1 (auto_rca_severities config)
+  - EventBus publish: incident_created, rca_completed
+  - EventBus subscribe targets: cdn_anomaly_detected, qoe_degradation, live_event_starting
+  - Bilingual output: Turkish summary + English technical detail
+- `backend/routers/ops_center.py` — /ops prefix (health, dashboard, incidents)
+- 4 test files: test_agent (14), test_tools (8), test_schemas (8), test_config (2)
 
 ---
 

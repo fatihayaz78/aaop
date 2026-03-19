@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S03 — Ops Center (M01 + M06)
-**Detay:** `docs/SPRINT_PLAN.md` → S03 bölümü
-**Son commit:** S02 kapanış — Log Analyzer tamamlandı (2026-03-19)
+**Aktif Sprint:** S04 — Alert Center (M13)
+**Detay:** `docs/SPRINT_PLAN.md` → S04 bölümü
+**Son commit:** S03 kapanış — Ops Center tamamlandı (2026-03-19)
 
 ---
 

@@ -7,13 +7,30 @@
 ## [Unreleased] — Aktif Geliştirme
 
 ### Planlanıyor
-- S03: Ops Center (M01 Incident + M06 RCA)
 - S04: Alert Center (M13)
 - S05: Viewer Experience (M02 + M09)
 - S06: Live Intelligence (M05 + M11)
 - S07: Growth & Retention + Capacity & Cost
 - S08: Remaining apps + Admin & Governance
 - S09: Cross-app integrations + Frontend (Next.js)
+
+---
+
+## [0.3.0] — 2026-03-19 — S03: Ops Center
+
+### Eklendi
+- `apps/ops_center/` — Ops Center (M01 AI Incident Copilot + M06 RCA Engine)
+- IncidentAgent: severity-based LLM routing (P0/P1→Opus, P2→Sonnet, P3→Haiku)
+- RCAAgent: always Opus, only triggers for P0/P1 incidents
+- 10 risk-tagged tools (execute_remediation, escalate_to_oncall → approval_required)
+- Bilingual output: Turkish summary + English technical detail on every incident
+- EventBus publish: incident_created, rca_completed
+- EventBus subscribe: cdn_anomaly_detected, qoe_degradation, live_event_starting
+- DuckDB reads: shared_analytics.cdn_analysis (from S02 log_analyzer)
+- DuckDB writes: shared_analytics.incidents, agent_decisions
+- `/ops` API endpoints: health, dashboard, incidents
+- Correlation engine: CDN + QoE + incident cross-referencing
+- 32 unit tests, 98% coverage
 
 ---
 
