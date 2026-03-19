@@ -98,3 +98,42 @@ alert:storm:{tenant_id}                 TTL: 300s
 pytest apps/alert_center/tests/ -v --cov=apps/alert_center --cov-fail-under=80
 ```
 Senaryolar: Dedup (2x event → 1x Slack) | Storm (15/5dk → 1 özet) | Suppress (maintenance → DROP) | P0 routing (approval_required)
+
+---
+## Sprint Completion — S04
+- Date: Mart 2026
+- Tests: 29 passed, 98% coverage
+- ruff: clean
+- Status: ✅ Complete
+- Commit: bb29987
+
+### Files Created
+- apps/alert_center/config.py — AlertCenterConfig (dedup TTL, storm threshold, channels)
+- apps/alert_center/schemas.py — Alert, AlertRule, AlertChannel, SuppressionRule, RoutingResult
+- apps/alert_center/prompts.py — system + routing decision + message generation prompts
+- apps/alert_center/tools.py — 10 tools (LOW/MEDIUM/HIGH risk)
+  - check_dedup, get_routing_rules, check_suppression, detect_alert_storm, set_dedup_cache (LOW)
+  - route_to_slack, route_to_email, write_alert_to_db (MEDIUM)
+  - route_to_pagerduty, suppress_alert_storm (HIGH — approval_required)
+- apps/alert_center/agent.py — AlertRouterAgent(BaseAgent)
+  - Haiku for routing decisions, Sonnet for message generation
+  - Dedup → Suppression → Storm detection → Routing pipeline
+- backend/routers/alert_center.py — /alerts prefix, all endpoints
+- apps/alert_center/tests/test_tools.py — 18 tests
+- apps/alert_center/tests/test_agent.py — 11 tests
+
+### Cross-App Wired
+- Subscribes: cdn_anomaly_detected, incident_created, rca_completed,
+  qoe_degradation, live_event_starting, churn_risk_detected, scale_recommendation
+- DuckDB writes: shared_analytics.alerts_sent
+
+### Hard Constraints Verified
+- Dedup: 900s Redis TTL ✅
+- Storm: >10 alerts/5min → single summary ✅
+- P0 → Slack + PagerDuty (approval_required) ✅
+- P1/P2 → Slack ✅
+- P3 → Email ✅
+- All 7 event subscriptions wired ✅
+
+### Deviations
+- None
