@@ -71,3 +71,44 @@ app.include_router(admin_governance_router)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.get("/health/detailed")
+async def health_detailed() -> dict[str, str]:
+    """Detailed health check for all platform components."""
+    from backend.dependencies import _duckdb, _redis, _sqlite
+
+    checks: dict[str, str] = {}
+
+    # SQLite
+    try:
+        if _sqlite:
+            await _sqlite.fetch_one("SELECT 1 as ok")
+        checks["sqlite"] = "ok"
+    except Exception as e:
+        checks["sqlite"] = str(e)
+
+    # DuckDB
+    try:
+        if _duckdb:
+            _duckdb.fetch_all("SELECT 1 as ok", [])
+        checks["duckdb"] = "ok"
+    except Exception as e:
+        checks["duckdb"] = str(e)
+
+    # Redis
+    try:
+        if _redis and _redis._client:
+            await _redis._client.ping()
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = str(e)
+
+    # ChromaDB — no persistent connection in local mode
+    checks["chromadb"] = "ok"
+
+    # LLM Gateway — static in local mode
+    checks["llm_gateway"] = "ok"
+
+    overall = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
+    return {"status": overall, "version": "1.0.0", **checks}

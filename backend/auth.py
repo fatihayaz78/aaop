@@ -68,10 +68,31 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserPayload:
 
 @router.post("/login", response_model=TokenResponse)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
-    """Authenticate user and return JWT. DB lookup deferred to S03+."""
-    # Placeholder: real user lookup will come from SQLite in later sprint
+    """Authenticate user and return JWT."""
+    from backend.dependencies import get_sqlite
+
     logger.info("auth_login_attempt", username=form_data.username)
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="User DB not initialized yet")
+
+    sqlite = get_sqlite()
+    user = await sqlite.fetch_one(
+        "SELECT id, tenant_id, username, password_hash, role, is_active FROM users WHERE username = ?",
+        (form_data.username,),
+    )
+
+    if not user or not user.get("is_active"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    if not verify_password(form_data.password, user["password_hash"]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    settings = get_settings()
+    token = _create_token({
+        "sub": user["id"],
+        "tenant_id": user["tenant_id"],
+        "username": user["username"],
+        "role": user["role"],
+    })
+    return TokenResponse(access_token=token, expires_in=settings.jwt_expire_minutes * 60)
 
 
 @router.post("/refresh", response_model=TokenResponse)

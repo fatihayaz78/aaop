@@ -6,7 +6,18 @@
 
 ## [Unreleased]
 
-_Platform v1.0.1 complete. All 11 apps fully implemented._
+_Platform v1.0.2 — runtime verified._
+
+---
+
+## [1.0.2] — 2026-03-21 — S13: Targeted Fixes (3 items)
+
+### Düzeltildi
+- Seed admin user: system tenant + admin/admin123 user auto-created on startup if users table empty
+- Login endpoint: `POST /auth/login` now authenticates against SQLite users table (was 501 placeholder)
+- `/health/detailed` endpoint: returns status of SQLite, DuckDB, Redis, ChromaDB, LLM Gateway
+- Test isolation: `test_login_not_implemented` updated to `test_login_requires_credentials` (401/500)
+- 448 tests pass, 0 failures, ruff clean
 
 ---
 

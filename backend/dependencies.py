@@ -27,6 +27,7 @@ async def init_clients() -> None:
     _sqlite = SQLiteClient(settings.sqlite_path)
     await _sqlite.connect()
     await _sqlite.init_tables()
+    await _seed_admin_user(_sqlite)
 
     _duckdb = DuckDBClient(settings.duckdb_path)
     _duckdb.connect()
@@ -36,6 +37,32 @@ async def init_clients() -> None:
     await _redis.connect()
 
     logger.info("all_clients_initialized")
+
+
+async def _seed_admin_user(sqlite: SQLiteClient) -> None:
+    """Insert default admin user and system tenant if users table is empty."""
+    import uuid
+
+    import bcrypt
+
+    row = await sqlite.fetch_one("SELECT COUNT(*) as cnt FROM users")
+    if row and row["cnt"] > 0:
+        return
+
+    # Ensure system tenant exists for FK
+    existing = await sqlite.fetch_one("SELECT id FROM tenants WHERE id = 'system'")
+    if not existing:
+        await sqlite.execute(
+            "INSERT INTO tenants (id, name, plan) VALUES (?, ?, ?)",
+            ("system", "System", "enterprise"),
+        )
+
+    password_hash = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode()
+    await sqlite.execute(
+        "INSERT INTO users (id, tenant_id, username, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+        (str(uuid.uuid4()), "system", "admin", password_hash, "admin"),
+    )
+    logger.info("seed_admin_user_created", username="admin")
 
 
 async def shutdown_clients() -> None:
