@@ -6,7 +6,24 @@
 
 ## [Unreleased]
 
-_S11: P1 apps full frontend in progress._
+_S12: P2 apps full frontend next._
+
+---
+
+## [1.2.0] — 2026-03-21 — S11: P1 Apps Full Frontend Implementation
+
+### Eklendi
+- `viewer-experience/page.tsx` — 5 tabs (QoE Dashboard, Sessions, Anomalies, Complaints, Trends)
+- `live-intelligence/page.tsx` — 6 tabs (Calendar, Monitor, Pre-Scale, SportRadar, DRM, EPG)
+- `growth-retention/page.tsx` — 4 tabs (Retention, Churn Risk, Data Analyst, Insights)
+- `capacity-cost/page.tsx` — 5 tabs (Forecast, Usage, Jobs, Cost, Thresholds)
+- `admin-governance/page.tsx` — 6 tabs (Tenants, Modules, API Keys, Audit, Compliance, Usage)
+- QoE color zones, churn risk progress bars, capacity gauges
+- NL→SQL data analyst with query history, generated SQL, AI interpretation
+- Admin role check (Access Denied for non-admin), API key rotate with one-time display
+- DRM/SportRadar auto-refresh, event calendar grid, EPG schedule
+- All HIGH risk actions: confirm dialogs (send campaign, create job, rotate key, delete tenant, export audit)
+- Frontend build: 0 errors, 15 routes, 26 tabs across 5 P1 apps
 
 ---
 
