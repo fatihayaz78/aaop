@@ -66,3 +66,20 @@ CREATE TABLE prompt_versions (
 ```bash
 pytest apps/ai_lab/tests/ -v --cov=apps/ai_lab --cov-fail-under=80
 ```
+
+## Sprint Completion — S08 (2026-03-21)
+
+### Files Created
+- `apps/ai_lab/__init__.py`, `config.py`, `schemas.py`, `prompts.py`, `tools.py`, `agent.py`
+- `apps/ai_lab/tests/` — conftest, test_agent (8), test_tools (14), test_schemas (6), test_config (2)
+- `backend/routers/ai_lab.py` — /ai-lab prefix
+
+### Hard Constraints Verified
+- ✅ ExperimentationAgent AND ModelGovernanceAgent both implemented
+- ✅ switch_model_production → approval_required=True
+- ✅ update_model_config → approval_required=True
+- ✅ token budget > 80% → warning logged (structlog)
+- ✅ DuckDB reads: shared_analytics.agent_decisions (all apps' model usage)
+
+### Deviations
+- None. All spec constraints met.

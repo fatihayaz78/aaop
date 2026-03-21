@@ -78,3 +78,23 @@ Her aksiyon (başarılı + başarısız) audit_log'a yazılır
 pytest apps/admin_governance/tests/ -v --cov=apps/admin_governance --cov-fail-under=80
 ```
 Senaryolar: Tenant CRUD | Module config toggle | Compliance tarama | Audit trail doğrulama
+
+## Sprint Completion — S08 (2026-03-21)
+
+### Files Created
+- `apps/admin_governance/__init__.py`, `config.py`, `schemas.py`, `prompts.py`, `tools.py`, `agent.py`
+- `apps/admin_governance/tests/` — conftest, test_agent (10), test_tools (14), test_schemas (10), test_config (2)
+- `backend/routers/admin_governance.py` — /admin prefix
+
+### Hard Constraints Verified
+- ✅ TenantAgent AND ComplianceAgent both implemented
+- ✅ delete_tenant → approval_required=True
+- ✅ rotate_api_key → approval_required=True
+- ✅ export_audit_log → approval_required=True
+- ✅ API keys stored encrypted (SHA256 derived from JWT secret)
+- ✅ Response never returns full API key — masked only (sk-ant-...XXXX)
+- ✅ Every action (success + fail) written to audit_log
+- ✅ Admin endpoints: 'admin' JWT role claim required (TenantAgent checks role)
+
+### Deviations
+- None. All spec constraints met.

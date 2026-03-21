@@ -7,8 +7,43 @@
 ## [Unreleased] — Aktif Geliştirme
 
 ### Planlanıyor
-- S08: Remaining apps + Admin & Governance
 - S09: Cross-app integrations + Frontend (Next.js)
+
+---
+
+## [0.8.0] — 2026-03-21 — S08: AI Lab + Knowledge Base + DevOps Assistant + Admin & Governance
+
+### Eklendi
+- `apps/ai_lab/` — AI Lab (M10 Experimentation + M14 Model Governance)
+- ExperimentationAgent: A/B test design + statistical significance (z-test, p-value, CI)
+- ModelGovernanceAgent: Haiku for routine, token budget monitoring (>80% → warning)
+- switch_model_production, update_model_config → approval_required
+- DuckDB reads: shared_analytics.agent_decisions (all apps' model usage)
+- 30 tests, 99% coverage
+
+- `apps/knowledge_base/` — Knowledge Base (M15)
+- ChromaDB collections: 'incidents', 'runbooks', 'platform'
+- Auto-index: incident_created → index, rca_completed → index
+- Chunking: 500 token, 50 overlap, all-MiniLM-L6-v2 embedding
+- delete_document → approval_required
+- 24 tests, 99% coverage
+
+- `apps/devops_assistant/` — DevOps Assistant (M08)
+- Sonnet for technical Q&A, dangerous command detection
+- Reads ChromaDB 'runbooks' collection from knowledge_base
+- restart_service, execute_runbook → approval_required
+- DuckDB reads: shared_analytics.incidents, agent_decisions
+- 26 tests, 100% coverage
+
+- `apps/admin_governance/` — Admin & Governance (M12 Tenant + M17 Compliance)
+- TenantAgent (Haiku) + ComplianceAgent (Sonnet)
+- delete_tenant, rotate_api_key, export_audit_log → approval_required
+- API keys: AES-256 encrypted, response masked (sk-ant-...XXXX only)
+- Every action (success + fail) → audit_log
+- Admin endpoints: 'admin' JWT role required
+- 34 tests, 99% coverage
+
+- 438 total tests (114 new + 324 regression), zero failures
 
 ---
 

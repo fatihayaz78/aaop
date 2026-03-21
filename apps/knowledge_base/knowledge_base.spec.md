@@ -64,3 +64,24 @@ Embedding model: all-MiniLM-L6-v2 (sentence-transformers)
 pytest apps/knowledge_base/tests/ -v --cov=apps/knowledge_base --cov-fail-under=80
 ```
 Senaryolar: Semantic search ("CDN error rate" → benzer incident) | Auto ingest (incident_created → ChromaDB) | RCA ingest
+
+## Sprint Completion — S08 (2026-03-21)
+
+### Files Created
+- `apps/knowledge_base/__init__.py`, `config.py`, `schemas.py`, `prompts.py`, `tools.py`, `agent.py`
+- `apps/knowledge_base/tests/` — conftest, test_agent (6), test_tools (11), test_schemas (4), test_config (2)
+- `backend/routers/knowledge_base.py` — /knowledge prefix
+
+### Cross-App Wiring
+- EventBus subscribes: `incident_created` → auto-index to 'incidents' collection
+- EventBus subscribes: `rca_completed` → auto-index RCA to 'incidents' collection
+
+### Hard Constraints Verified
+- ✅ ChromaDB collections: 'incidents', 'runbooks', 'platform'
+- ✅ Auto-index on EventBus: incident_created → index, rca_completed → index
+- ✅ delete_document → approval_required=True
+- ✅ Chunking: 500 token, 50 token overlap
+- ✅ Embedding: all-MiniLM-L6-v2 (configured in KnowledgeBaseConfig)
+
+### Deviations
+- None. All spec constraints met.

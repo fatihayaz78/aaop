@@ -235,8 +235,8 @@ class EventType(str, Enum):
 # Her event'in publisher ve subscriber'ları:
 EVENT_ROUTING = {
     EventType.CDN_ANOMALY_DETECTED:    {"pub": "log_analyzer",       "subs": ["ops_center", "alert_center"]},       # ✅ S02+S03+S04
-    EventType.INCIDENT_CREATED:        {"pub": "ops_center",          "subs": ["alert_center", "knowledge_base"]},  # ✅ S03+S04
-    EventType.RCA_COMPLETED:           {"pub": "ops_center",          "subs": ["knowledge_base", "alert_center"]},  # ✅ S03+S04
+    EventType.INCIDENT_CREATED:        {"pub": "ops_center",          "subs": ["alert_center", "knowledge_base"]},  # ✅ S03+S04+S08 (KB auto-index)
+    EventType.RCA_COMPLETED:           {"pub": "ops_center",          "subs": ["knowledge_base", "alert_center"]},  # ✅ S03+S04+S08 (KB auto-index)
     EventType.QOE_DEGRADATION:         {"pub": "viewer_experience",   "subs": ["ops_center", "alert_center"]},      # ✅ S05+S03+S04
     EventType.LIVE_EVENT_STARTING:     {"pub": "live_intelligence",   "subs": ["ops_center", "log_analyzer", "alert_center"]},  # ✅ S06+S03+S02+S04
     EventType.EXTERNAL_DATA_UPDATED:   {"pub": "live_intelligence",   "subs": ["ops_center", "growth_retention"]},             # ✅ S06+S03
