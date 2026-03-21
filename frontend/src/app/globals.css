@@ -2,35 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design Tokens (CSS Custom Properties) ── */
+/* ── Design Tokens from UI_SYSTEM.md Section 2 ── */
 :root {
+  /* Background */
+  --background: #0d1117;
+  --background-card: #161b22;
+  --background-hover: #21262d;
+  --border: #30363d;
+
+  /* Text */
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+
   /* Brand */
-  --color-brand-primary: #4c6ef5;
-  --color-brand-secondary: #3b5bdb;
+  --brand-primary: #1f6feb;
+  --brand-accent: #e94560;
+  --brand-glow: rgba(31, 111, 235, 0.15);
 
-  /* Surface — Light */
-  --color-bg: #ffffff;
-  --color-surface: #f8f9fa;
-  --color-surface-card: #ffffff;
-  --color-surface-hover: #f1f3f5;
+  /* Risk / Severity */
+  --risk-low: #238636;
+  --risk-low-bg: rgba(35, 134, 54, 0.15);
+  --risk-medium: #d29922;
+  --risk-medium-bg: rgba(210, 153, 34, 0.15);
+  --risk-high: #da3633;
+  --risk-high-bg: rgba(218, 54, 51, 0.15);
 
-  /* Text — Light */
-  --color-text-primary: #1a1d2e;
-  --color-text-secondary: #495057;
-  --color-text-muted: #868e96;
-
-  /* Border */
-  --color-border: #dee2e6;
+  /* Status */
+  --status-active: #238636;
+  --status-warning: #d29922;
+  --status-error: #da3633;
+  --status-inactive: #484f58;
 
   /* Severity */
-  --color-p0: #ff6b6b;
-  --color-p1: #ffa94d;
-  --color-p2: #ffd43b;
-  --color-p3: #69db7c;
+  --color-p0: #da3633;
+  --color-p1: #d29922;
+  --color-p2: #1f6feb;
+  --color-p3: #238636;
 
-  /* Spacing */
-  --sidebar-width: 260px;
-  --header-height: 56px;
+  /* Layout */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --header-height: 64px;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* Radius */
   --radius-sm: 4px;
@@ -38,20 +55,28 @@
   --radius-lg: 12px;
 }
 
-.dark {
-  --color-bg: #0f1117;
-  --color-surface: #1a1d2e;
-  --color-surface-card: #252940;
-  --color-surface-hover: #2c3154;
-  --color-text-primary: #e9ecef;
-  --color-text-secondary: #adb5bd;
-  --color-text-muted: #868e96;
-  --color-border: #343a40;
-}
-
 /* ── Base styles ── */
 body {
-  background-color: var(--color-bg);
-  color: var(--color-text-primary);
-  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }

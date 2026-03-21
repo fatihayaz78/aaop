@@ -242,7 +242,7 @@ EVENT_ROUTING = {
     EventType.EXTERNAL_DATA_UPDATED:   {"pub": "live_intelligence",   "subs": ["ops_center", "growth_retention"]},             # ✅ S06+S03
     EventType.CHURN_RISK_DETECTED:     {"pub": "growth_retention",    "subs": ["alert_center"]},                           # ✅ S07
     EventType.SCALE_RECOMMENDATION:    {"pub": "capacity_cost",       "subs": ["ops_center", "alert_center"]},              # ✅ S07
-    EventType.ANALYSIS_COMPLETE:       {"pub": "log_analyzer",        "subs": ["growth_retention", "viewer_experience"]},
+    EventType.ANALYSIS_COMPLETE:       {"pub": "log_analyzer",        "subs": ["growth_retention", "viewer_experience"]},       # ✅ S09 (all 9 verified)
 }
 ```
 

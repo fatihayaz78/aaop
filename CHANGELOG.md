@@ -4,10 +4,35 @@
 
 ---
 
-## [Unreleased] — Aktif Geliştirme
+## [Unreleased]
 
-### Planlanıyor
-- S09: Cross-app integrations + Frontend (Next.js)
+_Platform v1.0.0 complete. All 11 apps implemented._
+
+---
+
+## [1.0.0] — 2026-03-21 — S09: Cross-App Integration + Frontend + Platform Complete
+
+### Eklendi
+- Cross-app integration: all 9 EventBus flows wired and tested end-to-end
+  - cdn_anomaly → ops_center + alert_center
+  - incident_created → alert_center + knowledge_base (auto-index)
+  - rca_completed → knowledge_base (auto-index) + alert_center
+  - qoe_degradation → ops_center + alert_center
+  - live_event_starting → ops_center + log_analyzer + alert_center
+  - external_data_updated → ops_center + growth_retention
+  - churn_risk_detected → alert_center
+  - scale_recommendation → ops_center + alert_center
+  - analysis_complete → growth_retention + viewer_experience
+- 10 integration tests (tests/integration/test_event_flows.py) including full E2E chain
+- Frontend: Next.js 14, dark-mode-first, 11 app pages + dashboard
+  - Sidebar: 240px/64px, 11 apps grouped P0/P1/P2
+  - Header: tenant selector + user menu
+  - Components: RiskBadge, MetricCard, StatusDot, AgentChatPanel
+  - Charts: TimeSeriesChart, PieChart, BarChart (Recharts, dark theme, animation:false)
+  - Every page: loading.tsx + error.tsx
+  - Agent Chat Panel: collapsible, bottom-right, on every page
+- Backend: all 11 routers mounted in main.py (v1.0.0)
+- 448 total tests, zero failures, ruff clean
 
 ---
 
