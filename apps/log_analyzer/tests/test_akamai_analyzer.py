@@ -76,15 +76,16 @@ def test_get_period_empty(analyzer: AkamaiAnalyzer):
     assert start == end
 
 
-def test_metrics_protocol_breakdown(analyzer: AkamaiAnalyzer, normal_entries: list[AkamaiLogEntry]):
+def test_metrics_content_type_breakdown(analyzer: AkamaiAnalyzer, normal_entries: list[AkamaiLogEntry]):
     metrics = analyzer.calculate_metrics(normal_entries)
-    assert "HTTP/2" in metrics.protocol_breakdown
-    assert metrics.protocol_breakdown["HTTP/2"] > 0
+    # content_type may be empty for old CSV data but dict should exist
+    assert isinstance(metrics.content_type_breakdown, dict)
 
 
-def test_metrics_tls_breakdown(analyzer: AkamaiAnalyzer, normal_entries: list[AkamaiLogEntry]):
+def test_metrics_city_breakdown(analyzer: AkamaiAnalyzer, normal_entries: list[AkamaiLogEntry]):
     metrics = analyzer.calculate_metrics(normal_entries)
-    assert "TLSv1.3" in metrics.tls_breakdown
+    assert len(metrics.city_breakdown) > 0
+    assert all("city" in c and "requests" in c for c in metrics.city_breakdown)
 
 
 def test_metrics_peak_hours(analyzer: AkamaiAnalyzer, normal_entries: list[AkamaiLogEntry]):

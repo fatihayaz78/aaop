@@ -98,6 +98,22 @@ class SQLiteClient:
                 ip_hash     TEXT,
                 created_at  TEXT DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS settings (
+                id TEXT PRIMARY KEY DEFAULT 'global',
+                tenant_id TEXT NOT NULL,
+                aws_access_key_id TEXT,
+                aws_secret_access_key TEXT,
+                aws_region TEXT DEFAULT 'eu-central-1',
+                s3_bucket TEXT,
+                s3_prefix TEXT DEFAULT 'logs/',
+                gcp_project_id TEXT,
+                gcp_dataset_id TEXT,
+                gcp_credentials_json TEXT,
+                bigquery_enabled INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
             """
         )
         await self.conn.commit()

@@ -23,22 +23,21 @@ def test_parse_csv_fields(normal_csv: str):
     entries = parse_csv(normal_csv)
     e = entries[0]
     assert e.status_code == 200
-    assert e.proto == "HTTP/2"
-    assert e.req_host == "cdn.example.com"
+    assert e.hostname == "cdn.example.com"
     assert e.country == "TR"
     assert e.city == "Istanbul"
 
 
 def test_parse_csv_pii_scrubbed(normal_csv: str):
     entries = parse_csv(normal_csv)
-    # cliIP should be hashed, not raw
-    assert entries[0].cli_ip_hash is not None
-    assert entries[0].cli_ip_hash != "203.0.113.1"
-    assert len(entries[0].cli_ip_hash) == 16  # SHA256 truncated
+    # client_ip should be hashed, not raw
+    assert entries[0].client_ip is not None
+    assert entries[0].client_ip != "203.0.113.1"
+    assert len(entries[0].client_ip) == 16  # SHA256 truncated
 
-    # UA should be hashed
-    assert entries[0].ua_hash is not None
-    assert entries[0].ua_hash != "Mozilla/5.0"
+    # user_agent should be hashed
+    assert entries[0].user_agent is not None
+    assert entries[0].user_agent != "Mozilla/5.0"
 
 
 def test_parse_csv_numeric_coercion(normal_csv: str):
@@ -46,12 +45,6 @@ def test_parse_csv_numeric_coercion(normal_csv: str):
     assert isinstance(entries[0].req_time_sec, float)
     assert isinstance(entries[0].bytes, int)
     assert isinstance(entries[0].status_code, int)
-
-
-def test_parse_csv_bool_coercion(normal_csv: str):
-    entries = parse_csv(normal_csv)
-    assert entries[0].cacheable is True
-    assert entries[2].cacheable is False
 
 
 def test_parse_csv_spike(spike_csv: str):
@@ -64,13 +57,13 @@ def test_parse_csv_spike(spike_csv: str):
 def test_parse_json():
     data = [
         {"reqTimeSec": "1710849600.123", "CP": "12345", "Bytes": "4096",
-         "cliIP": "10.0.0.1", "statusCode": "200", "proto": "HTTP/2",
+         "cliIP": "10.0.0.1", "statusCode": "200",
          "cacheStatus": "HIT", "country": "TR", "city": "Istanbul"},
     ]
     entries = parse_json(json.dumps(data))
     assert len(entries) == 1
     assert entries[0].status_code == 200
-    assert entries[0].cli_ip_hash != "10.0.0.1"  # PII scrubbed
+    assert entries[0].client_ip != "10.0.0.1"  # PII scrubbed
 
 
 def test_parse_json_ndjson():

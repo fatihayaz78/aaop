@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Durum:** v1.0.1 RELEASED — Platform complete, tagged, pushed
-**Sprintler:** S01–S14 complete (2026-03-21)
-**Tag:** v1.0.1 — 11 apps, 39 tabs, 448 tests, 0 failures
+**Aktif Sprint:** S16 next
+**Önceki:** S15 complete — Log Analyzer full enhancement (22-field parser, BQ export, settings UI)
+**Son commit:** S15 kapanış — 451 tests, 0 failures
 
 ---
 

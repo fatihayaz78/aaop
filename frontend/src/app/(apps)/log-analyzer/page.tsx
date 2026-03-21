@@ -1,62 +1,152 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import MetricCard from "@/components/ui/MetricCard";
 import LogTable from "@/components/ui/LogTable";
 import RechartsWrapper from "@/components/charts/RechartsWrapper";
+import RiskBadge from "@/components/ui/RiskBadge";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
-type Tab = "projects" | "akamai" | "results";
+type Tab = "projects" | "akamai" | "results" | "settings" | "bigquery";
 
+/* ── Revised 21 chart names (match backend) ── */
 const CHART_TYPES = [
-  "error_rate", "bandwidth", "cache_hit_ratio", "origin_offload", "latency_p99",
-  "requests_per_second", "status_codes", "top_ips", "top_urls", "geographic_distribution",
-  "cdn_provider_comparison", "time_to_first_byte", "player_startup",
-  "bitrate_distribution", "rebuffer_rate", "error_type_breakdown",
-  "throughput_trend", "peak_concurrent", "edge_server_load",
-  "protocol_distribution", "ssl_handshake_time",
+  "transfer_time_trend", "dns_latency_distribution", "turnaround_time_trend", "latency_correlation",
+  "bandwidth_trend", "bytes_vs_clientbytes", "response_size_distribution",
+  "status_code_distribution", "error_rate_trend", "error_code_breakdown",
+  "cache_hit_ratio_trend", "cache_status_breakdown", "cache_vs_error",
+  "geographic_distribution", "city_top20", "content_type_breakdown", "top_urls",
+  "top_client_ips", "edge_server_load", "peak_hour_heatmap", "anomaly_timeline",
+] as const;
+
+const BAR_CHARTS = new Set([
+  "dns_latency_distribution", "response_size_distribution", "status_code_distribution",
+  "error_code_breakdown", "cache_status_breakdown", "geographic_distribution",
+  "city_top20", "content_type_breakdown", "top_urls", "top_client_ips", "edge_server_load",
+  "peak_hour_heatmap",
+]);
+
+/* ── BigQuery export categories ── */
+const BQ_CATEGORIES: { name: string; fields: string[]; note?: string }[] = [
+  { name: "Meta", fields: ["version", "cp_code"] },
+  { name: "Timing", fields: ["transfer_time", "turnaround_time", "dns_lookup_time", "total_bytes_time"] },
+  { name: "Traffic", fields: ["bytes", "client_bytes", "overhead_bytes"] },
+  { name: "Content", fields: ["content_type", "request_method"] },
+  { name: "Client", fields: ["user_agent", "client_country"], note: "client_ip excluded (PII)" },
+  { name: "Network", fields: ["protocol", "tls_version"] },
+  { name: "Response", fields: ["status_code", "custom_field"] },
+  { name: "Cache", fields: ["cache_status", "cache_hit"] },
+  { name: "Geo", fields: ["city", "region"] },
 ];
+
+/* ── Settings types ── */
+interface AwsSettings {
+  aws_access_key_id: string;
+  aws_secret_access_key: string;
+  aws_region: string;
+  s3_bucket: string;
+  s3_prefix: string;
+}
+
+interface BqSettings {
+  gcp_project_id: string;
+  bq_dataset_id: string;
+  gcp_service_account_json: string;
+  bq_export_enabled: boolean;
+}
+
+interface BqExportJob {
+  job_id: string;
+  table_id: string;
+  rows_exported: number;
+  status: "queued" | "running" | "completed" | "failed";
+  exported_at?: string;
+  progress?: number;
+  error?: string;
+}
 
 export default function LogAnalyzer() {
   const [tab, setTab] = useState<Tab>("projects");
+
+  /* ── Projects state ── */
   const [projects, setProjects] = useState<LogProject[]>([]);
-  const [results, setResults] = useState<AnalysisResult[]>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectModule, setNewProjectModule] = useState("akamai");
 
-  // Akamai tab state
+  /* ── Akamai tab state ── */
   const [akamaiConfig, setAkamaiConfig] = useState({ s3_bucket: "ssport-datastream", s3_prefix: "logs/", schedule_cron: "0 */6 * * *" });
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [fetchJob, setFetchJob] = useState<FetchJob | null>(null);
   const [chartsData, setChartsData] = useState<Record<string, Record<string, unknown>[]>>({});
+
+  /* ── Results state ── */
+  const [results, setResults] = useState<AnalysisResult[]>([]);
   const [expandedResult, setExpandedResult] = useState<AnalysisResult | null>(null);
 
+  /* ── Settings state ── */
+  const [awsSettings, setAwsSettings] = useState<AwsSettings>({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "", s3_prefix: "logs/" });
+  const [bqSettings, setBqSettings] = useState<BqSettings>({ gcp_project_id: "", bq_dataset_id: "", gcp_service_account_json: "", bq_export_enabled: false });
+  const [showAwsKey, setShowAwsKey] = useState(false);
+  const [showAwsSecret, setShowAwsSecret] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState("");
+  const [bqSettingsMsg, setBqSettingsMsg] = useState("");
+
+  /* ── BigQuery Export state ── */
+  const [bqCategories, setBqCategories] = useState<Record<string, boolean>>(() => Object.fromEntries(BQ_CATEGORIES.map((c) => [c.name, true])));
+  const [bqTableId, setBqTableId] = useState("");
+  const [bqSelectedJob, setBqSelectedJob] = useState("");
+  const [bqRecentJobs, setBqRecentJobs] = useState<{ jobId: string; label: string }[]>([]);
+  const [bqExportJob, setBqExportJob] = useState<BqExportJob | null>(null);
+  const [bqHistory, setBqHistory] = useState<BqExportJob[]>([]);
+  const bqPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* ── Data loading ── */
   const loadProjects = useCallback(async () => {
-    try {
-      const p = await apiGet<LogProject[]>("/log-analyzer/projects?tenant_id=bein_sports");
-      setProjects(p);
-    } catch { /* backend offline */ }
+    try { setProjects(await apiGet<LogProject[]>("/log-analyzer/projects?tenant_id=bein_sports")); } catch { /* backend offline */ }
   }, []);
 
   const loadResults = useCallback(async () => {
+    try { setResults(await apiGet<AnalysisResult[]>("/log-analyzer/results?tenant_id=bein_sports&limit=20")); } catch { /* backend offline */ }
+  }, []);
+
+  const loadSettings = useCallback(async () => {
     try {
-      const r = await apiGet<AnalysisResult[]>("/log-analyzer/results?tenant_id=bein_sports&limit=20");
-      setResults(r);
+      const s = await apiGet<AwsSettings & BqSettings>("/log-analyzer/settings?tenant_id=bein_sports");
+      setAwsSettings({ aws_access_key_id: s.aws_access_key_id ?? "", aws_secret_access_key: s.aws_secret_access_key ?? "", aws_region: s.aws_region ?? "eu-central-1", s3_bucket: s.s3_bucket ?? "", s3_prefix: s.s3_prefix ?? "logs/" });
+      setBqSettings({ gcp_project_id: s.gcp_project_id ?? "", bq_dataset_id: s.bq_dataset_id ?? "", gcp_service_account_json: s.gcp_service_account_json ?? "", bq_export_enabled: s.bq_export_enabled ?? false });
     } catch { /* backend offline */ }
   }, []);
 
-  useEffect(() => { loadProjects(); loadResults(); }, [loadProjects, loadResults]);
+  const loadBqHistory = useCallback(async () => {
+    try { setBqHistory(await apiGet<BqExportJob[]>("/log-analyzer/bigquery/jobs?tenant_id=bein_sports&limit=10")); } catch { /* */ }
+  }, []);
 
+  const loadBqRecentJobs = useCallback(async () => {
+    try {
+      const jobs = await apiGet<{ jobId: string; createdAt: string }[]>("/log-analyzer/akamai/jobs?tenant_id=bein_sports&limit=10");
+      setBqRecentJobs(jobs.map((j) => ({ jobId: j.jobId, label: `${j.jobId} (${j.createdAt})` })));
+    } catch { /* */ }
+  }, []);
+
+  useEffect(() => {
+    loadProjects();
+    loadResults();
+  }, [loadProjects, loadResults]);
+
+  useEffect(() => {
+    if (tab === "settings") loadSettings();
+    if (tab === "bigquery") { loadBqHistory(); loadBqRecentJobs(); }
+  }, [tab, loadSettings, loadBqHistory, loadBqRecentJobs]);
+
+  /* ── Projects ── */
   const createProject = async () => {
     if (!newProjectName.trim()) return;
     try {
-      await apiPost("/log-analyzer/projects", {
-        tenant_id: "bein_sports",
-        name: newProjectName,
-        sub_module: newProjectModule,
-      });
+      await apiPost("/log-analyzer/projects", { tenant_id: "bein_sports", name: newProjectName, sub_module: newProjectModule });
       setNewProjectName("");
       setShowNewProject(false);
       loadProjects();
@@ -65,21 +155,26 @@ export default function LogAnalyzer() {
 
   const deleteProject = async (id: string) => {
     if (!confirm("Delete this project?")) return;
-    try {
-      await apiDelete(`/log-analyzer/projects/${id}`);
-      loadProjects();
-    } catch { /* error */ }
+    try { await apiDelete(`/log-analyzer/projects/${id}`); loadProjects(); } catch { /* error */ }
   };
 
+  /* ── Akamai ── */
   const configureAkamai = async () => {
-    try {
-      await apiPost("/log-analyzer/akamai/configure", { tenant_id: "bein_sports", ...akamaiConfig, enabled: true });
-    } catch { /* error */ }
+    try { await apiPost("/log-analyzer/akamai/configure", { tenant_id: "bein_sports", ...akamaiConfig, enabled: true }); } catch { /* error */ }
   };
 
   const fetchLogs = async () => {
     try {
       const job = await apiPost<FetchJob>("/log-analyzer/akamai/fetch", { tenant_id: "bein_sports" });
+      setFetchJob(job);
+      pollJob(job.jobId);
+    } catch { /* error */ }
+  };
+
+  const fetchLogsForRange = async () => {
+    if (!startDate || !endDate) return;
+    try {
+      const job = await apiPost<FetchJob>("/log-analyzer/akamai/fetch-range", { tenant_id: "bein_sports", start_date: startDate, end_date: endDate });
       setFetchJob(job);
       pollJob(job.jobId);
     } catch { /* error */ }
@@ -104,31 +199,117 @@ export default function LogAnalyzer() {
       try {
         const cd = await apiGet<{ data: Record<string, unknown>[] }>(`/log-analyzer/akamai/charts?job_id=${jobId}&chart_type=${ct}`);
         data[ct] = cd.data;
-      } catch {
-        data[ct] = [];
-      }
+      } catch { data[ct] = []; }
     }
     setChartsData(data);
   };
 
   const downloadReport = async () => {
+    try { await apiPost("/log-analyzer/akamai/report", { tenant_id: "bein_sports" }); } catch { /* error */ }
+  };
+
+  /* ── Settings ── */
+  const saveAwsSettings = async () => {
     try {
-      await apiPost("/log-analyzer/akamai/report", { tenant_id: "bein_sports" });
+      await apiPost("/log-analyzer/settings", { tenant_id: "bein_sports", ...awsSettings });
+      setSettingsMsg("AWS settings saved.");
+      setTimeout(() => setSettingsMsg(""), 3000);
+    } catch { setSettingsMsg("Failed to save AWS settings."); }
+  };
+
+  const testConnection = async () => {
+    try {
+      const res = await apiPost<{ ok: boolean; message?: string }>("/log-analyzer/settings/test-connection", { tenant_id: "bein_sports" });
+      setSettingsMsg(res.ok ? "Connection successful!" : `Connection failed: ${res.message ?? "unknown"}`);
+      setTimeout(() => setSettingsMsg(""), 5000);
+    } catch { setSettingsMsg("Connection test failed."); }
+  };
+
+  const clearCredentials = async () => {
+    if (!confirm("This is a HIGH RISK action. Are you sure you want to clear all AWS credentials?")) return;
+    try {
+      await apiDelete("/log-analyzer/settings/credentials?tenant_id=bein_sports");
+      setAwsSettings({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "", s3_prefix: "logs/" });
+      setSettingsMsg("Credentials cleared.");
+      setTimeout(() => setSettingsMsg(""), 3000);
+    } catch { setSettingsMsg("Failed to clear credentials."); }
+  };
+
+  const saveBqSettings = async () => {
+    try {
+      await apiPost("/log-analyzer/settings/bigquery", { tenant_id: "bein_sports", ...bqSettings });
+      setBqSettingsMsg("BigQuery settings saved.");
+      setTimeout(() => setBqSettingsMsg(""), 3000);
+    } catch { setBqSettingsMsg("Failed to save BigQuery settings."); }
+  };
+
+  /* ── BigQuery Export ── */
+  const startBqExport = async () => {
+    if (!bqSelectedJob) return;
+    const selectedFields = BQ_CATEGORIES.filter((c) => bqCategories[c.name]).flatMap((c) => c.fields);
+    try {
+      const job = await apiGet<BqExportJob>(
+        `/log-analyzer/bigquery/export?tenant_id=bein_sports&job_id=${bqSelectedJob}&table_id=${bqTableId || `akamai_logs_${bqSelectedJob}`}&fields=${selectedFields.join(",")}`
+      );
+      setBqExportJob(job);
+      pollBqExport(job.job_id);
     } catch { /* error */ }
   };
+
+  const pollBqExport = (jobId: string) => {
+    if (bqPollRef.current) clearInterval(bqPollRef.current);
+    bqPollRef.current = setInterval(async () => {
+      try {
+        const job = await apiGet<BqExportJob>(`/log-analyzer/bigquery/jobs/${jobId}`);
+        setBqExportJob(job);
+        if (job.status === "completed" || job.status === "failed") {
+          if (bqPollRef.current) clearInterval(bqPollRef.current);
+          bqPollRef.current = null;
+          loadBqHistory();
+        }
+      } catch {
+        if (bqPollRef.current) clearInterval(bqPollRef.current);
+        bqPollRef.current = null;
+      }
+    }, 3000);
+  };
+
+  useEffect(() => { return () => { if (bqPollRef.current) clearInterval(bqPollRef.current); }; }, []);
+
+  const bqExportProgress = bqExportJob?.status === "completed" ? 100 : bqExportJob?.status === "running" ? (bqExportJob.progress ?? 50) : bqExportJob?.status === "queued" ? 10 : 0;
+
+  /* ── Shared ── */
+  const jobProgress = fetchJob?.status === "completed" ? 100 : fetchJob?.status === "running" ? (fetchJob.progress ?? 50) : fetchJob?.status === "queued" ? 10 : 0;
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "projects", label: "Projects" },
     { key: "akamai", label: "Akamai Analyzer" },
     { key: "results", label: "Analysis Results" },
+    { key: "settings", label: "Settings" },
+    { key: "bigquery", label: "BigQuery Export" },
   ];
 
-  const jobProgress = fetchJob?.status === "completed" ? 100 : fetchJob?.status === "running" ? (fetchJob.progress ?? 50) : fetchJob?.status === "queued" ? 10 : 0;
+  /* ── Password field helper ── */
+  const PasswordField = ({ label, value, onChange, show, onToggle }: { label: string; value: string; onChange: (v: string) => void; show: boolean; onToggle: () => void }) => (
+    <div>
+      <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>{label}</label>
+      <div className="flex gap-1">
+        <input type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)}
+          className="flex-1 text-sm px-3 py-2 rounded border outline-none font-mono"
+          style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+        <button type="button" onClick={onToggle} className="px-2 py-1 rounded border text-xs"
+          style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+          {show ? "Hide" : "Show"}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>Log Analyzer</h2>
 
+      {/* ── Tab bar ── */}
       <div className="flex gap-1 mb-6 border-b" style={{ borderColor: "var(--border)" }}>
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
@@ -139,7 +320,7 @@ export default function LogAnalyzer() {
         ))}
       </div>
 
-      {/* Tab: Projects */}
+      {/* ══════════ Tab 1: Projects ══════════ */}
       {tab === "projects" && (
         <div>
           <div className="flex justify-between mb-4">
@@ -151,7 +332,6 @@ export default function LogAnalyzer() {
             </button>
           </div>
 
-          {/* Project cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects.map((p) => (
               <div key={p.projectId} className="rounded-lg border p-4"
@@ -174,7 +354,6 @@ export default function LogAnalyzer() {
             )}
           </div>
 
-          {/* New Project Sheet */}
           {showNewProject && (
             <div className="fixed inset-0 z-50 flex justify-end" style={{ backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setShowNewProject(false)}>
               <div className="w-96 h-full p-6 overflow-y-auto" style={{ backgroundColor: "var(--background-card)" }} onClick={(e) => e.stopPropagation()}>
@@ -207,7 +386,7 @@ export default function LogAnalyzer() {
         </div>
       )}
 
-      {/* Tab: Akamai Analyzer */}
+      {/* ══════════ Tab 2: Akamai Analyzer ══════════ */}
       {tab === "akamai" && (
         <div>
           {/* Config form */}
@@ -233,6 +412,30 @@ export default function LogAnalyzer() {
                   style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
               </div>
             </div>
+
+            {/* Date range inputs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Start Date</label>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              </div>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>End Date</label>
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              </div>
+              <div className="flex items-end">
+                <button onClick={fetchLogsForRange} disabled={!startDate || !endDate || fetchJob?.status === "running"}
+                  className="px-4 py-1.5 rounded text-sm font-medium disabled:opacity-50"
+                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                  Fetch Logs for Range
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <button onClick={configureAkamai} className="px-4 py-1.5 rounded text-sm font-medium border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Save Config</button>
               <button onClick={fetchLogs} disabled={fetchJob?.status === "running"} className="px-4 py-1.5 rounded text-sm font-medium disabled:opacity-50" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Fetch Logs</button>
@@ -255,7 +458,7 @@ export default function LogAnalyzer() {
             </div>
           )}
 
-          {/* 21 Charts grid */}
+          {/* 21 Charts grid with collapsible summary tables */}
           {Object.keys(chartsData).length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {CHART_TYPES.map((ct) => (
@@ -264,10 +467,37 @@ export default function LogAnalyzer() {
                     data={chartsData[ct] ?? []}
                     xKey="time"
                     yKey="value"
-                    title={ct.replace(/_/g, " ")}
+                    title={ct.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                     height={180}
-                    type={["status_codes", "top_ips", "top_urls", "geographic_distribution", "protocol_distribution"].includes(ct) ? "bar" : "line"}
+                    type={BAR_CHARTS.has(ct) ? "bar" : "line"}
                   />
+                  {/* Collapsible summary table */}
+                  <details className="mt-2">
+                    <summary className="text-xs cursor-pointer select-none" style={{ color: "var(--text-muted)" }}>Summary Table</summary>
+                    <div className="mt-1 max-h-40 overflow-y-auto">
+                      <table className="w-full text-xs" style={{ color: "var(--text-secondary)" }}>
+                        <thead>
+                          <tr>
+                            {(chartsData[ct]?.[0] ? Object.keys(chartsData[ct][0]) : ["time", "value"]).map((k) => (
+                              <th key={k} className="text-left px-1 py-0.5 font-medium border-b" style={{ borderColor: "var(--border)" }}>{k}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(chartsData[ct] ?? []).slice(0, 10).map((row, i) => (
+                            <tr key={i}>
+                              {Object.values(row).map((v, j) => (
+                                <td key={j} className="px-1 py-0.5 border-b" style={{ borderColor: "var(--border)" }}>{String(v ?? "")}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {(chartsData[ct]?.length ?? 0) > 10 && (
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Showing 10 of {chartsData[ct].length} rows</p>
+                      )}
+                    </div>
+                  </details>
                 </div>
               ))}
             </div>
@@ -281,7 +511,7 @@ export default function LogAnalyzer() {
         </div>
       )}
 
-      {/* Tab: Analysis Results */}
+      {/* ══════════ Tab 3: Analysis Results ══════════ */}
       {tab === "results" && (
         <div>
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
@@ -331,6 +561,246 @@ export default function LogAnalyzer() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══════════ Tab 4: Settings ══════════ */}
+      {tab === "settings" && (
+        <div className="space-y-6">
+          {/* Section 1: AWS S3 Settings */}
+          <div className="rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>AWS S3 Settings</h3>
+            <div className="space-y-4">
+              <PasswordField
+                label="AWS Access Key ID"
+                value={awsSettings.aws_access_key_id}
+                onChange={(v) => setAwsSettings({ ...awsSettings, aws_access_key_id: v })}
+                show={showAwsKey}
+                onToggle={() => setShowAwsKey(!showAwsKey)}
+              />
+              <PasswordField
+                label="AWS Secret Access Key"
+                value={awsSettings.aws_secret_access_key}
+                onChange={(v) => setAwsSettings({ ...awsSettings, aws_secret_access_key: v })}
+                show={showAwsSecret}
+                onToggle={() => setShowAwsSecret(!showAwsSecret)}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>AWS Region</label>
+                  <input type="text" value={awsSettings.aws_region} onChange={(e) => setAwsSettings({ ...awsSettings, aws_region: e.target.value })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>S3 Bucket</label>
+                  <input type="text" value={awsSettings.s3_bucket} onChange={(e) => setAwsSettings({ ...awsSettings, s3_bucket: e.target.value })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>S3 Prefix</label>
+                  <input type="text" value={awsSettings.s3_prefix} onChange={(e) => setAwsSettings({ ...awsSettings, s3_prefix: e.target.value })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                </div>
+              </div>
+
+              <div className="flex gap-2 items-center pt-2">
+                <button onClick={testConnection} className="px-4 py-2 rounded text-sm font-medium border"
+                  style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                  Test Connection
+                </button>
+                <button onClick={saveAwsSettings} className="px-4 py-2 rounded text-sm font-medium"
+                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                  Save
+                </button>
+                <button onClick={clearCredentials} className="px-4 py-2 rounded text-sm font-medium"
+                  style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)", border: "1px solid var(--risk-high)" }}>
+                  Clear Credentials
+                </button>
+                <RiskBadge level="HIGH" />
+              </div>
+
+              {settingsMsg && (
+                <p className="text-xs mt-2" style={{ color: settingsMsg.includes("fail") || settingsMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>
+                  {settingsMsg}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Section 2: GCP BigQuery Settings */}
+          <div className="rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>GCP BigQuery Settings</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>GCP Project ID</label>
+                  <input type="text" value={bqSettings.gcp_project_id} onChange={(e) => setBqSettings({ ...bqSettings, gcp_project_id: e.target.value })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>BigQuery Dataset ID</label>
+                  <input type="text" value={bqSettings.bq_dataset_id} onChange={(e) => setBqSettings({ ...bqSettings, bq_dataset_id: e.target.value })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>GCP Service Account JSON</label>
+                <textarea value={bqSettings.gcp_service_account_json} onChange={(e) => setBqSettings({ ...bqSettings, gcp_service_account_json: e.target.value })}
+                  rows={4}
+                  className="w-full text-sm px-3 py-2 rounded border outline-none font-mono resize-y"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  placeholder='{"type": "service_account", ...}' />
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Enable BigQuery Export</label>
+                <button type="button" onClick={() => setBqSettings({ ...bqSettings, bq_export_enabled: !bqSettings.bq_export_enabled })}
+                  className="relative w-10 h-5 rounded-full transition-colors"
+                  style={{ backgroundColor: bqSettings.bq_export_enabled ? "var(--brand-primary)" : "var(--border)" }}>
+                  <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                    style={{ left: bqSettings.bq_export_enabled ? "calc(100% - 18px)" : "2px" }} />
+                </button>
+              </div>
+              <div className="flex gap-2 items-center pt-2">
+                <button onClick={saveBqSettings} className="px-4 py-2 rounded text-sm font-medium"
+                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                  Save BigQuery Settings
+                </button>
+              </div>
+              {bqSettingsMsg && (
+                <p className="text-xs mt-2" style={{ color: bqSettingsMsg.includes("fail") || bqSettingsMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>
+                  {bqSettingsMsg}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════ Tab 5: BigQuery Export ══════════ */}
+      {tab === "bigquery" && (
+        <div className="space-y-6">
+          {/* Category checkboxes */}
+          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Select Export Categories</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {BQ_CATEGORIES.map((cat) => (
+                <label key={cat.name} className="flex items-start gap-2 p-2 rounded border cursor-pointer"
+                  style={{ borderColor: bqCategories[cat.name] ? "var(--brand-primary)" : "var(--border)", backgroundColor: bqCategories[cat.name] ? "var(--brand-glow)" : "transparent" }}>
+                  <input type="checkbox" checked={bqCategories[cat.name] ?? true}
+                    onChange={(e) => setBqCategories({ ...bqCategories, [cat.name]: e.target.checked })}
+                    className="mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{cat.name}</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {cat.fields.map((f) => (
+                        <span key={f} className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>{f}</span>
+                      ))}
+                    </div>
+                    {cat.note && (
+                      <p className="text-xs mt-1" style={{ color: "var(--risk-medium)" }}>&#9888; {cat.note}</p>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Export controls */}
+          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Export Configuration</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Source Job</label>
+                <select value={bqSelectedJob} onChange={(e) => { setBqSelectedJob(e.target.value); setBqTableId(`akamai_logs_${e.target.value}`); }}
+                  className="w-full text-sm px-3 py-2 rounded border outline-none"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                  <option value="">Select a job...</option>
+                  {bqRecentJobs.map((j) => (
+                    <option key={j.jobId} value={j.jobId}>{j.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>BQ Table ID</label>
+                <input type="text" value={bqTableId} onChange={(e) => setBqTableId(e.target.value)}
+                  placeholder={bqSelectedJob ? `akamai_logs_${bqSelectedJob}` : "akamai_logs_{job_id}"}
+                  className="w-full text-sm px-3 py-2 rounded border outline-none font-mono"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              </div>
+              <div className="flex items-end">
+                <button onClick={startBqExport} disabled={!bqSelectedJob || bqExportJob?.status === "running"}
+                  className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                  Export to BigQuery
+                </button>
+              </div>
+            </div>
+
+            {/* Export progress */}
+            {bqExportJob && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Export Job: {bqExportJob.job_id}</span>
+                  <span className="text-xs" style={{ color: bqExportJob.status === "completed" ? "var(--risk-low)" : bqExportJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }}>
+                    {bqExportJob.status} {bqExportJob.status === "completed" && `— ${bqExportJob.rows_exported} rows`}
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+                  <div className="h-2 rounded-full transition-all" style={{ width: `${bqExportProgress}%`, backgroundColor: bqExportJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }} />
+                </div>
+                {bqExportJob.error && (
+                  <p className="text-xs mt-1" style={{ color: "var(--risk-high)" }}>{bqExportJob.error}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Export history */}
+          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Export History</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {["Job ID", "Table", "Rows", "Status", "Exported At"].map((h) => (
+                      <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bqHistory.map((h) => (
+                    <tr key={h.job_id} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td className="px-4 py-2 font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{h.job_id}</td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{h.table_id}</td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{h.rows_exported?.toLocaleString() ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        <span className="text-xs px-2 py-0.5 rounded"
+                          style={{
+                            backgroundColor: h.status === "completed" ? "var(--risk-low-bg)" : h.status === "failed" ? "var(--risk-high-bg)" : "var(--risk-medium-bg)",
+                            color: h.status === "completed" ? "var(--risk-low)" : h.status === "failed" ? "var(--risk-high)" : "var(--risk-medium)",
+                          }}>
+                          {h.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{h.exported_at ?? "—"}</td>
+                    </tr>
+                  ))}
+                  {bqHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No exports yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

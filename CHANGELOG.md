@@ -8,6 +8,23 @@
 
 ---
 
+## [1.1.0] — 2026-03-21 — S15: Log Analyzer Full Enhancement
+
+### Eklendi
+- Akamai DS2 22-field schema (version, cp_code, dns_lookup_time_ms, transfer_time_ms, turn_around_time_ms, client_bytes, response_body_size, content_type, cache_hit, etc.)
+- TSV parser (tab-separated 22 fields) alongside existing CSV/JSON parsers
+- `shared/utils/encryption.py` — Fernet AES-256 encrypt/decrypt for credentials
+- `apps/log_analyzer/sub_modules/akamai/bigquery_exporter.py` — 9-category field export to BigQuery
+- SQLite `settings` table (AWS/GCP credentials, encrypted storage)
+- Backend endpoints: GET/POST /log-analyzer/settings, DELETE /log-analyzer/settings/credentials, POST /log-analyzer/akamai/fetch-range, GET /log-analyzer/bigquery/export, GET /log-analyzer/bigquery/jobs/{id}
+- Frontend: 5-tab Log Analyzer (Projects, Akamai Analyzer with date range + 21 charts, Results, Settings with AWS/GCP, BigQuery Export with 9-category checkboxes)
+- 21 revised charts matching DS2 fields: timing (4), traffic (3), response/error (3), cache (3), geo (2), content (2), client/network (2), composite (2)
+- Each chart returns (figure, summary_table) tuple
+- `test_settings.py` — encrypt/decrypt roundtrip, masking tests
+- 451 tests (39 log analyzer + 412 rest), 0 failures, ruff clean
+
+---
+
 ## [1.0.1] — 2026-03-21 — Release: Full Platform
 
 ### Release Summary

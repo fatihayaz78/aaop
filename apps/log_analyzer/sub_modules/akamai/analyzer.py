@@ -28,12 +28,13 @@ class AkamaiAnalyzer:
 
         total = len(logs)
         error_count = sum(1 for e in logs if e.status_code and e.status_code >= 400)
-        cache_hits = sum(1 for e in logs if e.cache_status and e.cache_status.upper() == "HIT")
-        cacheable_count = sum(1 for e in logs if e.cache_status is not None)
+        # cache_hit is 0/1 int indicator; fallback to cache_status == 1 for old CSV data
+        cache_hits = sum(1 for e in logs if e.cache_hit == 1 or (e.cache_hit is None and e.cache_status == 1))
+        cacheable_count = sum(1 for e in logs if e.cache_hit is not None or e.cache_status is not None)
         total_bytes = sum(e.bytes or 0 for e in logs)
 
-        # TTFB: use req_time_sec as proxy (ms)
-        ttfb_values = sorted([e.req_time_sec * 1000 for e in logs if e.req_time_sec is not None])
+        # TTFB: use transfer_time_ms directly
+        ttfb_values = sorted([e.transfer_time_ms for e in logs if e.transfer_time_ms is not None])
         avg_ttfb = sum(ttfb_values) / len(ttfb_values) if ttfb_values else 0.0
         p99_ttfb = ttfb_values[int(len(ttfb_values) * 0.99)] if ttfb_values else 0.0
 
@@ -43,7 +44,7 @@ class AkamaiAnalyzer:
             if e.status_code:
                 status_counter[e.status_code] += 1
 
-        # Error paths
+        # Error codes
         error_paths: Counter[str] = Counter()
         for e in logs:
             if e.status_code and e.status_code >= 400 and e.error_code:
@@ -53,7 +54,7 @@ class AkamaiAnalyzer:
             for code, cnt in error_paths.most_common(20)
         ]
 
-        # Edge breakdown
+        # Edge breakdown (from edge_ip field)
         edge_counter: Counter[str] = Counter()
         edge_errors: Counter[str] = Counter()
         for e in logs:
@@ -73,17 +74,18 @@ class AkamaiAnalyzer:
                 geo_counter[e.country] += 1
         geo_breakdown = [{"country": c, "requests": cnt} for c, cnt in geo_counter.most_common(20)]
 
-        # Protocol breakdown
-        proto_counter: Counter[str] = Counter()
+        # Content type breakdown (from content_type field)
+        content_counter: Counter[str] = Counter()
         for e in logs:
-            if e.proto:
-                proto_counter[e.proto] += 1
+            if e.content_type:
+                content_counter[e.content_type] += 1
 
-        # TLS breakdown
-        tls_counter: Counter[str] = Counter()
+        # City breakdown
+        city_counter: Counter[str] = Counter()
         for e in logs:
-            if e.tls_version:
-                tls_counter[e.tls_version] += 1
+            if e.city:
+                city_counter[e.city] += 1
+        city_breakdown = [{"city": c, "requests": cnt} for c, cnt in city_counter.most_common(20)]
 
         # Peak hours
         hour_counter: Counter[int] = Counter()
@@ -104,8 +106,8 @@ class AkamaiAnalyzer:
             edge_breakdown=edge_breakdown,
             geo_breakdown=geo_breakdown,
             status_breakdown=dict(status_counter),
-            protocol_breakdown=dict(proto_counter),
-            tls_breakdown=dict(tls_counter),
+            content_type_breakdown=dict(content_counter),
+            city_breakdown=city_breakdown,
             peak_hours=peak_hours,
         )
 
