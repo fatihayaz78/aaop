@@ -6,7 +6,36 @@
 
 ## [Unreleased]
 
-_Platform v1.0.0 complete. All 11 apps implemented._
+_S11: P1 apps full frontend in progress._
+
+---
+
+## [1.1.0] — 2026-03-21 — S10: P0 Apps Full Frontend Implementation
+
+### Eklendi
+- `frontend/src/app/(apps)/ops-center/page.tsx` — Full 4-tab UI
+  - Dashboard: MetricCards (open incidents, MTTR P50, active tenants, decisions 24h)
+  - Incidents: filterable table (severity/status/search), detail dialog, HIGH risk action buttons
+  - RCA Explorer: trigger RCA → poll 3s → result display
+  - Decision Log: time range filters, RiskBadge, CSV export
+  - WebSocket: useOpsWebSocket hook → toast on P0/P1
+- `frontend/src/app/(apps)/log-analyzer/page.tsx` — Full 3-tab UI
+  - Projects: card grid, new project sheet, sub-module select (Akamai/Medianova)
+  - Akamai Analyzer: config form, fetch logs → progress bar → 21 charts grid (3 cols)
+  - Analysis Results: table with expandable detail dialog, anomaly list
+- `frontend/src/app/(apps)/alert-center/page.tsx` — Full 5-tab UI
+  - Live Feed: WebSocket alerts, storm mode banner (>20/60s)
+  - Alerts: filterable table, ack/resolve dialogs with note textarea
+  - Rules: CRUD with sheet form (event_type, severity, channel)
+  - Channels: Slack/PagerDuty/Email cards with status + Test button
+  - Suppression: maintenance windows, weekly calendar grid
+- `frontend/src/components/ui/SeverityBadge.tsx` — P0-P3 color-coded badge
+- `frontend/src/components/ui/LogTable.tsx` — Generic table with hover, row click
+- `frontend/src/components/charts/RechartsWrapper.tsx` — Line/bar, dark theme, no animation
+- Updated: `lib/api.ts` — apiPatch, apiDelete, exportToCsv
+- Updated: `lib/socket.ts` — useOpsWebSocket, useAlertWebSocket hooks
+- Updated: `types/index.ts` — OpsMetrics, RCAResult, FetchJob, AlertRule, etc.
+- Frontend build: 0 errors, 15 routes
 
 ---
 

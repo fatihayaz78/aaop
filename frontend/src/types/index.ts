@@ -3,6 +3,7 @@
 export type SeverityLevel = "P0" | "P1" | "P2" | "P3";
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 export type IncidentStatus = "open" | "investigating" | "resolved";
+export type AlertStatus = "active" | "acknowledged" | "resolved" | "suppressed";
 
 export interface TenantContext {
   tenantId: string;
@@ -15,6 +16,7 @@ export interface HealthResponse {
   version: string;
 }
 
+// ── Agent Decision ──
 export interface AgentDecision {
   decisionId: string;
   tenantId: string;
@@ -27,8 +29,11 @@ export interface AgentDecision {
   confidenceScore?: number;
   durationMs?: number;
   createdAt: string;
+  toolsExecuted?: string[];
+  outputEventType?: string;
 }
 
+// ── Ops Center ──
 export interface Incident {
   incidentId: string;
   tenantId: string;
@@ -36,20 +41,127 @@ export interface Incident {
   title: string;
   status: IncidentStatus;
   sourceApp?: string;
+  correlationIds?: string[];
+  affectedServices?: string[];
+  metricsAtTime?: Record<string, unknown>;
+  rcaId?: string;
   mttrSeconds?: number;
+  summaryTr?: string;
+  detailEn?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface OpsMetrics {
+  openIncidents: number;
+  mttrP50: number;
+  activeTenants: number;
+  decisionsLast24h: number;
+  p0Open: number;
+  p1Open: number;
+  rcaComplete: number;
+}
+
+export interface RCAResult {
+  rcaId: string;
+  incidentId: string;
+  rootCause: string;
+  correlationIds: string[];
+  remediationPlan?: string;
+  summaryTr?: string;
+  detailEn?: string;
+  confidenceScore: number;
+  status: string;
+}
+
+// ── Log Analyzer ──
+export interface LogProject {
+  projectId: string;
+  tenantId: string;
+  name: string;
+  subModule: string;
+  status: string;
   createdAt: string;
 }
 
+export interface FetchJob {
+  jobId: string;
+  status: "queued" | "running" | "completed" | "failed";
+  progress?: number;
+  error?: string;
+}
+
+export interface AnalysisResult {
+  analysisId: string;
+  projectId?: string;
+  jobId?: string;
+  errorRate: number;
+  cacheHitRate: number;
+  avgTtfbMs: number;
+  totalRequests?: number;
+  anomalies: { type: string; severity: string; description?: string }[];
+  agentSummary?: string;
+  reportPath?: string;
+  createdAt?: string;
+}
+
+export interface ChartData {
+  chartType: string;
+  data: Record<string, unknown>[];
+}
+
+// ── Alert Center ──
 export interface Alert {
   alertId: string;
   tenantId: string;
   severity: SeverityLevel;
   title: string;
   channel: string;
-  status: string;
+  status: AlertStatus;
+  sourceApp?: string;
+  decisionId?: string;
   sentAt: string;
+  ackedAt?: string;
+  resolvedAt?: string;
 }
 
+export interface AlertRule {
+  id: string;
+  tenantId: string;
+  name: string;
+  eventTypes: string;
+  severityMin: string;
+  channels: string;
+  isActive: boolean;
+}
+
+export interface AlertChannel {
+  id: string;
+  tenantId: string;
+  channelType: "slack" | "pagerduty" | "email";
+  name: string;
+  isActive: boolean;
+}
+
+export interface SuppressionRule {
+  id: string;
+  tenantId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
+// ── Viewer Experience ──
+export interface QoEMetrics {
+  sessionId: string;
+  qualityScore: number;
+  bufferingRatio: number;
+  startupTimeMs: number;
+}
+
+// ── Live Intelligence ──
 export interface LiveEvent {
   eventId: string;
   eventName: string;
@@ -60,13 +172,7 @@ export interface LiveEvent {
   expectedViewers: number;
 }
 
-export interface QoEMetrics {
-  sessionId: string;
-  qualityScore: number;
-  bufferingRatio: number;
-  startupTimeMs: number;
-}
-
+// ── Growth & Retention ──
 export interface RetentionScore {
   segmentId: string;
   churnRisk: number;
@@ -74,6 +180,7 @@ export interface RetentionScore {
   retention30d: number;
 }
 
+// ── Capacity & Cost ──
 export interface CapacityForecast {
   metric: string;
   currentPct: number;
@@ -81,6 +188,7 @@ export interface CapacityForecast {
   trend: "stable" | "growing" | "declining";
 }
 
+// ── AI Lab ──
 export interface Experiment {
   experimentId: string;
   name: string;
@@ -88,6 +196,7 @@ export interface Experiment {
   metric: string;
 }
 
+// ── Knowledge Base ──
 export interface SearchResult {
   docId: string;
   collection: string;
@@ -96,12 +205,14 @@ export interface SearchResult {
   relevanceScore: number;
 }
 
+// ── DevOps ──
 export interface ServiceHealth {
   service: string;
   status: "healthy" | "degraded" | "down";
   latencyMs: number;
 }
 
+// ── Admin ──
 export interface TenantInfo {
   tenantId: string;
   name: string;
