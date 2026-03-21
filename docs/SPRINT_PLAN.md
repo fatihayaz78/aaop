@@ -5,14 +5,14 @@
 
 ---
 
-## AKTİF SPRINT: S07 — Growth & Retention + Capacity & Cost
+## AKTİF SPRINT: S08 — AI Lab + Knowledge Base + DevOps + Admin
 
-**Hedef:** Growth & Retention (M18+M03) + Capacity & Cost (M16+M04)
-**Bitti Kriteri:** `pytest apps/growth_retention/tests/ apps/capacity_cost/tests/` yeşil
+**Hedef:** Remaining apps (M10+M14, M15, M08, M12+M17)
+**Bitti Kriteri:** `pytest apps/ai_lab/tests/ apps/knowledge_base/tests/ apps/devops_assistant/tests/ apps/admin_governance/tests/` yeşil
 **Test Komutu:**
 ```bash
 source ~/.venvs/aaop/bin/activate
-pytest apps/growth_retention/tests/ apps/capacity_cost/tests/ -v
+pytest apps/ai_lab/tests/ apps/knowledge_base/tests/ apps/devops_assistant/tests/ apps/admin_governance/tests/ -v
 ```
 
 ---
@@ -27,7 +27,7 @@ pytest apps/growth_retention/tests/ apps/capacity_cost/tests/ -v
 | **S04** | Alert Center (M13) | S01, S03 | ✅ Tamamlandı (2026-03-19) |
 | **S05** | Viewer Experience (M02 + M09) | S01 | ✅ Tamamlandı (2026-03-19) |
 | **S06** | Live Intelligence (M05 + M11) | S01, S03 | ✅ Tamamlandı (2026-03-19) |
-| **S07** | Growth & Retention + Capacity & Cost | S01, S05 | 4-5 gün |
+| **S07** | Growth & Retention + Capacity & Cost | S01, S05 | ✅ Tamamlandı (2026-03-21) |
 | **S08** | AI Lab + Knowledge Base + DevOps + Admin | S01 | 4-5 gün |
 | **S09** | Cross-app integrations + Full Frontend + E2E | S01–S08 | 5-7 gün |
 
@@ -177,6 +177,47 @@ Tamamlanan:
 - DuckDB reads: shared_analytics.qoe_metrics, incidents
 - `backend/routers/live_intelligence.py` — /live prefix
 - 4 test files: test_agent (12), test_tools (16), test_schemas (7), test_config (2)
+
+### S07 — Growth & Retention + Capacity & Cost (2026-03-21)
+
+**Sonuç:** 68 test yeşil | 98%+ coverage | ruff sıfır hata | 324 toplam test regresyon yok
+
+Tamamlanan — Growth & Retention (M18+M03):
+- `apps/growth_retention/config.py` — GrowthRetentionConfig (churn threshold 0.7, SQL limits, allowed tables)
+- `apps/growth_retention/schemas.py` — RetentionScore, CustomerSegment, ChurnRiskResult, GrowthInsight, NLQueryResult, RetentionCampaign
+- `apps/growth_retention/tools.py` — 9 tools:
+  - LOW: calculate_churn_risk, get_qoe_correlation, get_cdn_impact, segment_customers, nl_to_sql_query, get_growth_insights
+  - MEDIUM: write_analysis_result, trigger_churn_alert
+  - HIGH (approval_required): send_retention_campaign
+- `apps/growth_retention/agent.py` — GrowthAgent (M18) + DataAnalystAgent (M03):
+  - Weighted churn formula: QoE (0.4) + CDN errors (0.3) + retention trend (0.3)
+  - churn_risk > 0.7 → churn_risk_detected published to EventBus
+  - DataAnalystAgent: NL → SQL, SELECT-only, shared_analytics tables only
+  - PII: user_id_hash only, no raw IDs
+- EventBus publishes: churn_risk_detected → alert_center
+- EventBus subscribes: analysis_complete, external_data_updated
+- DuckDB writes: shared_analytics.agent_decisions, retention_scores
+- DuckDB reads: shared_analytics.qoe_metrics, cdn_analysis, live_events
+- `backend/routers/growth_retention.py` — /growth prefix
+- 4 test files: test_agent (7), test_tools (21), test_schemas (6), test_config (2)
+
+Tamamlanan — Capacity & Cost (M16+M04):
+- `apps/capacity_cost/config.py` — CapacityCostConfig (warn 70%, crit 90%, forecast 24h)
+- `apps/capacity_cost/schemas.py` — CapacityMetrics, CapacityForecast, ThresholdBreach, CostReport, ScaleAction, AutomationJob
+- `apps/capacity_cost/tools.py` — 8 tools:
+  - LOW: get_current_metrics, forecast_capacity, calculate_cost, detect_threshold_breach
+  - MEDIUM: write_forecast, publish_scale_recommendation
+  - HIGH (approval_required): create_automation_job, execute_scale_action
+- `apps/capacity_cost/agent.py` — CapacityAgent (M16) + AutomationAgent (M04):
+  - Threshold breach → scale_recommendation published
+  - live_event_starting → pre_scale triggered (>50k viewers)
+  - AutomationAgent uses Haiku for routine automation
+- EventBus publishes: scale_recommendation → ops_center, alert_center
+- EventBus subscribes: live_event_starting
+- DuckDB writes: shared_analytics.agent_decisions
+- DuckDB reads: shared_analytics.live_events, qoe_metrics
+- `backend/routers/capacity_cost.py` — /capacity prefix
+- 4 test files: test_agent (9), test_tools (14), test_schemas (7), test_config (2)
 
 ---
 

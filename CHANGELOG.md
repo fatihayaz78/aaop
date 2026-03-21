@@ -7,9 +7,40 @@
 ## [Unreleased] — Aktif Geliştirme
 
 ### Planlanıyor
-- S07: Growth & Retention + Capacity & Cost
 - S08: Remaining apps + Admin & Governance
 - S09: Cross-app integrations + Frontend (Next.js)
+
+---
+
+## [0.7.0] — 2026-03-21 — S07: Growth & Retention + Capacity & Cost
+
+### Eklendi
+- `apps/growth_retention/` — Growth & Retention (M18 Customer Growth + M03 AI Data Analyst)
+- GrowthAgent: churn risk analysis with weighted formula (QoE + CDN + retention trend)
+- churn_risk > 0.7 → churn_risk_detected published to EventBus → alert_center
+- DataAnalystAgent: NL → DuckDB SQL translation, read-only, shared_analytics only
+- PII protection: user_id_hash only, no raw IDs in queries
+- SQL validation: SELECT-only, allowed tables whitelist enforced
+- send_retention_campaign → approval_required=True
+- EventBus subscribes: analysis_complete, external_data_updated
+- EventBus publishes: churn_risk_detected → alert_center
+- DuckDB writes: shared_analytics.agent_decisions, retention_scores
+- DuckDB reads: shared_analytics.qoe_metrics, cdn_analysis, live_events
+- `/growth` API endpoints: health, retention, churn-risk, segments, query
+- 36 unit tests, 98% coverage
+
+- `apps/capacity_cost/` — Capacity & Cost (M16 Capacity Planning + M04 Automation)
+- CapacityAgent: capacity forecasting, threshold breach detection (warn 70%, crit 90%)
+- AutomationAgent: Haiku for routine automation, multi-step workflows
+- create_automation_job → approval_required=True
+- execute_scale_action → approval_required=True
+- publish_scale_recommendation → EventBus: scale_recommendation → ops_center, alert_center
+- EventBus subscribes: live_event_starting (pre-scale trigger for >50k viewers)
+- DuckDB writes: shared_analytics.agent_decisions
+- DuckDB reads: shared_analytics.live_events, qoe_metrics
+- `/capacity` API endpoints: health, forecast, usage, jobs, cost
+- 32 unit tests, 99% coverage
+- 324 total tests (68 new + 256 regression), zero failures
 
 ---
 

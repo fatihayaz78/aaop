@@ -79,3 +79,37 @@ CREATE TABLE IF NOT EXISTS shared_analytics.retention_scores (
 pytest apps/growth_retention/tests/ -v --cov=apps/growth_retention --cov-fail-under=80
 ```
 Senaryolar: CHURN_RISK (risk>0.7 → event) | NL query (→ doğru SQL → doğru sonuç) | CDN korelasyon
+
+## Sprint Completion — S07 (2026-03-21)
+
+### Files Created
+- `apps/growth_retention/__init__.py`
+- `apps/growth_retention/config.py` — GrowthRetentionConfig
+- `apps/growth_retention/schemas.py` — RetentionScore, CustomerSegment, ChurnRiskResult, GrowthInsight, NLQueryResult, RetentionCampaign
+- `apps/growth_retention/prompts.py` — GROWTH_SYSTEM, DATA_ANALYST_SYSTEM, CHURN_ANALYSIS, NL_TO_SQL prompts
+- `apps/growth_retention/tools.py` — 9 tools (6 LOW, 2 MEDIUM, 1 HIGH)
+- `apps/growth_retention/agent.py` — GrowthAgent (M18) + DataAnalystAgent (M03)
+- `apps/growth_retention/tests/conftest.py` — mock_llm, mock_db, mock_redis, event_bus
+- `apps/growth_retention/tests/test_agent.py` — 7 tests
+- `apps/growth_retention/tests/test_tools.py` — 21 tests
+- `apps/growth_retention/tests/test_schemas.py` — 6 tests
+- `apps/growth_retention/tests/test_config.py` — 2 tests
+- `backend/routers/growth_retention.py` — /growth prefix (health, retention, churn-risk, segments, query)
+
+### Cross-App Wiring
+- EventBus publishes: `churn_risk_detected` → alert_center (verified in test_agent)
+- EventBus subscribes: `analysis_complete` (from log_analyzer), `external_data_updated` (from live_intelligence)
+- DuckDB writes: `shared_analytics.agent_decisions`, `retention_scores`
+- DuckDB reads: `shared_analytics.qoe_metrics`, `cdn_analysis`, `live_events`
+
+### Hard Constraints Verified
+- ✅ GrowthAgent AND DataAnalystAgent both implemented
+- ✅ churn_risk > 0.7 → churn_risk_detected published to EventBus
+- ✅ DataAnalystAgent: NL → DuckDB SQL, read-only, shared_analytics tables only
+- ✅ PII: user_id_hash only, no raw IDs (validated in SQL generation)
+- ✅ send_retention_campaign → approval_required=True
+- ✅ DuckDB writes: shared_analytics.agent_decisions, retention_scores
+- ✅ DuckDB reads: shared_analytics.qoe_metrics, cdn_analysis, live_events
+
+### Deviations
+- None. All spec constraints met.

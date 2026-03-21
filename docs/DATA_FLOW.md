@@ -240,8 +240,8 @@ EVENT_ROUTING = {
     EventType.QOE_DEGRADATION:         {"pub": "viewer_experience",   "subs": ["ops_center", "alert_center"]},      # ✅ S05+S03+S04
     EventType.LIVE_EVENT_STARTING:     {"pub": "live_intelligence",   "subs": ["ops_center", "log_analyzer", "alert_center"]},  # ✅ S06+S03+S02+S04
     EventType.EXTERNAL_DATA_UPDATED:   {"pub": "live_intelligence",   "subs": ["ops_center", "growth_retention"]},             # ✅ S06+S03
-    EventType.CHURN_RISK_DETECTED:     {"pub": "growth_retention",    "subs": ["alert_center"]},
-    EventType.SCALE_RECOMMENDATION:    {"pub": "capacity_cost",       "subs": ["ops_center", "alert_center"]},
+    EventType.CHURN_RISK_DETECTED:     {"pub": "growth_retention",    "subs": ["alert_center"]},                           # ✅ S07
+    EventType.SCALE_RECOMMENDATION:    {"pub": "capacity_cost",       "subs": ["ops_center", "alert_center"]},              # ✅ S07
     EventType.ANALYSIS_COMPLETE:       {"pub": "log_analyzer",        "subs": ["growth_retention", "viewer_experience"]},
 }
 ```

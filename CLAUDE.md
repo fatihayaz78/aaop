@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S07 — Growth & Retention + Capacity & Cost
-**Detay:** `docs/SPRINT_PLAN.md` → S07 bölümü
-**Son commit:** S06 kapanış — Live Intelligence tamamlandı (2026-03-19)
+**Aktif Sprint:** S08 — AI Lab + Knowledge Base + DevOps + Admin
+**Detay:** `docs/SPRINT_PLAN.md` → S08 bölümü
+**Son commit:** S07 kapanış — Growth & Retention + Capacity & Cost tamamlandı (2026-03-21)
 
 ---
 
