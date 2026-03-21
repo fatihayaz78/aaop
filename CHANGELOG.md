@@ -6,7 +6,29 @@
 
 ## [Unreleased]
 
-_S12: P2 apps full frontend next._
+_Platform v1.0.1 complete. All 11 apps fully implemented._
+
+---
+
+## [1.0.1] — 2026-03-21 — S12: P2 Apps + Platform Polish
+
+### Eklendi
+- `ai-lab/page.tsx` — 5 tabs (Experiments, Model Registry, Prompt Lab, Evaluations, Cost Tracker)
+  - A/B experiment table with p-value highlight, new experiment sheet
+  - Model switch/config HIGH risk buttons, prompt version history
+  - Token budget gauge with warning banner (>80%), cost trend charts
+- `knowledge-base/page.tsx` — 4 tabs (Search, Incidents, Runbooks, Ingest)
+  - Full-width search with collection/top-k selectors, relevance color-coded results
+  - Auto-indexed incidents with RCA badge, runbook card grid with tag filters
+  - Drag & drop ingest zone (PDF/MD/TXT), delete HIGH risk
+- `devops-assistant/page.tsx` — 4 tabs (Assistant, Diagnostics, Deployments, Runbooks)
+  - Terminal-like assistant: dark bg, monospace font, green prompt, command chips
+  - 7-service diagnostics grid, deployment history, runbook execution HIGH risk
+- `components/global-search/index.tsx` — Cmd+K search across incidents/alerts/tenants/runbooks
+- Loading skeletons: all 12 routes with card/table skeleton patterns
+- Error boundaries: all 12 routes with collapsible detail + retry
+- Responsive mobile: sidebar → bottom nav on <768px, overflow-x tables
+- Frontend build: 0 errors, 0 TypeScript errors, 15 routes
 
 ---
 

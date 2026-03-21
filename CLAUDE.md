@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S12 — P2 Apps Full Frontend Implementation
-**Önceki:** S11 complete — P1 apps UI (5 apps, 26 tabs total)
-**Son commit:** S11 kapanış — Viewer Experience, Live Intelligence, Growth, Capacity, Admin
+**Durum:** Platform v1.0.1 — All 11 apps fully implemented (backend + frontend)
+**Tüm UI Sprintler:** S10–S12 complete (2026-03-21)
+**Son commit:** S12 kapanış — P2 apps + platform polish, all 11 apps 39 tabs total
 
 ---
 

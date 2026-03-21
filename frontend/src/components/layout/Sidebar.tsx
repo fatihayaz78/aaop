@@ -54,8 +54,9 @@ export default function Sidebar() {
   const width = collapsed ? "var(--sidebar-collapsed)" : "var(--sidebar-width)";
 
   return (
+    <>
     <aside
-      className="fixed left-0 top-0 h-full flex flex-col z-20 transition-all duration-200"
+      className="fixed left-0 top-0 h-full flex-col z-20 transition-all duration-200 hidden md:flex"
       style={{
         width,
         backgroundColor: "var(--background-card)",
@@ -136,5 +137,33 @@ export default function Sidebar() {
         ))}
       </nav>
     </aside>
+
+    {/* Mobile bottom nav */}
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-20 md:hidden flex justify-around border-t py-2"
+      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}
+    >
+      {[
+        { icon: "📡", href: "/ops-center", label: "Ops" },
+        { icon: "🔍", href: "/log-analyzer", label: "Logs" },
+        { icon: "🔔", href: "/alert-center", label: "Alerts" },
+        { icon: "🛡️", href: "/admin-governance", label: "Admin" },
+        { icon: "🤖", href: "/devops-assistant", label: "DevOps" },
+      ].map((item) => {
+        const isActive = pathname === item.href;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex flex-col items-center gap-0.5 text-xs"
+            style={{ color: isActive ? "var(--brand-primary)" : "var(--text-muted)" }}
+          >
+            <span>{item.icon}</span>
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+    </>
   );
 }
