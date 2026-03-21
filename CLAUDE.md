@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Durum:** Platform v1.0.2 — All 11 apps fully implemented + runtime fixes
-**Önceki:** S13 complete — seed admin, /health/detailed, test isolation
-**Son commit:** S13 kapanış — 3 runtime fixes, 448 tests pass
+**Durum:** v1.0.1 RELEASED — Platform complete, tagged, pushed
+**Sprintler:** S01–S14 complete (2026-03-21)
+**Tag:** v1.0.1 — 11 apps, 39 tabs, 448 tests, 0 failures
 
 ---
 

@@ -6,7 +6,22 @@
 
 ## [Unreleased]
 
-_Platform v1.0.2 — runtime verified._
+---
+
+## [1.0.1] — 2026-03-21 — Release: Full Platform
+
+### Release Summary
+- **11 apps** fully implemented (backend agents + frontend UI)
+- **39 tabs** across all app pages
+- **448 tests**, 0 failures
+- **15 frontend routes**, 0 build errors
+- **9 EventBus flows** wired and integration tested
+- Backend: FastAPI + 11 routers + JWT auth + seed admin user
+- Frontend: Next.js 14, dark-mode-first, Recharts, Agent Chat Panel
+- Auth: `POST /auth/login` with admin/admin123 returns JWT
+- Health: `/health` + `/health/detailed` (SQLite, DuckDB, Redis, ChromaDB, LLM Gateway)
+- Global Search: Cmd+K across incidents/alerts/tenants/runbooks
+- Responsive: mobile bottom nav on <768px
 
 ---
 
