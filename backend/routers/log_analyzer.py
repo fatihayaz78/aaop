@@ -359,6 +359,37 @@ async def _ensure_schema(db: SQLiteClient) -> None:
         )"""
     )
 
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS anomaly_rules (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            field TEXT NOT NULL,
+            operator TEXT NOT NULL,
+            value TEXT NOT NULL,
+            severity TEXT DEFAULT 'medium',
+            description TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        )"""
+    )
+
+    # Seed default rules for s_sport_plus
+    existing = await db.fetch_one("SELECT id FROM anomaly_rules WHERE tenant_id = 's_sport_plus' LIMIT 1", ())
+    if not existing:
+        await db.execute(
+            """INSERT OR IGNORE INTO anomaly_rules (id, tenant_id, name, field, operator, value, severity, description)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("rule_foreign_country", "s_sport_plus", "Foreign Country Access", "country", "not_in",
+             '["TR"]', "high", "Requests from outside Turkey are anomalous for this service"),
+        )
+        await db.execute(
+            """INSERT OR IGNORE INTO anomaly_rules (id, tenant_id, name, field, operator, value, severity, description)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("rule_long_session", "s_sport_plus", "Long Session per IP", "session_duration_hours", "gt",
+             "12", "medium", "Single IP streaming more than 12 hours/day"),
+        )
+
     # ── Column migrations for existing tables ──
     # Add cp_code to settings if table was created before this column existed
     try:
@@ -1082,34 +1113,49 @@ async def list_fetch_jobs(
 # ── Analysis endpoint ──
 
 
+_CACHE_STATUS_LABELS = {0: "Miss", 1: "Hit", 2: "Revalidated", 3: "Hit-Stale"}
+
+
 def _run_analysis(df: Any) -> dict[str, Any]:
-    """Run 10 aggregation analyses on a pandas DataFrame of parsed logs."""
+    """Run 13 aggregation analyses on a pandas DataFrame of parsed logs."""
+    import numpy as np
     import pandas as pd
 
     if df is None or df.empty:
         return {"summary": {}, "charts": {}}
 
     total_rows = len(df)
+
+    # Coerce numeric columns (parquet may store as object/string)
+    for col in ("bytes", "client_bytes", "status_code", "cache_hit", "cache_status",
+                "transfer_time_ms", "dns_lookup_time_ms", "turn_around_time_ms",
+                "response_body_size", "version"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
     total_bytes = int(df["bytes"].sum()) if "bytes" in df.columns else 0
-    total_gb = round(total_bytes / (1024**3), 2)
+    total_gb = round(total_bytes / (1024**3), 3)
 
     # Error rate
     error_count = int((df["status_code"] >= 400).sum()) if "status_code" in df.columns else 0
     error_rate_pct = round(error_count / total_rows * 100, 2) if total_rows else 0
 
-    # Cache hit ratio
+    # Cache hit ratio — coerced to numeric above
     if "cache_hit" in df.columns:
-        cache_total = df["cache_hit"].notna().sum()
-        cache_hits = int((df["cache_hit"] == 1).sum())
-        cache_hit_pct = round(cache_hits / cache_total * 100, 2) if cache_total else 0
+        cache_valid = df["cache_hit"].dropna()
+        cache_hits = int((cache_valid == 1).sum())
+        cache_hit_pct = round(cache_hits / len(cache_valid) * 100, 2) if len(cache_valid) else 0
     else:
         cache_hit_pct = 0
 
     # Avg latency
     avg_latency = round(float(df["transfer_time_ms"].mean()), 1) if "transfer_time_ms" in df.columns and df["transfer_time_ms"].notna().any() else 0
 
-    # Unique countries
+    # Unique countries + top 5 log
     unique_countries = int(df["country"].nunique()) if "country" in df.columns else 0
+    if "country" in df.columns:
+        top5 = df["country"].dropna().value_counts().head(5)
+        logger.info("analysis_top_countries", top5={str(k): int(v) for k, v in top5.items()})
 
     summary = {
         "total_rows": total_rows,
@@ -1122,28 +1168,28 @@ def _run_analysis(df: Any) -> dict[str, Any]:
 
     charts: dict[str, list[dict]] = {}
 
-    # 1. Error rate by status code
+    # 1. Status code distribution
     if "status_code" in df.columns:
         sc = df["status_code"].dropna().astype(int).value_counts().sort_index().head(20)
         charts["status_code_distribution"] = [{"status": int(k), "count": int(v)} for k, v in sc.items()]
 
-    # 2. Cache hit ratio (pie-like)
+    # 2. Cache hit ratio
     if "cache_hit" in df.columns:
         ch = df["cache_hit"].dropna().astype(int).value_counts()
         charts["cache_hit_ratio"] = [{"label": "Hit" if int(k) == 1 else "Miss", "count": int(v)} for k, v in ch.items()]
 
-    # 3. Bandwidth by hour
+    # 3. Bandwidth by hour (bytes as MB for readability)
     if "req_time_sec" in df.columns and "bytes" in df.columns:
         df_bw = df[df["req_time_sec"].notna()].copy()
         df_bw["hour"] = pd.to_datetime(df_bw["req_time_sec"], unit="s", utc=True).dt.hour
         bw = df_bw.groupby("hour")["bytes"].sum().reset_index()
-        charts["bandwidth_by_hour"] = [{"hour": int(r["hour"]), "bytes": int(r["bytes"])} for _, r in bw.iterrows()]
+        charts["bandwidth_by_hour"] = [{"hour": int(r["hour"]), "mb": round(int(r["bytes"]) / (1024**2), 1)} for _, r in bw.iterrows()]
 
-    # 4. Top error paths
+    # 4. Top error paths (last 50 chars for display, full in tooltip)
     if "status_code" in df.columns and "req_path" in df.columns:
         errors = df[df["status_code"] >= 400]
         top_err = errors["req_path"].value_counts().head(10)
-        charts["top_error_paths"] = [{"path": str(k)[:60], "count": int(v)} for k, v in top_err.items()]
+        charts["top_error_paths"] = [{"path": str(k)[-50:], "full_path": str(k), "count": int(v)} for k, v in top_err.items()]
 
     # 5. Latency percentiles
     if "transfer_time_ms" in df.columns:
@@ -1156,7 +1202,7 @@ def _run_analysis(df: Any) -> dict[str, Any]:
                 {"percentile": "p99", "ms": round(float(vals.quantile(0.99)), 1)},
             ]
 
-    # 6. Geographic distribution
+    # 6. Geographic distribution (sorted by count desc)
     if "country" in df.columns:
         geo = df["country"].dropna().value_counts().head(15)
         charts["geo_distribution"] = [{"country": str(k), "count": int(v)} for k, v in geo.items()]
@@ -1166,10 +1212,13 @@ def _run_analysis(df: Any) -> dict[str, Any]:
         ct = df["content_type"].dropna().value_counts().head(10)
         charts["content_type_breakdown"] = [{"type": str(k)[:40], "count": int(v)} for k, v in ct.items()]
 
-    # 8. Cache status breakdown
+    # 8. Cache status breakdown (integer → label)
     if "cache_status" in df.columns:
         cs = df["cache_status"].dropna().astype(int).value_counts().sort_index()
-        charts["cache_status_breakdown"] = [{"status": int(k), "count": int(v)} for k, v in cs.items()]
+        charts["cache_status_breakdown"] = [
+            {"status": _CACHE_STATUS_LABELS.get(int(k), f"Other({k})"), "count": int(v)}
+            for k, v in cs.items()
+        ]
 
     # 9. Error rate trend (hourly)
     if "req_time_sec" in df.columns and "status_code" in df.columns:
@@ -1182,15 +1231,45 @@ def _run_analysis(df: Any) -> dict[str, Any]:
         hourly["error_rate"] = (hourly["errors"] / hourly["total"] * 100).round(2)
         charts["error_rate_trend"] = [{"hour": int(r["hour"]), "error_rate": float(r["error_rate"])} for _, r in hourly.iterrows()]
 
-    # 10. Bytes vs client_bytes (hourly)
+    # 10. Bytes vs client_bytes (hourly, as MB)
     if "req_time_sec" in df.columns and "bytes" in df.columns and "client_bytes" in df.columns:
         df_bc = df[df["req_time_sec"].notna()].copy()
         df_bc["hour"] = pd.to_datetime(df_bc["req_time_sec"], unit="s", utc=True).dt.hour
-        bc = df_bc.groupby("hour").agg(
-            bytes=("bytes", "sum"),
-            client_bytes=("client_bytes", "sum"),
-        ).reset_index()
-        charts["bytes_vs_client"] = [{"hour": int(r["hour"]), "bytes": int(r["bytes"]), "client_bytes": int(r["client_bytes"])} for _, r in bc.iterrows()]
+        bc = df_bc.groupby("hour").agg(bytes=("bytes", "sum"), client_bytes=("client_bytes", "sum")).reset_index()
+        charts["bytes_vs_client"] = [
+            {"hour": int(r["hour"]), "server_mb": round(int(r["bytes"]) / (1024**2), 1), "client_mb": round(int(r["client_bytes"]) / (1024**2), 1)}
+            for _, r in bc.iterrows()
+        ]
+
+    # 11. Top 10 Client IPs by Bandwidth
+    if "client_ip" in df.columns and "bytes" in df.columns:
+        ip_bw = df.groupby("client_ip")["bytes"].sum().sort_values(ascending=False).head(10)
+        charts["top_client_ips"] = [{"ip": str(k)[:16], "mb": round(int(v) / (1024**2), 1)} for k, v in ip_bw.items()]
+
+    # 12. Request Volume by Hour
+    if "req_time_sec" in df.columns:
+        df_rv = df[df["req_time_sec"].notna()].copy()
+        df_rv["hour"] = pd.to_datetime(df_rv["req_time_sec"], unit="s", utc=True).dt.hour
+        rv = df_rv.groupby("hour").size().reset_index(name="requests")
+        charts["request_volume_by_hour"] = [{"hour": int(r["hour"]), "requests": int(r["requests"])} for _, r in rv.iterrows()]
+
+    # 13. Anomaly Timeline (z-score on transfer_time_ms per hour)
+    if "req_time_sec" in df.columns and "transfer_time_ms" in df.columns:
+        df_at = df[df["req_time_sec"].notna() & df["transfer_time_ms"].notna()].copy()
+        df_at["hour"] = pd.to_datetime(df_at["req_time_sec"], unit="s", utc=True).dt.hour
+        hourly_lat = df_at.groupby("hour")["transfer_time_ms"].mean().reset_index()
+        mean_val = hourly_lat["transfer_time_ms"].mean()
+        std_val = hourly_lat["transfer_time_ms"].std()
+        if std_val and std_val > 0:
+            hourly_lat["z_score"] = ((hourly_lat["transfer_time_ms"] - mean_val) / std_val).round(2)
+        else:
+            hourly_lat["z_score"] = 0.0
+        hourly_lat["anomaly"] = (abs(hourly_lat["z_score"]) > 2.5).astype(int) if std_val and std_val > 0 else 0
+        charts["anomaly_timeline"] = [
+            {"hour": int(r["hour"]), "avg_ms": round(float(r["transfer_time_ms"]), 1),
+             "z_score": float(r["z_score"]), "anomaly": int(r["anomaly"])}
+            for _, r in hourly_lat.iterrows()
+        ]
 
     return {"summary": summary, "charts": charts}
 
@@ -1457,3 +1536,171 @@ async def list_field_mappings(
         (ctx.tenant_id,),
     )
     return [dict(r) for r in rows]
+
+
+# ── Anomaly Rules ──
+
+
+class AnomalyRulePayload(BaseModel):
+    name: str
+    field: str
+    operator: str  # "not_in" | "gt" | "lt" | "eq" | "contains"
+    value: str
+    severity: str = "medium"
+    description: str = ""
+    is_active: int = 1
+
+
+def _evaluate_rule(rule: dict[str, Any], df: Any) -> dict[str, Any]:
+    """Evaluate a single anomaly rule against a DataFrame."""
+    import json
+
+    field = rule["field"]
+    op = rule["operator"]
+    val = rule["value"]
+    total = len(df)
+
+    if field not in df.columns:
+        return {"rule_id": rule["id"], "rule_name": rule["name"], "severity": rule["severity"],
+                "affected_rows": 0, "pct_of_total": 0, "sample_values": [], "error": f"Field '{field}' not in data"}
+
+    col = df[field].dropna()
+
+    if op == "not_in":
+        try:
+            allowed = json.loads(val) if val.startswith("[") else [v.strip() for v in val.split(",")]
+        except Exception:
+            allowed = [val]
+        mask = ~col.astype(str).isin([str(a) for a in allowed])
+    elif op == "gt":
+        col_num = col.apply(lambda x: float(x) if str(x).replace(".", "").replace("-", "").isdigit() else None).dropna()
+        mask = col_num > float(val)
+    elif op == "lt":
+        col_num = col.apply(lambda x: float(x) if str(x).replace(".", "").replace("-", "").isdigit() else None).dropna()
+        mask = col_num < float(val)
+    elif op == "eq":
+        mask = col.astype(str) == str(val)
+    elif op == "contains":
+        mask = col.astype(str).str.contains(str(val), case=False, na=False)
+    else:
+        return {"rule_id": rule["id"], "rule_name": rule["name"], "severity": rule["severity"],
+                "affected_rows": 0, "pct_of_total": 0, "sample_values": [], "error": f"Unknown operator '{op}'"}
+
+    affected = int(mask.sum())
+    samples = col[mask].astype(str).unique()[:5].tolist() if affected > 0 else []
+    pct = round(affected / total * 100, 2) if total else 0
+
+    return {
+        "rule_id": rule["id"],
+        "rule_name": rule["name"],
+        "severity": rule["severity"],
+        "affected_rows": affected,
+        "pct_of_total": pct,
+        "sample_values": samples,
+    }
+
+
+@router.get("/anomaly-rules")
+async def list_anomaly_rules(
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> list[dict[str, Any]]:
+    await _ensure_schema(db)
+    rows = await db.fetch_all(
+        "SELECT * FROM anomaly_rules WHERE tenant_id = ? ORDER BY created_at", (ctx.tenant_id,),
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/anomaly-rules")
+async def create_anomaly_rule(
+    payload: AnomalyRulePayload,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, Any]:
+    await _ensure_schema(db)
+    rule_id = str(uuid.uuid4())
+    await db.execute(
+        """INSERT INTO anomaly_rules (id, tenant_id, name, field, operator, value, severity, description, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (rule_id, ctx.tenant_id, payload.name, payload.field, payload.operator,
+         payload.value, payload.severity, payload.description, payload.is_active),
+    )
+    return {"id": rule_id, "status": "created"}
+
+
+@router.put("/anomaly-rules/{rule_id}")
+async def update_anomaly_rule(
+    rule_id: str,
+    payload: AnomalyRulePayload,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, str]:
+    await _ensure_schema(db)
+    await db.execute(
+        """UPDATE anomaly_rules SET name=?, field=?, operator=?, value=?, severity=?, description=?, is_active=?
+           WHERE id=? AND tenant_id=?""",
+        (payload.name, payload.field, payload.operator, payload.value,
+         payload.severity, payload.description, payload.is_active, rule_id, ctx.tenant_id),
+    )
+    return {"status": "updated", "id": rule_id}
+
+
+@router.delete("/anomaly-rules/{rule_id}")
+async def delete_anomaly_rule(
+    rule_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, str]:
+    await _ensure_schema(db)
+    await db.execute("DELETE FROM anomaly_rules WHERE id=? AND tenant_id=?", (rule_id, ctx.tenant_id))
+    return {"status": "deleted", "id": rule_id}
+
+
+@router.post("/anomaly-rules/evaluate")
+async def evaluate_anomaly_rules(
+    job_id: str = Query(...),
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> list[dict[str, Any]]:
+    """Run all active rules against a job's DataFrame."""
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    await _ensure_schema(db)
+
+    parquet_paths: list[str] = []
+    job = _fetch_jobs.get(job_id)
+    if job and job.get("parquet_paths"):
+        parquet_paths = job["parquet_paths"]
+    else:
+        _ensure_duckdb_schema(duck)
+        try:
+            row = duck.fetch_one("SELECT parquet_paths FROM fetch_job_history WHERE job_id = ?", [job_id])
+            if row and row.get("parquet_paths"):
+                parquet_paths = json.loads(row["parquet_paths"])
+        except Exception:
+            pass
+
+    if not parquet_paths:
+        return [{"error": "No data found for this job."}]
+
+    dfs = []
+    for p in parquet_paths:
+        if Path(p).exists():
+            try:
+                dfs.append(pd.read_parquet(p))
+            except Exception:
+                pass
+    if not dfs:
+        return [{"error": "Parquet files not found."}]
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    rules = await db.fetch_all(
+        "SELECT * FROM anomaly_rules WHERE tenant_id = ? AND is_active = 1", (ctx.tenant_id,),
+    )
+    return [_evaluate_rule(dict(rule), df) for rule in rules]

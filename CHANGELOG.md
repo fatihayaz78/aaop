@@ -8,6 +8,19 @@
 
 ---
 
+## [S16-P9] — 2026-03-24
+### Fixed
+- Summary metrics: Total GB, Cache Hit ratio, Countries calculation
+- Chart Y-axis readability (bytes→MB, cache status integer→label)
+- Top Error Paths truncated to 50 chars
+### Added
+- 3 new charts: Top 10 IPs by Bandwidth, Request Volume by Hour, Anomaly Timeline
+- Anomaly Rules engine with SQLite persistence
+- 2 default rules for s_sport_plus tenant
+- Anomaly Rules tab with CRUD and evaluation UI
+
+---
+
 ## [S16-P8] — 2026-03-24
 ### Fixed
 - DataFrame column diagnostic (all 22 DS2 fields confirmed)

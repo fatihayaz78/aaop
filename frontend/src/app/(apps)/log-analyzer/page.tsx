@@ -10,7 +10,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
-type Tab = "projects" | "analyzer" | "structure" | "settings" | "results";
+type Tab = "projects" | "analyzer" | "structure" | "anomaly" | "settings" | "results";
 
 /* ── Revised 21 chart names (match backend) ── */
 const CHART_TYPES = [
@@ -130,6 +130,13 @@ export default function LogAnalyzer() {
   /* ── App Settings state ── */
   const [appSettings, setAppSettings] = useState<AppSettings>({ language: "en", default_date_range: "7d", log_cache_retention: "7", auto_fetch_schedule: "disabled", cp_code: "" });
 
+  /* ── Anomaly Rules state ── */
+  const [anomalyRules, setAnomalyRules] = useState<Record<string, unknown>[]>([]);
+  const [showNewRule, setShowNewRule] = useState(false);
+  const [newRule, setNewRule] = useState({ name: "", field: "country", operator: "not_in", value: "", severity: "medium", description: "" });
+  const [anomalyResults, setAnomalyResults] = useState<Record<string, unknown>[]>([]);
+  const [anomalyLoading, setAnomalyLoading] = useState(false);
+
   /* ── Log Structure state ── */
   const [structStartDate, setStructStartDate] = useState("");
   const [structEndDate, setStructEndDate] = useState("");
@@ -207,6 +214,11 @@ export default function LogAnalyzer() {
           setFieldCategories((prev) => ({ ...cats, ...prev }));
           setSavedFields((prev) => new Set([...Array.from(prev), ...Array.from(saved)]));
         } catch { /* */ }
+      })();
+    }
+    if (tab === "anomaly") {
+      (async () => {
+        try { setAnomalyRules(await apiGet<Record<string, unknown>[]>("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus")); } catch { /* */ }
       })();
     }
     if (tab === "results") {
@@ -479,6 +491,7 @@ export default function LogAnalyzer() {
     { key: "projects", label: "Projects" },
     { key: "analyzer", label: "Log Analyzer" },
     { key: "structure", label: "Log Structure" },
+    { key: "anomaly", label: "Anomaly Rules" },
     { key: "settings", label: "Settings" },
     { key: "results", label: "Analysis Results" },
   ];
@@ -759,14 +772,17 @@ export default function LogAnalyzer() {
                 {([
                   { key: "status_code_distribution", title: "Status Code Distribution", x: "status", y: "count", type: "bar" as const },
                   { key: "cache_hit_ratio", title: "Cache Hit Ratio", x: "label", y: "count", type: "bar" as const },
-                  { key: "bandwidth_by_hour", title: "Bandwidth by Hour", x: "hour", y: "bytes", type: "line" as const },
+                  { key: "bandwidth_by_hour", title: "Bandwidth by Hour (MB)", x: "hour", y: "mb", type: "line" as const },
                   { key: "top_error_paths", title: "Top Error Paths", x: "path", y: "count", type: "bar" as const },
-                  { key: "latency_percentiles", title: "Latency Percentiles", x: "percentile", y: "ms", type: "bar" as const },
+                  { key: "latency_percentiles", title: "Latency Percentiles (ms)", x: "percentile", y: "ms", type: "bar" as const },
                   { key: "geo_distribution", title: "Geographic Distribution", x: "country", y: "count", type: "bar" as const },
                   { key: "content_type_breakdown", title: "Content Type Breakdown", x: "type", y: "count", type: "bar" as const },
                   { key: "cache_status_breakdown", title: "Cache Status Breakdown", x: "status", y: "count", type: "bar" as const },
-                  { key: "error_rate_trend", title: "Error Rate Trend (Hourly)", x: "hour", y: "error_rate", type: "line" as const },
-                  { key: "bytes_vs_client", title: "Bytes vs Client Bytes", x: "hour", y: "bytes", type: "line" as const },
+                  { key: "error_rate_trend", title: "Error Rate Trend (%)", x: "hour", y: "error_rate", type: "line" as const },
+                  { key: "bytes_vs_client", title: "Server vs Client (MB)", x: "hour", y: "server_mb", type: "line" as const },
+                  { key: "top_client_ips", title: "Top 10 Client IPs (MB)", x: "ip", y: "mb", type: "bar" as const },
+                  { key: "request_volume_by_hour", title: "Request Volume by Hour", x: "hour", y: "requests", type: "bar" as const },
+                  { key: "anomaly_timeline", title: "Anomaly Timeline (Latency)", x: "hour", y: "avg_ms", type: "line" as const },
                 ] as const).map((chart) => {
                   const data = chartsData[chart.key] ?? [];
                   if (!data.length) return null;
@@ -990,6 +1006,192 @@ export default function LogAnalyzer() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* ══════════ Tab: Anomaly Rules ══════════ */}
+      {tab === "anomaly" && (
+        <div className="space-y-6">
+          {/* Section 1: Rules list */}
+          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Anomaly Rules</h3>
+              <button onClick={() => setShowNewRule(!showNewRule)} className="px-3 py-1 rounded text-xs font-medium"
+                style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                {showNewRule ? "Cancel" : "+ Add Rule"}
+              </button>
+            </div>
+
+            {showNewRule && (
+              <div className="p-4 border-b space-y-3" style={{ borderColor: "var(--border)", backgroundColor: "var(--background)" }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Rule Name</label>
+                    <input type="text" value={newRule.name} onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
+                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Field</label>
+                    <select value={newRule.field} onChange={(e) => setNewRule({ ...newRule, field: e.target.value })}
+                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                      {["version","cp_code","req_time_sec","bytes","client_bytes","content_type","response_body_size","user_agent","hostname","req_path","status_code","client_ip","req_range","cache_status","dns_lookup_time_ms","transfer_time_ms","turn_around_time_ms","error_code","cache_hit","edge_ip","country","city"].map((f) => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Operator</label>
+                    <select value={newRule.operator} onChange={(e) => setNewRule({ ...newRule, operator: e.target.value })}
+                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                      {[["not_in","not in"],["gt",">"],["lt","<"],["eq","="],["contains","contains"]].map(([v,l]) => (
+                        <option key={v} value={v}>{l}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Value <span className="text-xs" style={{ color: "var(--text-muted)" }}>(for not_in: comma-separated)</span></label>
+                    <input type="text" value={newRule.value} onChange={(e) => setNewRule({ ...newRule, value: e.target.value })}
+                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                      placeholder="TR,DE" />
+                  </div>
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Severity</label>
+                    <select value={newRule.severity} onChange={(e) => setNewRule({ ...newRule, severity: e.target.value })}
+                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Description</label>
+                    <input type="text" value={newRule.description} onChange={(e) => setNewRule({ ...newRule, description: e.target.value })}
+                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                </div>
+                <button onClick={async () => {
+                  if (!newRule.name || !newRule.value) return;
+                  const val = newRule.operator === "not_in" ? JSON.stringify(newRule.value.split(",").map((s: string) => s.trim())) : newRule.value;
+                  try {
+                    await apiPost("/log-analyzer/anomaly-rules", { ...newRule, value: val });
+                    setShowNewRule(false);
+                    setNewRule({ name: "", field: "country", operator: "not_in", value: "", severity: "medium", description: "" });
+                    setAnomalyRules(await apiGet("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus"));
+                  } catch { /* */ }
+                }} className="px-4 py-1.5 rounded text-sm font-medium"
+                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Save Rule</button>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {["Name", "Field", "Condition", "Severity", "Active", "Delete"].map((h) => (
+                      <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {anomalyRules.map((r) => (
+                    <tr key={String(r.id)} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{String(r.name)}</td>
+                      <td className="px-4 py-2 text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{String(r.field)}</td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{String(r.operator)} {String(r.value).slice(0, 30)}</td>
+                      <td className="px-4 py-2">
+                        <span className="text-xs px-2 py-0.5 rounded" style={{
+                          backgroundColor: r.severity === "high" ? "var(--risk-high-bg)" : r.severity === "medium" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)",
+                          color: r.severity === "high" ? "var(--risk-high)" : r.severity === "medium" ? "var(--risk-medium)" : "var(--risk-low)",
+                        }}>{String(r.severity)}</span>
+                      </td>
+                      <td className="px-4 py-2 text-xs" style={{ color: r.is_active ? "var(--risk-low)" : "var(--text-muted)" }}>{r.is_active ? "Yes" : "No"}</td>
+                      <td className="px-4 py-2">
+                        <button onClick={async () => {
+                          try {
+                            await apiDelete(`/log-analyzer/anomaly-rules/${r.id}`);
+                            setAnomalyRules(await apiGet("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus"));
+                          } catch { /* */ }
+                        }} className="text-xs" style={{ color: "var(--risk-high)" }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {anomalyRules.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>No rules configured.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Section 2: Evaluate */}
+          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Anomaly Evaluation</h3>
+              <button onClick={async () => {
+                const lastJob = fetchJob?.jobId || fetchJob?.job_id;
+                if (!lastJob) return;
+                setAnomalyLoading(true);
+                try {
+                  setAnomalyResults(await apiPost<Record<string, unknown>[]>(`/log-analyzer/anomaly-rules/evaluate?job_id=${lastJob}`, {}));
+                } catch { /* */ }
+                setAnomalyLoading(false);
+              }} disabled={anomalyLoading || !fetchJob?.jobId}
+                className="px-3 py-1 rounded text-xs font-medium disabled:opacity-50"
+                style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                {anomalyLoading ? "Evaluating..." : "Evaluate Against Last Job"}
+              </button>
+            </div>
+
+            {anomalyResults.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      {["Rule", "Severity", "Affected Rows", "% of Total", "Sample Values"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {anomalyResults.map((r, i) => (
+                      <tr key={i} style={{
+                        borderBottom: "1px solid var(--border)",
+                        backgroundColor: r.severity === "high" && Number(r.affected_rows) > 0 ? "rgba(239,68,68,0.05)" :
+                                        r.severity === "medium" && Number(r.affected_rows) > 0 ? "rgba(234,179,8,0.05)" : "transparent",
+                      }}>
+                        <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{String(r.rule_name ?? r.error ?? "—")}</td>
+                        <td className="px-4 py-2">
+                          <span className="text-xs px-2 py-0.5 rounded" style={{
+                            backgroundColor: r.severity === "high" ? "var(--risk-high-bg)" : r.severity === "medium" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)",
+                            color: r.severity === "high" ? "var(--risk-high)" : r.severity === "medium" ? "var(--risk-medium)" : "var(--risk-low)",
+                          }}>{String(r.severity ?? "—")}</span>
+                        </td>
+                        <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{Number(r.affected_rows ?? 0).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{String(r.pct_of_total ?? 0)}%</td>
+                        <td className="px-4 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            {(r.sample_values as string[] ?? []).slice(0, 5).map((v: string, j: number) => (
+                              <span key={j} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                                {String(v).slice(0, 20)}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

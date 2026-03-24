@@ -268,3 +268,14 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Frontend: Fetch Mode dropdown + ayrı Ignore Cache checkbox
 - Warning banner: Full mode seçilince gösterilir
 - Tests: 73 passed, 0 failed
+
+### S16-P9 — COMPLETE
+- Summary metrics: bytes→GB fix, cache_hit numeric coerce, top 5 countries structlog
+- Chart improvements: byte values→MB, top error paths truncated, cache status labels
+- 3 yeni grafik: Top 10 Client IPs by Bandwidth, Request Volume by Hour, Anomaly Timeline (z-score)
+- Anomaly Rules engine: anomaly_rules SQLite tablosu, CRUD endpoints
+- 2 default rule seeded: Foreign Country Access (not_in TR, high), Long Session per IP (gt 12, medium)
+- POST /anomaly-rules/evaluate: tüm aktif kuralları job DataFrame'e uygular
+- Frontend: "Anomaly Rules" tab — rules CRUD + evaluate results (severity-colored)
+- 8 yeni test (test_anomaly_rules.py)
+- Tests: 81 passed, 0 failed
