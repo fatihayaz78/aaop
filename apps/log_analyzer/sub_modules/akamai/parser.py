@@ -116,7 +116,11 @@ def _build_entry(raw: dict[str, str]) -> AkamaiLogEntry:
 def parse_tsv(content: str) -> list[AkamaiLogEntry]:
     """Parse Akamai DataStream 2 TSV content (22 tab-separated fields per line)."""
     entries: list[AkamaiLogEntry] = []
-    for i, line in enumerate(content.strip().splitlines()):
+    lines = content.strip().splitlines()
+    if lines:
+        first_fields = lines[0].split("\t")
+        logger.info("tsv_first_line", field_count=len(first_fields), fields_preview=first_fields[:5])
+    for i, line in enumerate(lines):
         fields = line.split("\t")
         if len(fields) < 22:
             logger.warning("akamai_tsv_short_line", row=i, fields=len(fields))

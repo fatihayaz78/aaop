@@ -57,6 +57,7 @@ class FetchRangeRequest(BaseModel):
     start_date: str
     end_date: str
     cache_mode: str = "auto"  # "auto" or "force_refresh"
+    fetch_mode: str = "sampled"  # "sampled" or "full"
 
 
 class ExportRequest(BaseModel):
@@ -747,6 +748,7 @@ async def fetch_range(
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
 
     cache_mode = payload.cache_mode or "auto"
+    fetch_mode = payload.fetch_mode or "sampled"
 
     # Initialize job
     _fetch_jobs[job_id] = {
@@ -765,8 +767,9 @@ async def fetch_range(
         "cp_code": cp_code,
         "start_date": payload.start_date,
         "end_date": payload.end_date,
+        "fetch_mode": fetch_mode,
     }
-    logger.info("fetch_job_created", job_id=job_id, status="queued", days=len(dates), cache_mode=cache_mode)
+    logger.info("fetch_job_created", job_id=job_id, status="queued", days=len(dates), cache_mode=cache_mode, fetch_mode=fetch_mode)
 
     # Launch background task
     import asyncio
@@ -774,7 +777,7 @@ async def fetch_range(
     asyncio.get_event_loop().create_task(
         _run_fetch_job(
             job_id, ctx.tenant_id, cp_code, aws_key, aws_secret_val,
-            bucket, region, dates, cache_mode, duck,
+            bucket, region, dates, cache_mode, fetch_mode, duck,
         )
     )
 
@@ -800,12 +803,14 @@ async def _run_fetch_job(
     region: str,
     dates: list[str],
     cache_mode: str,
+    fetch_mode: str,
     duck: DuckDBClient,
 ) -> None:
     """Background task: download and parse S3 files, day by day with cache.
 
     All boto3 calls run in a thread executor so the event loop stays responsive
     for cancel requests.
+    fetch_mode: "sampled" (max 500/day, 2000/job) or "full" (no limits).
     """
     import asyncio
     import json
@@ -883,16 +888,26 @@ async def _run_fetch_job(
                     return
 
                 try:
-                    resp = await loop.run_in_executor(
-                        _s3_executor,
-                        lambda p=prefix: s3.list_objects_v2(Bucket=bucket, Prefix=p, Delimiter="/"),
-                    )
-                    prefix_files = [
-                        obj["Key"] for obj in resp.get("Contents", [])
-                        if obj["Key"].endswith((".gz", ".tsv", ".csv"))
-                    ]
-                    logger.info("s3_prefix_scan", prefix=prefix, files_found=len(prefix_files))
-                    day_keys.extend(prefix_files)
+                    if fetch_mode == "full":
+                        # Full mode: paginate to get ALL files
+                        paginator = s3.get_paginator("list_objects_v2")
+                        pages = await loop.run_in_executor(
+                            _s3_executor,
+                            lambda p=prefix: list(paginator.paginate(Bucket=bucket, Prefix=p, Delimiter="/")),
+                        )
+                        for page in pages:
+                            for obj in page.get("Contents", []):
+                                if obj["Key"].endswith((".gz", ".tsv", ".csv")):
+                                    day_keys.append(obj["Key"])
+                    else:
+                        # Sampled mode: single list call (max 1000 per prefix)
+                        resp = await loop.run_in_executor(
+                            _s3_executor,
+                            lambda p=prefix: s3.list_objects_v2(Bucket=bucket, Prefix=p, Delimiter="/"),
+                        )
+                        for obj in resp.get("Contents", []):
+                            if obj["Key"].endswith((".gz", ".tsv", ".csv")):
+                                day_keys.append(obj["Key"])
                 except ClientError:
                     pass
 
@@ -900,20 +915,21 @@ async def _run_fetch_job(
                     _mark_cancelled(f"Cancelled during listing {date_str}")
                     return
 
-            # Hard limit per day
-            if len(day_keys) > MAX_FILES_PER_DAY:
-                logger.warning("fetch_day_too_many_files", date=date_str, count=len(day_keys), limit=MAX_FILES_PER_DAY)
-                # Sort by key (which includes timestamp) and take most recent
-                day_keys.sort(reverse=True)
-                day_keys = day_keys[:MAX_FILES_PER_DAY]
+            logger.info("s3_day_scan", date=date_str, files_found=len(day_keys), fetch_mode=fetch_mode)
 
-            # Hard limit per job
-            if total_files + len(day_keys) > MAX_FILES_PER_JOB:
-                job["status"] = "failed"
-                job["error"] = f"Too many files ({total_files + len(day_keys)}). Reduce date range or use sampling."
-                job["progress"] = 0
-                logger.warning("fetch_job_too_many_files", job_id=job_id, total=total_files + len(day_keys))
-                return
+            # Apply limits only in sampled mode
+            if fetch_mode == "sampled":
+                if len(day_keys) > MAX_FILES_PER_DAY:
+                    logger.warning("fetch_day_too_many_files", date=date_str, count=len(day_keys), limit=MAX_FILES_PER_DAY)
+                    day_keys.sort(reverse=True)
+                    day_keys = day_keys[:MAX_FILES_PER_DAY]
+
+                if total_files + len(day_keys) > MAX_FILES_PER_JOB:
+                    job["status"] = "failed"
+                    job["error"] = f"Too many files ({total_files + len(day_keys)}). Use 'Full' mode or reduce date range."
+                    job["progress"] = 0
+                    logger.warning("fetch_job_too_many_files", job_id=job_id, total=total_files + len(day_keys))
+                    return
 
             job["status"] = "parsing"
             job["message"] = f"Day {date_str}: downloading {len(day_keys)} files..."
@@ -1221,7 +1237,7 @@ async def get_analysis(
         return {"error": "Parquet files not found. Re-fetch logs.", "summary": {}, "charts": {}}
 
     df = pd.concat(dfs, ignore_index=True)
-    logger.info("analysis_data_loaded", job_id=job_id, rows=len(df), columns=list(df.columns)[:10])
+    logger.info("analysis_data_loaded", job_id=job_id, rows=len(df), total_columns=len(df.columns), columns=sorted(df.columns.tolist()))
 
     return _run_analysis(df)
 

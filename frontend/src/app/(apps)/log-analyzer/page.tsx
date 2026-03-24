@@ -240,6 +240,7 @@ export default function LogAnalyzer() {
   /* ── Akamai ── */
   const [configMsg, setConfigMsg] = useState("");
   const [forceRefresh, setForceRefresh] = useState(false);
+  const [fetchMode, setFetchMode] = useState<"sampled" | "full">("sampled");
 
   const configureAkamai = async () => {
     try {
@@ -253,7 +254,7 @@ export default function LogAnalyzer() {
     if (!startDate || !endDate) return;
     setFetchJob(null);
     try {
-      const res = await apiPost<FetchJob & { error?: string }>("/log-analyzer/akamai/fetch-range", { start_date: startDate, end_date: endDate, cache_mode: forceRefresh ? "force_refresh" : "auto" });
+      const res = await apiPost<FetchJob & { error?: string }>("/log-analyzer/akamai/fetch-range", { start_date: startDate, end_date: endDate, cache_mode: forceRefresh ? "force_refresh" : "auto", fetch_mode: fetchMode });
       if (res.error) {
         setFetchJob({ jobId: "", job_id: "", status: "failed", error: res.error, progress: 0 });
         return;
@@ -667,12 +668,25 @@ export default function LogAnalyzer() {
                   style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
                   Fetch Logs
                 </button>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={forceRefresh} onChange={(e) => setForceRefresh(e.target.checked)} />
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>Force refresh (ignore cache)</span>
-                </label>
+                <div className="flex items-center gap-3">
+                  <select value={fetchMode} onChange={(e) => setFetchMode(e.target.value as "sampled" | "full")}
+                    className="text-xs px-2 py-1 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                    <option value="sampled">Sampled (fast)</option>
+                    <option value="full">Full (all data)</option>
+                  </select>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={forceRefresh} onChange={(e) => setForceRefresh(e.target.checked)} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>Ignore cache</span>
+                  </label>
+                </div>
               </div>
             </div>
+            {fetchMode === "full" && (
+              <div className="rounded p-2 text-xs mt-2" style={{ backgroundColor: "var(--risk-medium-bg)", color: "var(--risk-medium)" }}>
+                Full mode fetches all available files. This may take a long time for large date ranges.
+              </div>
+            )}
 
             <div className="flex gap-2 items-center">
               <button onClick={configureAkamai} className="px-4 py-1.5 rounded text-sm font-medium border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Save Config</button>

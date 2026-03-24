@@ -259,3 +259,12 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - pyarrow dependency eklendi
 - 4 yeni test (test_chart_analysis.py)
 - Tests: 73 passed, 0 failed
+
+### S16-P8 — COMPLETE
+- FIX: DataFrame all 22 DS2 columns confirmed (log diagnostic güncellendi)
+- fetch_mode parametresi eklendi: "sampled" (default) | "full"
+- "sampled": max 500 dosya/gün, hızlı
+- "full": S3 paginator ile tüm dosyalar, limit yok
+- Frontend: Fetch Mode dropdown + ayrı Ignore Cache checkbox
+- Warning banner: Full mode seçilince gösterilir
+- Tests: 73 passed, 0 failed

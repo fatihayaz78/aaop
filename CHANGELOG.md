@@ -8,6 +8,17 @@
 
 ---
 
+## [S16-P8] — 2026-03-24
+### Fixed
+- DataFrame column diagnostic (all 22 DS2 fields confirmed)
+### Added
+- fetch_mode: sampled (fast, default) | full (all files, no limit)
+- Full mode uses S3 paginator (no file count cap)
+- Fetch Mode dropdown + Ignore Cache checkbox in UI
+- Full mode warning banner
+
+---
+
 ## [S16-P7] — 2026-03-24
 ### Added
 - GET /log-analyzer/akamai/analysis/{job_id} — 10 chart analyses
