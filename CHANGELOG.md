@@ -8,6 +8,27 @@
 
 ---
 
+## [S16-P12] — 2026-03-24
+### Fixed
+- Scheduled Tasks edit button opens inline form
+- PATCH endpoint partial update (non-None fields only)
+### Added
+- Email list management per scheduled task (add/remove)
+
+---
+
+## [S16-P11] — 2026-03-24
+### Fixed
+- Cache Status Breakdown labels (0-9 full mapping)
+- Total GB bytes diagnostic logging
+### Added
+- Quick date range combobox (Last 24h/Day/Week/Month/Custom)
+- Scheduled Tasks tab with CRUD, Run Now, email notifications
+- Save Config → Add to Scheduled Tasks modal
+- Email settings (Gmail/Exchange) in Log Analyzer Settings
+
+---
+
 ## [S16-P10] — 2026-03-24
 ### Fixed
 - S3 Select MethodNotAllowed → replaced with streaming get_object

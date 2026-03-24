@@ -464,13 +464,39 @@ async def _ensure_schema(db: SQLiteClient) -> None:
              "12", "medium", "Single IP streaming more than 12 hours/day"),
         )
 
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS scheduled_tasks (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            project_id TEXT,
+            name TEXT NOT NULL,
+            cp_code TEXT,
+            s3_bucket TEXT,
+            s3_prefix TEXT,
+            schedule_cron TEXT NOT NULL,
+            fetch_mode TEXT DEFAULT 'sampled',
+            is_active INTEGER DEFAULT 1,
+            notify_emails TEXT DEFAULT '[]',
+            last_run TEXT,
+            last_status TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        )"""
+    )
+
     # ── Column migrations for existing tables ──
-    # Add cp_code to settings if table was created before this column existed
-    try:
-        await db.execute("ALTER TABLE settings ADD COLUMN cp_code TEXT DEFAULT ''")
-        logger.info("schema_migration", action="added cp_code column to settings")
-    except Exception:
-        pass  # Column already exists
+    for col, default in [
+        ("cp_code", "''"),
+        ("email_provider", "''"),
+        ("email_smtp_host", "''"),
+        ("email_smtp_port", "'587'"),
+        ("email_username_enc", "''"),
+        ("email_password_enc", "''"),
+        ("email_from_name", "'Captain logAR'"),
+    ]:
+        try:
+            await db.execute(f"ALTER TABLE settings ADD COLUMN {col} TEXT DEFAULT {default}")
+        except Exception:
+            pass
 
     logger.info("log_analyzer_schema_ready")
 
@@ -1180,7 +1206,11 @@ async def list_fetch_jobs(
 # ── Analysis endpoint ──
 
 
-_CACHE_STATUS_LABELS = {0: "Miss", 1: "Hit", 2: "Revalidated", 3: "Hit-Stale"}
+_CACHE_STATUS_LABELS = {
+    0: "Miss", 1: "Hit", 2: "Revalidated", 3: "Hit-Stale",
+    4: "Hit-Synthetic", 5: "Hit-BW-Optimized", 6: "Hit-Prefetch",
+    7: "Hit-Remote", 8: "SureHit", 9: "Non-Cacheable",
+}
 
 
 def _run_analysis(df: Any) -> dict[str, Any]:
@@ -1202,6 +1232,13 @@ def _run_analysis(df: Any) -> dict[str, Any]:
 
     total_bytes = int(df["bytes"].sum()) if "bytes" in df.columns else 0
     total_gb = round(total_bytes / (1024**3), 3)
+    if "bytes" in df.columns:
+        bytes_col = df["bytes"].dropna()
+        logger.info("analysis_bytes_diagnostic",
+                     sum_bytes_raw=total_bytes, mean_bytes=round(float(bytes_col.mean()), 1) if len(bytes_col) else 0,
+                     max_bytes=int(bytes_col.max()) if len(bytes_col) else 0,
+                     min_bytes=int(bytes_col.min()) if len(bytes_col) else 0,
+                     total_gb=total_gb, non_null_count=len(bytes_col))
 
     # Error rate
     error_count = int((df["status_code"] >= 400).sum()) if "status_code" in df.columns else 0
@@ -1283,7 +1320,7 @@ def _run_analysis(df: Any) -> dict[str, Any]:
     if "cache_status" in df.columns:
         cs = df["cache_status"].dropna().astype(int).value_counts().sort_index()
         charts["cache_status_breakdown"] = [
-            {"status": _CACHE_STATUS_LABELS.get(int(k), f"Other({k})"), "count": int(v)}
+            {"status": _CACHE_STATUS_LABELS.get(int(k), f"Unknown({k})"), "count": int(v)}
             for k, v in cs.items()
         ]
 
@@ -1900,3 +1937,217 @@ async def evaluate_anomaly_rules(
         "SELECT * FROM anomaly_rules WHERE tenant_id = ? AND is_active = 1", (ctx.tenant_id,),
     )
     return [_evaluate_rule(dict(rule), df) for rule in rules]
+
+
+# ── Scheduled Tasks ──
+
+
+class ScheduledTaskPayload(BaseModel):
+    project_id: str | None = None
+    name: str | None = None
+    cp_code: str | None = None
+    s3_bucket: str | None = None
+    s3_prefix: str | None = None
+    schedule_cron: str | None = None
+    fetch_mode: str | None = None
+    is_active: int | None = None
+    notify_emails: str | None = None
+
+
+@router.get("/scheduled-tasks")
+async def list_scheduled_tasks(
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> list[dict[str, Any]]:
+    await _ensure_schema(db)
+    rows = await db.fetch_all(
+        "SELECT * FROM scheduled_tasks WHERE tenant_id = ? ORDER BY created_at DESC", (ctx.tenant_id,),
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/scheduled-tasks")
+async def create_scheduled_task(
+    payload: ScheduledTaskPayload,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, Any]:
+    await _ensure_schema(db)
+    if not payload.name:
+        return {"error": "Task name is required."}
+    task_id = str(uuid.uuid4())
+    await db.execute(
+        """INSERT INTO scheduled_tasks
+           (id, tenant_id, project_id, name, cp_code, s3_bucket, s3_prefix, schedule_cron, fetch_mode, is_active, notify_emails)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (task_id, ctx.tenant_id, payload.project_id, payload.name, payload.cp_code,
+         payload.s3_bucket, payload.s3_prefix, payload.schedule_cron or "0 */6 * * *",
+         payload.fetch_mode or "sampled", payload.is_active if payload.is_active is not None else 1,
+         payload.notify_emails or "[]"),
+    )
+    return {"id": task_id, "status": "created"}
+
+
+@router.patch("/scheduled-tasks/{task_id}")
+async def update_scheduled_task(
+    task_id: str,
+    payload: ScheduledTaskPayload,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, str]:
+    await _ensure_schema(db)
+    existing = await db.fetch_one("SELECT * FROM scheduled_tasks WHERE id=? AND tenant_id=?", (task_id, ctx.tenant_id))
+    if not existing:
+        return {"error": "Task not found"}
+    old = dict(existing)
+
+    def _m(field: str, new_val: Any) -> Any:
+        return new_val if new_val is not None else old.get(field)
+
+    await db.execute(
+        """UPDATE scheduled_tasks SET name=?, project_id=?, cp_code=?, s3_bucket=?, s3_prefix=?,
+           schedule_cron=?, fetch_mode=?, is_active=?, notify_emails=?
+           WHERE id=? AND tenant_id=?""",
+        (_m("name", payload.name), _m("project_id", payload.project_id),
+         _m("cp_code", payload.cp_code), _m("s3_bucket", payload.s3_bucket),
+         _m("s3_prefix", payload.s3_prefix), _m("schedule_cron", payload.schedule_cron),
+         _m("fetch_mode", payload.fetch_mode),
+         payload.is_active if payload.is_active is not None else old.get("is_active"),
+         _m("notify_emails", payload.notify_emails),
+         task_id, ctx.tenant_id),
+    )
+    return {"status": "updated", "id": task_id}
+
+
+@router.delete("/scheduled-tasks/{task_id}")
+async def delete_scheduled_task(
+    task_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, str]:
+    await _ensure_schema(db)
+    await db.execute("DELETE FROM scheduled_tasks WHERE id=? AND tenant_id=?", (task_id, ctx.tenant_id))
+    return {"status": "deleted", "id": task_id}
+
+
+@router.post("/scheduled-tasks/{task_id}/run")
+async def run_scheduled_task(
+    task_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, Any]:
+    """Trigger an immediate fetch job for a scheduled task."""
+    await _ensure_schema(db)
+    task = await db.fetch_one("SELECT * FROM scheduled_tasks WHERE id=? AND tenant_id=?", (task_id, ctx.tenant_id))
+    if not task:
+        return {"error": "Task not found"}
+    task_dict = dict(task)
+    # Update last_run
+    await db.execute(
+        "UPDATE scheduled_tasks SET last_run=datetime('now'), last_status='running' WHERE id=?",
+        (task_id,),
+    )
+    return {"status": "triggered", "task_id": task_id, "name": task_dict.get("name")}
+
+
+# ── Email Settings ──
+
+
+class EmailSettingsPayload(BaseModel):
+    email_provider: str | None = None
+    email_smtp_host: str | None = None
+    email_smtp_port: str | None = None
+    email_username: str | None = None
+    email_password: str | None = None
+    email_from_name: str | None = None
+
+
+@router.post("/settings/email")
+async def save_email_settings(
+    payload: EmailSettingsPayload,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, str]:
+    """Save email notification settings."""
+    await _ensure_schema(db)
+    app_settings = get_settings()
+    secret = app_settings.jwt_secret_key
+
+    enc_user = encrypt(payload.email_username, secret) if payload.email_username else None
+    enc_pass = encrypt(payload.email_password, secret) if payload.email_password else None
+
+    row_id = f"{ctx.tenant_id}_global"
+    existing = await db.fetch_one("SELECT * FROM settings WHERE id = ?", (row_id,))
+
+    if existing:
+        updates = []
+        params: list[Any] = []
+        if payload.email_provider is not None:
+            updates.append("email_provider = ?")
+            params.append(payload.email_provider)
+        if payload.email_smtp_host is not None:
+            updates.append("email_smtp_host = ?")
+            params.append(payload.email_smtp_host)
+        if payload.email_smtp_port is not None:
+            updates.append("email_smtp_port = ?")
+            params.append(payload.email_smtp_port)
+        if enc_user is not None:
+            updates.append("email_username_enc = ?")
+            params.append(enc_user)
+        if enc_pass is not None:
+            updates.append("email_password_enc = ?")
+            params.append(enc_pass)
+        if payload.email_from_name is not None:
+            updates.append("email_from_name = ?")
+            params.append(payload.email_from_name)
+        if updates:
+            updates.append("updated_at = datetime('now')")
+            params.append(row_id)
+            await db.execute(f"UPDATE settings SET {', '.join(updates)} WHERE id = ?", tuple(params))
+    return {"status": "saved"}
+
+
+@router.post("/settings/email/test")
+async def test_email(
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, Any]:
+    """Send a test email using saved SMTP settings."""
+    await _ensure_schema(db)
+    row = await db.fetch_one("SELECT * FROM settings WHERE tenant_id = ?", (ctx.tenant_id,))
+    if not row:
+        return {"success": False, "message": "No settings configured."}
+    row_dict = dict(row)
+    provider = row_dict.get("email_provider")
+    if not provider:
+        return {"success": False, "message": "Email provider not configured."}
+
+    app_settings = get_settings()
+    secret = app_settings.jwt_secret_key
+
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+
+        host = row_dict.get("email_smtp_host") or ("smtp.gmail.com" if provider == "gmail" else "")
+        port = int(row_dict.get("email_smtp_port") or "587")
+        username = decrypt(row_dict["email_username_enc"], secret) if row_dict.get("email_username_enc") else ""
+        password = decrypt(row_dict["email_password_enc"], secret) if row_dict.get("email_password_enc") else ""
+        from_name = row_dict.get("email_from_name") or "Captain logAR"
+
+        if not username or not password:
+            return {"success": False, "message": "Email credentials not configured."}
+
+        msg = MIMEText("This is a test email from Captain logAR. If you received this, email is working.")
+        msg["Subject"] = "Captain logAR — Test Email"
+        msg["From"] = f"{from_name} <{username}>"
+        msg["To"] = username
+
+        with smtplib.SMTP(host, port, timeout=10) as server:
+            server.starttls()
+            server.login(username, password)
+            server.send_message(msg)
+
+        return {"success": True, "message": f"Test email sent to {username}"}
+    except Exception as exc:
+        return {"success": False, "message": f"Email test failed: {exc}"}

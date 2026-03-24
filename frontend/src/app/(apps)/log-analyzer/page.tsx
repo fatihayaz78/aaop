@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import MetricCard from "@/components/ui/MetricCard";
 import LogTable from "@/components/ui/LogTable";
 import RechartsWrapper from "@/components/charts/RechartsWrapper";
 import RiskBadge from "@/components/ui/RiskBadge";
 import { AccordionItem } from "@/components/ui/Accordion";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
-import { apiGet, apiPost, apiDelete } from "@/lib/api";
+import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
-type Tab = "projects" | "analyzer" | "structure" | "anomaly" | "settings" | "results";
+type Tab = "projects" | "analyzer" | "structure" | "anomaly" | "settings" | "results" | "scheduled";
 
 /* ── Revised 21 chart names (match backend) ── */
 const CHART_TYPES = [
@@ -130,6 +130,20 @@ export default function LogAnalyzer() {
   /* ── App Settings state ── */
   const [appSettings, setAppSettings] = useState<AppSettings>({ language: "en", default_date_range: "7d", log_cache_retention: "7", auto_fetch_schedule: "disabled", cp_code: "" });
 
+  /* ── Quick date range ── */
+  const [dateRange, setDateRange] = useState("last1d");
+
+  /* ── Scheduled Tasks state ── */
+  const [scheduledTasks, setScheduledTasks] = useState<Record<string, unknown>[]>([]);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTask, setEditTask] = useState({ name: "", schedule_cron: "", fetch_mode: "sampled", is_active: 1, notify_emails: [] as string[] });
+  const [newEmail, setNewEmail] = useState("");
+
+  /* ── Email Settings state ── */
+  const [emailSettings, setEmailSettings] = useState({ provider: "", smtp_host: "", smtp_port: "587", username: "", password: "", from_name: "Captain logAR" });
+  const [emailMsg, setEmailMsg] = useState("");
+
   /* ── Anomaly Rules state ── */
   const [anomalyRules, setAnomalyRules] = useState<Record<string, unknown>[]>([]);
   const [showNewRule, setShowNewRule] = useState(false);
@@ -217,6 +231,11 @@ export default function LogAnalyzer() {
         } catch { /* */ }
       })();
     }
+    if (tab === "scheduled") {
+      (async () => {
+        try { setScheduledTasks(await apiGet<Record<string, unknown>[]>("/log-analyzer/scheduled-tasks?tenant_id=s_sport_plus")); } catch { /* */ }
+      })();
+    }
     if (tab === "anomaly") {
       (async () => {
         try { setAnomalyRules(await apiGet<Record<string, unknown>[]>("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus")); } catch { /* */ }
@@ -250,6 +269,24 @@ export default function LogAnalyzer() {
     try { await apiDelete(`/log-analyzer/projects/${id}`); loadProjects(); } catch { /* error */ }
   };
 
+  /* ── Quick date range helper ── */
+  const applyDateRange = (range: string) => {
+    setDateRange(range);
+    if (range === "custom") return;
+    const now = new Date();
+    const end = now.toISOString().split("T")[0];
+    let start = end;
+    if (range === "last24h" || range === "last1d") {
+      const d = new Date(now); d.setDate(d.getDate() - 1); start = d.toISOString().split("T")[0];
+    } else if (range === "last1w") {
+      const d = new Date(now); d.setDate(d.getDate() - 7); start = d.toISOString().split("T")[0];
+    } else if (range === "last1m") {
+      const d = new Date(now); d.setMonth(d.getMonth() - 1); start = d.toISOString().split("T")[0];
+    }
+    setStartDate(start);
+    setEndDate(end);
+  };
+
   /* ── Akamai ── */
   const [configMsg, setConfigMsg] = useState("");
   const [forceRefresh, setForceRefresh] = useState(false);
@@ -259,8 +296,24 @@ export default function LogAnalyzer() {
     try {
       await apiPost("/log-analyzer/akamai/configure", { project_id: selectedProjectId || null, ...akamaiConfig, enabled: true });
       setConfigMsg("Config saved.");
+      setShowScheduleModal(true);
       setTimeout(() => setConfigMsg(""), 3000);
     } catch { setConfigMsg("Failed to save config."); }
+  };
+
+  const addToSchedule = async () => {
+    try {
+      await apiPost("/log-analyzer/scheduled-tasks", {
+        project_id: selectedProjectId || null,
+        name: `Akamai DS2 — ${akamaiConfig.schedule_cron}`,
+        s3_bucket: akamaiConfig.s3_bucket,
+        s3_prefix: akamaiConfig.s3_prefix,
+        schedule_cron: akamaiConfig.schedule_cron,
+        fetch_mode: fetchMode,
+      });
+      setShowScheduleModal(false);
+      setConfigMsg("Config saved + added to schedule.");
+    } catch { /* */ }
   };
 
   const fetchLogsForRange = async () => {
@@ -496,6 +549,7 @@ export default function LogAnalyzer() {
     { key: "anomaly", label: "Anomaly Rules" },
     { key: "settings", label: "Settings" },
     { key: "results", label: "Analysis Results" },
+    { key: "scheduled", label: "Scheduled Tasks" },
   ];
 
   /* ── Password field helper ── */
@@ -664,7 +718,19 @@ export default function LogAnalyzer() {
             </div>
 
             {/* Date range inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Quick Range</label>
+                <select value={dateRange} onChange={(e) => applyDateRange(e.target.value)}
+                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                  <option value="last24h">Last 24 Hours</option>
+                  <option value="last1d">Last 1 Day</option>
+                  <option value="last1w">Last 1 Week</option>
+                  <option value="last1m">Last 1 Month</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
               <div>
                 <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Start Date</label>
                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
@@ -708,6 +774,18 @@ export default function LogAnalyzer() {
               <button onClick={downloadReport} className="px-4 py-1.5 rounded text-sm font-medium border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Download Report (DOCX)</button>
               {configMsg && <span className="text-xs" style={{ color: configMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>{configMsg}</span>}
             </div>
+
+            {/* Schedule modal */}
+            {showScheduleModal && (
+              <div className="mt-3 rounded border p-3" style={{ backgroundColor: "var(--background)", borderColor: "var(--brand-primary)" }}>
+                <p className="text-sm mb-2" style={{ color: "var(--text-primary)" }}>Add to Scheduled Tasks?</p>
+                <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>This configuration can run automatically on a schedule.</p>
+                <div className="flex gap-2">
+                  <button onClick={addToSchedule} className="px-3 py-1 rounded text-xs font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Yes, add to schedule</button>
+                  <button onClick={() => setShowScheduleModal(false)} className="px-3 py-1 rounded text-xs border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>No, just save</button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Job progress */}
@@ -1330,6 +1408,160 @@ export default function LogAnalyzer() {
         </div>
       )}
 
+      {/* ══════════ Tab: Scheduled Tasks ══════════ */}
+      {tab === "scheduled" && (
+        <div className="space-y-4">
+          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Scheduled Tasks</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {["Name", "Schedule", "Mode", "Last Run", "Status", "Active", "Actions"].map((h) => (
+                      <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduledTasks.map((t) => {
+                    const tid = String(t.id);
+                    const isEditing = editingTaskId === tid;
+                    return (
+                      <React.Fragment key={tid}>
+                        <tr style={{ borderBottom: isEditing ? "none" : "1px solid var(--border)" }}>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{String(t.name)}</td>
+                          <td className="px-4 py-2 text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{String(t.schedule_cron)}</td>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{String(t.fetch_mode)}</td>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{String(t.last_run ?? "—").slice(0, 19)}</td>
+                          <td className="px-4 py-2 text-xs">
+                            <span className="text-xs px-2 py-0.5 rounded" style={{
+                              backgroundColor: t.last_status === "completed" ? "var(--risk-low-bg)" : t.last_status === "failed" ? "var(--risk-high-bg)" : "var(--background)",
+                              color: t.last_status === "completed" ? "var(--risk-low)" : t.last_status === "failed" ? "var(--risk-high)" : "var(--text-muted)",
+                            }}>{String(t.last_status ?? "never")}</span>
+                          </td>
+                          <td className="px-4 py-2 text-xs" style={{ color: t.is_active ? "var(--risk-low)" : "var(--text-muted)" }}>{t.is_active ? "Yes" : "No"}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex gap-2">
+                              <button onClick={() => {
+                                if (isEditing) { setEditingTaskId(null); return; }
+                                let emails: string[] = [];
+                                try { emails = JSON.parse(String(t.notify_emails ?? "[]")); } catch { /* */ }
+                                setEditTask({ name: String(t.name), schedule_cron: String(t.schedule_cron), fetch_mode: String(t.fetch_mode ?? "sampled"), is_active: Number(t.is_active ?? 1), notify_emails: emails });
+                                setNewEmail("");
+                                setEditingTaskId(tid);
+                              }} className="text-xs px-2 py-0.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                                {isEditing ? "Close" : "Edit"}
+                              </button>
+                              <button onClick={async () => {
+                                try { await apiPost(`/log-analyzer/scheduled-tasks/${tid}/run`, {}); setScheduledTasks(await apiGet("/log-analyzer/scheduled-tasks?tenant_id=s_sport_plus")); } catch { /* */ }
+                              }} className="text-xs px-2 py-0.5 rounded border" style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>Run Now</button>
+                              <button onClick={async () => {
+                                try { await apiDelete(`/log-analyzer/scheduled-tasks/${tid}`); setScheduledTasks(await apiGet("/log-analyzer/scheduled-tasks?tenant_id=s_sport_plus")); setEditingTaskId(null); } catch { /* */ }
+                              }} className="text-xs" style={{ color: "var(--risk-high)" }}>Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Inline edit form */}
+                        {isEditing && (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-4" style={{ borderBottom: "1px solid var(--border)", backgroundColor: "var(--background)" }}>
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                  <div>
+                                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Task Name</label>
+                                    <input type="text" value={editTask.name} onChange={(e) => setEditTask({ ...editTask, name: e.target.value })}
+                                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Schedule Cron</label>
+                                    <input type="text" value={editTask.schedule_cron} onChange={(e) => setEditTask({ ...editTask, schedule_cron: e.target.value })}
+                                      className="w-full text-sm px-3 py-1.5 rounded border outline-none font-mono"
+                                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Fetch Mode</label>
+                                    <select value={editTask.fetch_mode} onChange={(e) => setEditTask({ ...editTask, fetch_mode: e.target.value })}
+                                      className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                                      <option value="sampled">Sampled</option>
+                                      <option value="full">Full</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Active</label>
+                                    <button type="button" onClick={() => setEditTask({ ...editTask, is_active: editTask.is_active ? 0 : 1 })}
+                                      className="relative w-10 h-5 rounded-full transition-colors"
+                                      style={{ backgroundColor: editTask.is_active ? "var(--brand-primary)" : "var(--border)" }}>
+                                      <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                                        style={{ left: editTask.is_active ? "calc(100% - 18px)" : "2px" }} />
+                                    </button>
+                                  </div>
+                                </div>
+                                {/* Notify emails */}
+                                <div>
+                                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Notify Emails</label>
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {editTask.notify_emails.map((email, idx) => (
+                                      <span key={idx} className="text-xs px-2 py-0.5 rounded flex items-center gap-1"
+                                        style={{ backgroundColor: "var(--background-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                                        {email}
+                                        <button onClick={() => setEditTask({ ...editTask, notify_emails: editTask.notify_emails.filter((_, j) => j !== idx) })}
+                                          className="text-xs" style={{ color: "var(--risk-high)" }}>x</button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                                      placeholder="email@example.com"
+                                      className="text-sm px-3 py-1 rounded border outline-none"
+                                      style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                                    <button onClick={() => {
+                                      if (newEmail && !editTask.notify_emails.includes(newEmail)) {
+                                        setEditTask({ ...editTask, notify_emails: [...editTask.notify_emails, newEmail] });
+                                        setNewEmail("");
+                                      }
+                                    }} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Add Email</button>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 pt-2">
+                                  <button onClick={async () => {
+                                    try {
+                                      await apiPatch(`/log-analyzer/scheduled-tasks/${tid}`, {
+                                        name: editTask.name,
+                                        schedule_cron: editTask.schedule_cron,
+                                        fetch_mode: editTask.fetch_mode,
+                                        is_active: editTask.is_active,
+                                        notify_emails: JSON.stringify(editTask.notify_emails),
+                                      });
+                                      setEditingTaskId(null);
+                                      setScheduledTasks(await apiGet("/log-analyzer/scheduled-tasks?tenant_id=s_sport_plus"));
+                                    } catch { /* */ }
+                                  }} className="px-4 py-1.5 rounded text-sm font-medium"
+                                    style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Save Changes</button>
+                                  <button onClick={() => setEditingTaskId(null)}
+                                    className="px-4 py-1.5 rounded text-sm border"
+                                    style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Cancel</button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                  {scheduledTasks.length === 0 && (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No scheduled tasks. Use Save Config in Log Analyzer tab to create one.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══════════ Tab 4: Settings (3 Accordion Sections) ══════════ */}
       {tab === "settings" && (
         <div className="space-y-4">
@@ -1396,6 +1628,91 @@ export default function LogAnalyzer() {
                 {appSettingsMsg && (
                   <span className="text-xs" style={{ color: "var(--risk-low)" }}>{appSettingsMsg}</span>
                 )}
+              </div>
+
+              {/* Email Notifications sub-section */}
+              <div className="border-t pt-4 mt-4" style={{ borderColor: "var(--border)" }}>
+                <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Email Notifications</h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Email Provider</label>
+                    <div className="flex gap-4">
+                      {["gmail", "exchange"].map((p) => (
+                        <label key={p} className="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" name="emailProvider" checked={emailSettings.provider === p}
+                            onChange={() => setEmailSettings({ ...emailSettings, provider: p })} />
+                          <span className="text-sm" style={{ color: "var(--text-primary)" }}>{p === "gmail" ? "Gmail" : "Exchange/Office365"}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {emailSettings.provider === "exchange" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>SMTP Host</label>
+                        <input type="text" value={emailSettings.smtp_host} onChange={(e) => setEmailSettings({ ...emailSettings, smtp_host: e.target.value })}
+                          className="w-full text-sm px-3 py-2 rounded border outline-none"
+                          style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} placeholder="smtp.office365.com" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>SMTP Port</label>
+                        <input type="text" value={emailSettings.smtp_port} onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: e.target.value })}
+                          className="w-full text-sm px-3 py-2 rounded border outline-none"
+                          style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} placeholder="587" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>{emailSettings.provider === "gmail" ? "Gmail Address" : "Username"}</label>
+                      <input type="text" value={emailSettings.username} onChange={(e) => setEmailSettings({ ...emailSettings, username: e.target.value })}
+                        className="w-full text-sm px-3 py-2 rounded border outline-none"
+                        style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>{emailSettings.provider === "gmail" ? "App Password" : "Password"}</label>
+                      <input type="password" value={emailSettings.password} onChange={(e) => setEmailSettings({ ...emailSettings, password: e.target.value })}
+                        className="w-full text-sm px-3 py-2 rounded border outline-none"
+                        style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>From Name</label>
+                    <input type="text" value={emailSettings.from_name} onChange={(e) => setEmailSettings({ ...emailSettings, from_name: e.target.value })}
+                      className="w-48 text-sm px-3 py-2 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <button onClick={async () => {
+                      try {
+                        await apiPost("/log-analyzer/settings/email", {
+                          email_provider: emailSettings.provider,
+                          email_smtp_host: emailSettings.provider === "exchange" ? emailSettings.smtp_host : "smtp.gmail.com",
+                          email_smtp_port: emailSettings.smtp_port,
+                          email_username: emailSettings.username,
+                          email_password: emailSettings.password,
+                          email_from_name: emailSettings.from_name,
+                        });
+                        setEmailMsg("Email settings saved.");
+                        setTimeout(() => setEmailMsg(""), 3000);
+                      } catch { setEmailMsg("Failed to save."); }
+                    }} className="px-4 py-2 rounded text-sm font-medium"
+                      style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                      Save Email Settings
+                    </button>
+                    <button onClick={async () => {
+                      try {
+                        const res = await apiPost<{ success: boolean; message: string }>("/log-analyzer/settings/email/test", {});
+                        setEmailMsg(res.message);
+                        setTimeout(() => setEmailMsg(""), 5000);
+                      } catch { setEmailMsg("Test failed."); }
+                    }} className="px-4 py-2 rounded text-sm font-medium border"
+                      style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                      Test Email
+                    </button>
+                    {emailMsg && <span className="text-xs" style={{ color: emailMsg.includes("fail") || emailMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>{emailMsg}</span>}
+                  </div>
+                </div>
               </div>
             </div>
           </AccordionItem>

@@ -289,3 +289,22 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Frontend: expandable anomaly result cards, Section A/B/C
 - 3 yeni test (test_anomaly_rules.py)
 - Tests: 84 passed, 0 failed
+
+### S16-P11 — COMPLETE
+- Cache Status labels: 0-9 tam mapping (Miss/Hit/Revalidated...)
+- Total GB diagnostic: structlog bytes stats before conversion
+- Quick date range selector: Last 24h/1 Day/1 Week/1 Month/Custom
+- Projects → Log Analyzer: project_id save config bağlantısı
+- Scheduled Tasks: SQLite tablosu, CRUD endpoints, Run Now
+- Save Config modal: "Add to Scheduled Tasks?" popup
+- Email settings: Gmail/Exchange SMTP, encrypted credentials
+- POST /settings/email + POST /settings/email/test
+- scheduled_tasks tablosuna notify_emails JSON array
+- 4 yeni test (test_scheduled_tasks.py)
+- Tests: 88 passed, 0 failed
+
+### S16-P12 — COMPLETE
+- Scheduled Tasks inline edit form: Name/Cron/FetchMode/Active/Emails
+- PATCH /scheduled-tasks/{id}: partial merge, all fields Optional
+- notify_emails: JSON array, add/remove per email
+- Tests: 4 passed, 0 failed
