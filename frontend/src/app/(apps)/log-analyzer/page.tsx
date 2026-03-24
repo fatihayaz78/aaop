@@ -10,7 +10,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
-type Tab = "projects" | "analyzer" | "results" | "settings";
+type Tab = "projects" | "analyzer" | "structure" | "settings" | "results";
 
 /* ── Revised 21 chart names (match backend) ── */
 const CHART_TYPES = [
@@ -73,7 +73,36 @@ interface AppSettings {
   default_date_range: "7d" | "30d" | "custom";
   log_cache_retention: "7" | "14" | "30";
   auto_fetch_schedule: "disabled" | "6h" | "12h" | "daily";
+  cp_code: string;
 }
+
+/* ── Log Structure types ── */
+interface FieldAnalysis {
+  field_name: string;
+  sample_values: string[];
+  null_count: number;
+  unique_count: number;
+  inferred_type: string;
+  current_category: string | null;
+}
+
+interface StructureResult {
+  fields: FieldAnalysis[];
+  total_rows_sampled: number;
+  files_scanned: number;
+  error?: string;
+}
+
+const FIELD_CATEGORIES = ["meta", "timing", "traffic", "content", "client", "network", "response", "cache", "geo", "custom"] as const;
+
+const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
+  timestamp: { bg: "rgba(59,130,246,0.15)", color: "#3b82f6" },
+  integer: { bg: "rgba(34,197,94,0.15)", color: "#22c55e" },
+  float: { bg: "rgba(234,179,8,0.15)", color: "#eab308" },
+  string: { bg: "rgba(156,163,175,0.15)", color: "#9ca3af" },
+  ip_hash: { bg: "rgba(239,68,68,0.15)", color: "#ef4444" },
+  boolean: { bg: "rgba(168,85,247,0.15)", color: "#a855f7" },
+};
 
 export default function LogAnalyzer() {
   const [tab, setTab] = useState<Tab>("projects");
@@ -97,7 +126,17 @@ export default function LogAnalyzer() {
   const [expandedResult, setExpandedResult] = useState<AnalysisResult | null>(null);
 
   /* ── App Settings state ── */
-  const [appSettings, setAppSettings] = useState<AppSettings>({ language: "en", default_date_range: "7d", log_cache_retention: "7", auto_fetch_schedule: "disabled" });
+  const [appSettings, setAppSettings] = useState<AppSettings>({ language: "en", default_date_range: "7d", log_cache_retention: "7", auto_fetch_schedule: "disabled", cp_code: "" });
+
+  /* ── Log Structure state ── */
+  const [structStartDate, setStructStartDate] = useState("");
+  const [structEndDate, setStructEndDate] = useState("");
+  const [structSampleSize, setStructSampleSize] = useState(1000);
+  const [structLoading, setStructLoading] = useState(false);
+  const [structResult, setStructResult] = useState<StructureResult | null>(null);
+  const [structError, setStructError] = useState("");
+  const [fieldCategories, setFieldCategories] = useState<Record<string, string>>({});
+  const [savedFields, setSavedFields] = useState<Set<string>>(new Set());
 
   /* ── AWS Settings state ── */
   const [awsSettings, setAwsSettings] = useState<AwsSettings>({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "ssport-datastream", s3_prefix: "logs/" });
@@ -264,6 +303,57 @@ export default function LogAnalyzer() {
     } catch { setSettingsMsg("Failed to clear credentials."); }
   };
 
+  /* ── Log Structure Analysis ── */
+  const analyzeStructure = async () => {
+    if (!structStartDate || !structEndDate) return;
+    setStructLoading(true);
+    setStructError("");
+    setStructResult(null);
+    try {
+      const res = await apiPost<StructureResult>("/log-analyzer/structure/analyze", {
+        start_date: structStartDate,
+        end_date: structEndDate,
+        sample_size: structSampleSize,
+      });
+      if (res.error) {
+        setStructError(res.error);
+      } else {
+        setStructResult(res);
+        // Pre-fill categories from saved mappings
+        const cats: Record<string, string> = {};
+        for (const f of res.fields) {
+          if (f.current_category) cats[f.field_name] = f.current_category;
+        }
+        setFieldCategories(cats);
+        setSavedFields(new Set(Object.keys(cats)));
+      }
+    } catch { setStructError("Failed to connect to backend."); }
+    setStructLoading(false);
+  };
+
+  const saveFieldMapping = async (fieldName: string) => {
+    const category = fieldCategories[fieldName];
+    if (!category) return;
+    try {
+      await apiPost("/log-analyzer/structure/mappings", { field_name: fieldName, category });
+      setSavedFields((prev) => new Set([...Array.from(prev), fieldName]));
+    } catch { /* error */ }
+  };
+
+  const exportMappings = () => {
+    if (!structResult) return;
+    const mappings = structResult.fields
+      .filter((f) => fieldCategories[f.field_name])
+      .map((f) => ({ field_name: f.field_name, category: fieldCategories[f.field_name] }));
+    const blob = new Blob([JSON.stringify(mappings, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "field_mappings.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const saveBqSettings = async () => {
     try {
       await apiPost("/log-analyzer/settings", { tenant_id: "bein_sports", gcp_project_id: bqSettings.gcp_project_id, gcp_dataset_id: bqSettings.bq_dataset_id, gcp_credentials_json: bqSettings.gcp_service_account_json });
@@ -315,8 +405,9 @@ export default function LogAnalyzer() {
   const TABS: { key: Tab; label: string }[] = [
     { key: "projects", label: "Projects" },
     { key: "analyzer", label: "Log Analyzer" },
-    { key: "results", label: "Analysis Results" },
+    { key: "structure", label: "Log Structure" },
     { key: "settings", label: "Settings" },
+    { key: "results", label: "Analysis Results" },
   ];
 
   /* ── Password field helper ── */
@@ -582,7 +673,179 @@ export default function LogAnalyzer() {
         </div>
       )}
 
-      {/* ══════════ Tab 3: Analysis Results ══════════ */}
+      {/* ══════════ Tab 3: Log Structure ══════════ */}
+      {tab === "structure" && (
+        <div className="space-y-6">
+          {/* Section 1: Date Range Selector */}
+          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Analyze Log Structure</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Start Date</label>
+                <input type="date" value={structStartDate} onChange={(e) => setStructStartDate(e.target.value)}
+                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              </div>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>End Date</label>
+                <input type="date" value={structEndDate} onChange={(e) => setStructEndDate(e.target.value)}
+                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              </div>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Sample Size (max 5000)</label>
+                <input type="number" value={structSampleSize} min={100} max={5000}
+                  onChange={(e) => setStructSampleSize(Math.min(5000, Math.max(100, Number(e.target.value))))}
+                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              </div>
+              <div className="flex items-end">
+                <button onClick={analyzeStructure} disabled={!structStartDate || !structEndDate || structLoading}
+                  className="px-4 py-1.5 rounded text-sm font-medium disabled:opacity-50"
+                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                  {structLoading ? "Scanning S3 logs..." : "Analyze Log Structure"}
+                </button>
+              </div>
+            </div>
+
+            {structLoading && (
+              <div className="flex items-center gap-2 py-2">
+                <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--brand-primary)" }} />
+                <span className="text-sm" style={{ color: "var(--text-muted)" }}>Scanning S3 logs...</span>
+              </div>
+            )}
+
+            {structError && (
+              <div className="rounded p-3 text-sm" style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)" }}>
+                {structError}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Field Analysis Table */}
+          {structResult && structResult.fields.length > 0 && (
+            <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
+                <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                  {structResult.fields.length} fields detected across {structResult.total_rows_sampled.toLocaleString()} rows sampled from {structResult.files_scanned} files
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      {["Field Name", "Type", "Sample Values", "Null %", "Unique Count", "Category", "Action"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {structResult.fields.map((f) => {
+                      const totalRows = structResult.total_rows_sampled;
+                      const nullPct = totalRows > 0 ? ((f.null_count / totalRows) * 100) : 0;
+                      const typeStyle = TYPE_COLORS[f.inferred_type] || TYPE_COLORS.string;
+                      return (
+                        <tr key={f.field_name} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td className="px-4 py-2 font-mono text-xs" style={{ color: "var(--text-primary)" }}>{f.field_name}</td>
+                          <td className="px-4 py-2">
+                            <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>
+                              {f.inferred_type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex flex-wrap gap-1">
+                              {f.sample_values.map((v, i) => (
+                                <span key={i} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                                  {v.length > 20 ? v.slice(0, 20) + "..." : v}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1.5 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+                                <div className="h-1.5 rounded-full" style={{ width: `${Math.min(nullPct, 100)}%`, backgroundColor: nullPct > 50 ? "var(--risk-high)" : nullPct > 10 ? "var(--risk-medium)" : "var(--risk-low)" }} />
+                              </div>
+                              <span className="text-xs" style={{ color: "var(--text-muted)" }}>{nullPct.toFixed(1)}%</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{f.unique_count.toLocaleString()}</td>
+                          <td className="px-4 py-2">
+                            <select
+                              value={fieldCategories[f.field_name] ?? ""}
+                              onChange={(e) => {
+                                setFieldCategories({ ...fieldCategories, [f.field_name]: e.target.value });
+                                setSavedFields((prev) => { const n = new Set(prev); n.delete(f.field_name); return n; });
+                              }}
+                              className="text-xs px-2 py-1 rounded border outline-none"
+                              style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                              <option value="">--</option>
+                              {FIELD_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-4 py-2">
+                            {savedFields.has(f.field_name) ? (
+                              <span className="text-xs" style={{ color: "var(--risk-low)" }}>Saved</span>
+                            ) : fieldCategories[f.field_name] ? (
+                              <button onClick={() => saveFieldMapping(f.field_name)}
+                                className="text-xs px-2 py-1 rounded border"
+                                style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>
+                                Save
+                              </button>
+                            ) : (
+                              <span className="text-xs" style={{ color: "var(--text-muted)" }}>--</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Section 3: Category Summary */}
+          {structResult && savedFields.size > 0 && (() => {
+            const categoryMap: Record<string, string[]> = {};
+            for (const [field, cat] of Object.entries(fieldCategories)) {
+              if (cat && savedFields.has(field)) {
+                if (!categoryMap[cat]) categoryMap[cat] = [];
+                categoryMap[cat].push(field);
+              }
+            }
+            const cats = Object.entries(categoryMap).sort(([a], [b]) => a.localeCompare(b));
+            if (cats.length === 0) return null;
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Category Summary</h3>
+                  <button onClick={exportMappings} className="px-3 py-1 rounded text-xs font-medium border"
+                    style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                    Export Mappings
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {cats.map(([cat, fields]) => (
+                    <div key={cat} className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--brand-primary)" }}>{cat}</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {fields.map((f) => (
+                          <span key={f} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: "var(--background)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ══════════ Tab 4: Analysis Results ══════════ */}
       {tab === "results" && (
         <div>
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
@@ -652,6 +915,13 @@ export default function LogAnalyzer() {
                     </label>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Akamai CP Code</label>
+                <input type="text" value={appSettings.cp_code} onChange={(e) => setAppSettings({ ...appSettings, cp_code: e.target.value })}
+                  className="w-full md:w-48 text-sm px-3 py-2 rounded border outline-none font-mono"
+                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  placeholder="e.g. 60890" />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>

@@ -10,7 +10,8 @@ Temel özellik: İstenen kadar log kaynağı eklenebilir (sub-module mimarisi)
 |---|---|---|
 | Projects | Log projeleri CRUD, yeni proje oluşturma | SQLite: log_projects |
 | Log Analyzer | Proje seçici + Akamai DataStream 2 sub-section, S3 fetch | S3 + DuckDB |
-| Settings | 3 accordion: Log Analyzer Settings / AWS Settings / GCP Settings (BQ export dahil) | SQLite: settings |
+| Log Structure | S3 log örnekleme, field analizi, kategori mapping | S3 + SQLite: field_category_mappings |
+| Settings | 3 accordion: Log Analyzer Settings / AWS Settings / GCP Settings | SQLite: settings |
 | Analysis Results | Geçmiş analiz sonuçları tablosu | DuckDB: cdn_analysis |
 
 ## 3. AGENT MİMARİSİ
@@ -140,6 +141,14 @@ CREATE TABLE settings (
     gcp_credentials_enc TEXT,
     updated_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE field_category_mappings (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    field_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(tenant_id, field_name)
+);
 ```
 ### Redis
 ```
@@ -194,3 +203,22 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Settings tab: 3 accordion (Log Analyzer Settings / AWS Settings / GCP Settings)
 - frontend/src/components/ui/Accordion.tsx oluşturuldu
 - Tests: 448 passed, 0 failed
+
+### S16-P2 — COMPLETE
+- POST /log-analyzer/structure/analyze — S3 örnekleme, field analizi, type inference
+- POST /log-analyzer/structure/mappings — field→category upsert
+- GET /log-analyzer/structure/mappings — tenant mapping listesi
+- field_category_mappings SQLite tablosu eklendi
+- _infer_type(): string/integer/float/timestamp/ip_hash/boolean
+- Frontend: "Log Structure" tab — date picker, field analysis tablosu, category summary cards, Export Mappings JSON
+- 13 yeni test (test_structure_analysis.py)
+- Tests: 52 passed, 0 failed
+
+### S16-P3 — COMPLETE
+- S3 path yapısı düzeltildi: logs/{cp_code}/{year}/{DD}/{MM}/{HH}/
+- Timezone fix: kullanıcı tarihi UTC+3, S3 path'leri UTC'ye çevrilir
+- .gz dosya desteği: gzip.open() ile decompress
+- cp_code: settings tablosuna eklendi, eksikse açık hata mesajı
+- Frontend: "Akamai CP Code" input → Log Analyzer Settings accordion
+- 5 yeni test (path generation, multi-day, gz parsing, cp_code validation)
+- Tests: 57 passed, 0 failed

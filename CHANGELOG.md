@@ -8,6 +8,30 @@
 
 ---
 
+## [S16-P3] — 2026-03-24
+### Fixed
+- S3 path format: logs/{cp_code}/{year}/{DD}/{MM}/{HH}/ (day before month)
+- Timezone: user input UTC+3 → S3 paths converted to UTC
+- .gz file decompression for both structure/analyze and fetch-range
+- cp_code missing → clear error message
+### Added
+- cp_code field in settings table and Log Analyzer Settings UI
+
+---
+
+## [S16-P2] — 2026-03-24
+### Added
+- Log Structure tab: S3 log sampling, field analysis, category mapping
+- POST /log-analyzer/structure/analyze
+- POST /log-analyzer/structure/mappings
+- GET /log-analyzer/structure/mappings
+- field_category_mappings SQLite table
+- Type inference: string/integer/float/timestamp/ip_hash/boolean
+- Export Mappings JSON download
+- 13 new tests (test_structure_analysis.py)
+
+---
+
 ## [S16-P1] — 2026-03-24
 ### Fixed
 - POST /log-analyzer/projects 405 bug

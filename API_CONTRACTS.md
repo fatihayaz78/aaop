@@ -128,6 +128,30 @@ GET  /log-analyzer/settings/test-connection?type=s3|bq — eklendi, daima 200 d�
 POST /log-analyzer/bigquery/export — GET'ten POST'a düzeltildi
 ```
 
+### S16-P2 Endpoints
+
+#### Log Structure Analysis
+```
+POST /log-analyzer/structure/analyze
+  Body: { tenant_id, start_date, end_date, sample_size (default 1000, max 5000) }
+  → { fields: [FieldAnalysis], total_rows_sampled: int, files_scanned: int }
+
+POST /log-analyzer/structure/mappings
+  Body: { tenant_id, field_name, category }
+  → 200 (upsert)
+
+GET /log-analyzer/structure/mappings
+  Query: tenant_id
+  → [{ field_name, category }]
+```
+
+**FieldAnalysis model:**
+```
+field_name, sample_values, null_count, unique_count, inferred_type, current_category
+```
+
+**Valid categories:** meta | timing | traffic | content | client | network | response | cache | geo | custom
+
 ---
 
 ## 5. ALERT CENTER (M13)
