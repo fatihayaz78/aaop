@@ -8,6 +8,17 @@
 
 ---
 
+## [S16-P14] — 2026-03-24
+### Fixed
+- Project delete endpoint (was missing)
+- Anomaly Rules edit button + PATCH endpoint
+- Analysis Results delete per row
+### Added
+- BigQuery export in Log Analyzer tab (collapsible)
+- BQ export fields in Scheduled Tasks
+
+---
+
 ## [S16-P13] — 2026-03-24
 ### Added
 - Project cards with summary (last analysis, scheduled tasks, anomaly alerts)

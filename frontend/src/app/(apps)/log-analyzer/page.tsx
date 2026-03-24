@@ -156,6 +156,11 @@ export default function LogAnalyzer() {
   const [anomalyResults, setAnomalyResults] = useState<Record<string, unknown>[]>([]);
   const [anomalyLoading, setAnomalyLoading] = useState(false);
   const [expandedRuleIdx, setExpandedRuleIdx] = useState<number | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editRule, setEditRule] = useState({ name: "", field: "country", operator: "not_in", value: "", severity: "medium", description: "", is_active: 1 });
+
+  /* ── BQ Export state ── */
+  const [showBqExport, setShowBqExport] = useState(false);
 
   /* ── Log Structure state ── */
   const [structStartDate, setStructStartDate] = useState("");
@@ -1020,6 +1025,46 @@ export default function LogAnalyzer() {
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>Fetch logs to see analysis charts.</p>
             </div>
           )}
+
+          {/* BQ Export section (below charts) */}
+          {fetchJob?.status === "completed" && fetchJob.jobId && (
+            <div className="mt-4">
+              <button onClick={() => setShowBqExport(!showBqExport)}
+                className="text-sm font-medium mb-2" style={{ color: "var(--brand-primary)" }}>
+                {showBqExport ? "Hide BigQuery Export" : "Export Results to BigQuery"}
+              </button>
+              {showBqExport && (
+                <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                    {BQ_CATEGORIES.map((cat) => (
+                      <label key={cat.name} className="flex items-start gap-2 p-2 rounded border cursor-pointer"
+                        style={{ borderColor: bqCategories[cat.name] ? "var(--brand-primary)" : "var(--border)", backgroundColor: bqCategories[cat.name] ? "var(--brand-glow)" : "transparent" }}>
+                        <input type="checkbox" checked={bqCategories[cat.name] ?? true}
+                          onChange={(e) => setBqCategories({ ...bqCategories, [cat.name]: e.target.checked })} className="mt-0.5" />
+                        <div>
+                          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{cat.name}</span>
+                          {cat.note && <p className="text-xs mt-0.5" style={{ color: "var(--risk-medium)" }}>&#9888; {cat.note}</p>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-3 items-end">
+                    <div>
+                      <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>BQ Table ID</label>
+                      <input type="text" value={bqTableId} onChange={(e) => setBqTableId(e.target.value)}
+                        placeholder={`akamai_logs_${fetchJob.jobId?.slice(0, 8)}`}
+                        className="text-sm px-3 py-1.5 rounded border outline-none font-mono"
+                        style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                    </div>
+                    <button onClick={startBqExport} className="px-4 py-1.5 rounded text-sm font-medium"
+                      style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                      Export to BigQuery
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1290,28 +1335,96 @@ export default function LogAnalyzer() {
                   </tr>
                 </thead>
                 <tbody>
-                  {anomalyRules.map((r) => (
-                    <tr key={String(r.id)} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{String(r.name)}</td>
-                      <td className="px-4 py-2 text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{String(r.field)}</td>
-                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{String(r.operator)} {String(r.value).slice(0, 30)}</td>
-                      <td className="px-4 py-2">
-                        <span className="text-xs px-2 py-0.5 rounded" style={{
-                          backgroundColor: r.severity === "high" ? "var(--risk-high-bg)" : r.severity === "medium" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)",
-                          color: r.severity === "high" ? "var(--risk-high)" : r.severity === "medium" ? "var(--risk-medium)" : "var(--risk-low)",
-                        }}>{String(r.severity)}</span>
-                      </td>
-                      <td className="px-4 py-2 text-xs" style={{ color: r.is_active ? "var(--risk-low)" : "var(--text-muted)" }}>{r.is_active ? "Yes" : "No"}</td>
-                      <td className="px-4 py-2">
-                        <button onClick={async () => {
-                          try {
-                            await apiDelete(`/log-analyzer/anomaly-rules/${r.id}`);
-                            setAnomalyRules(await apiGet("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus"));
-                          } catch { /* */ }
-                        }} className="text-xs" style={{ color: "var(--risk-high)" }}>Delete</button>
-                      </td>
-                    </tr>
-                  ))}
+                  {anomalyRules.map((r) => {
+                    const rid = String(r.id);
+                    const isEditingRule = editingRuleId === rid;
+                    return (
+                      <React.Fragment key={rid}>
+                        <tr style={{ borderBottom: isEditingRule ? "none" : "1px solid var(--border)" }}>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{String(r.name)}</td>
+                          <td className="px-4 py-2 text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{String(r.field)}</td>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{String(r.operator)} {String(r.value).slice(0, 30)}</td>
+                          <td className="px-4 py-2">
+                            <span className="text-xs px-2 py-0.5 rounded" style={{
+                              backgroundColor: r.severity === "high" ? "var(--risk-high-bg)" : r.severity === "medium" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)",
+                              color: r.severity === "high" ? "var(--risk-high)" : r.severity === "medium" ? "var(--risk-medium)" : "var(--risk-low)",
+                            }}>{String(r.severity)}</span>
+                          </td>
+                          <td className="px-4 py-2 text-xs" style={{ color: r.is_active ? "var(--risk-low)" : "var(--text-muted)" }}>{r.is_active ? "Yes" : "No"}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex gap-2">
+                              <button onClick={() => {
+                                if (isEditingRule) { setEditingRuleId(null); return; }
+                                setEditRule({ name: String(r.name), field: String(r.field), operator: String(r.operator), value: String(r.value), severity: String(r.severity ?? "medium"), description: String(r.description ?? ""), is_active: Number(r.is_active ?? 1) });
+                                setEditingRuleId(rid);
+                              }} className="text-xs px-2 py-0.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>{isEditingRule ? "Close" : "Edit"}</button>
+                              <button onClick={async () => {
+                                try { await apiDelete(`/log-analyzer/anomaly-rules/${rid}`); setAnomalyRules(await apiGet("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus")); setEditingRuleId(null); } catch { /* */ }
+                              }} className="text-xs" style={{ color: "var(--risk-high)" }}>Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isEditingRule && (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-4" style={{ borderBottom: "1px solid var(--border)", backgroundColor: "var(--background)" }}>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                                <div>
+                                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Rule Name</label>
+                                  <input type="text" value={editRule.name} onChange={(e) => setEditRule({ ...editRule, name: e.target.value })}
+                                    className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                    style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                                </div>
+                                <div>
+                                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Field</label>
+                                  <select value={editRule.field} onChange={(e) => setEditRule({ ...editRule, field: e.target.value })}
+                                    className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                    style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                                    {["version","cp_code","req_time_sec","bytes","client_bytes","content_type","response_body_size","user_agent","hostname","req_path","status_code","client_ip","req_range","cache_status","dns_lookup_time_ms","transfer_time_ms","turn_around_time_ms","error_code","cache_hit","edge_ip","country","city","session_duration_hours"].map((f) => <option key={f} value={f}>{f}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Operator</label>
+                                  <select value={editRule.operator} onChange={(e) => setEditRule({ ...editRule, operator: e.target.value })}
+                                    className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                    style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                                    {[["not_in","not in"],["gt",">"],["lt","<"],["eq","="],["contains","contains"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                                <div>
+                                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Value</label>
+                                  <input type="text" value={editRule.value} onChange={(e) => setEditRule({ ...editRule, value: e.target.value })}
+                                    className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                    style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                                </div>
+                                <div>
+                                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Severity</label>
+                                  <select value={editRule.severity} onChange={(e) => setEditRule({ ...editRule, severity: e.target.value })}
+                                    className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                    style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                                    <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Description</label>
+                                  <input type="text" value={editRule.description} onChange={(e) => setEditRule({ ...editRule, description: e.target.value })}
+                                    className="w-full text-sm px-3 py-1.5 rounded border outline-none"
+                                    style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={async () => {
+                                  try { await apiPatch(`/log-analyzer/anomaly-rules/${rid}`, editRule); setEditingRuleId(null); setAnomalyRules(await apiGet("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus")); } catch { /* */ }
+                                }} className="px-4 py-1.5 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Save</button>
+                                <button onClick={() => setEditingRuleId(null)} className="px-4 py-1.5 rounded text-sm border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Cancel</button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                   {anomalyRules.length === 0 && (
                     <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>No rules configured.</td></tr>
                   )}
@@ -1502,6 +1615,10 @@ export default function LogAnalyzer() {
                             View Charts
                           </button>
                         )}
+                        <button onClick={async () => {
+                          if (!confirm("Delete this job?")) return;
+                          try { await apiDelete(`/log-analyzer/results/${j.job_id}`); setJobHistory(await apiGet("/log-analyzer/akamai/jobs?tenant_id=s_sport_plus")); } catch { /* */ }
+                        }} className="text-xs ml-1" style={{ color: "var(--risk-high)" }}>Delete</button>
                       </td>
                     </tr>
                   ))}

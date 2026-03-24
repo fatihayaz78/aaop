@@ -28,7 +28,9 @@ async def task_db():
                 notify_emails TEXT DEFAULT '[]',
                 last_run TEXT,
                 last_status TEXT,
-                created_at TEXT DEFAULT (datetime('now'))
+                created_at TEXT DEFAULT (datetime('now')),
+                bq_export_enabled TEXT DEFAULT '0',
+                bq_export_categories TEXT DEFAULT '[]'
             )
         """)
         await conn.commit()
@@ -124,3 +126,23 @@ async def test_delete_task(task_db: aiosqlite.Connection):
     cursor = await task_db.execute("SELECT COUNT(*) FROM scheduled_tasks WHERE id = ?", ("task4",))
     count = await cursor.fetchone()
     assert count[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_bq_export_fields(task_db: aiosqlite.Connection):
+    """Task with bq_export_enabled=1 + categories → persists."""
+    categories = json.dumps(["meta", "timing", "traffic", "cache"])
+    await task_db.execute(
+        """INSERT INTO scheduled_tasks (id, tenant_id, name, schedule_cron, bq_export_enabled, bq_export_categories)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        ("task5", "s_sport_plus", "BQ Export Task", "0 3 * * *", "1", categories),
+    )
+    await task_db.commit()
+
+    cursor = await task_db.execute("SELECT bq_export_enabled, bq_export_categories FROM scheduled_tasks WHERE id = ?", ("task5",))
+    row = await cursor.fetchone()
+    assert row["bq_export_enabled"] == "1"
+    loaded = json.loads(row["bq_export_categories"])
+    assert len(loaded) == 4
+    assert "meta" in loaded
+    assert "cache" in loaded

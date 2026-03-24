@@ -316,3 +316,11 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Log Analyzer tab: project config auto-load on selection
 - 3 yeni test (test_projects.py)
 - Tests: 91 passed, 0 failed
+
+### S16-P14 — COMPLETE
+- BUG FIX: DELETE /log-analyzer/projects/{id} endpoint eklendi
+- BUG FIX: Anomaly Rules inline edit form (PATCH endpoint)
+- BUG FIX: DELETE /log-analyzer/results/{job_id} + DuckDB'den sil
+- BQ export: scheduled_tasks'a bq_export_enabled + bq_export_categories
+- Log Analyzer tab: collapsible BQ export section
+- Tests: 92 passed, 0 failed

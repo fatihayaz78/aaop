@@ -498,6 +498,13 @@ async def _ensure_schema(db: SQLiteClient) -> None:
         except Exception:
             pass
 
+    # ── Column migrations for scheduled_tasks ──
+    for col, default in [("bq_export_enabled", "0"), ("bq_export_categories", "'[]'")]:
+        try:
+            await db.execute(f"ALTER TABLE scheduled_tasks ADD COLUMN {col} TEXT DEFAULT {default}")
+        except Exception:
+            pass
+
     # ── Column migrations for settings ──
     for col, default in [
         ("cp_code", "''"),
@@ -620,10 +627,37 @@ async def create_project(
     }
 
 
+@router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, str]:
+    await _ensure_schema(db)
+    await db.execute("DELETE FROM log_projects WHERE id=? AND tenant_id=?", (project_id, ctx.tenant_id))
+    logger.info("project_deleted", tenant_id=ctx.tenant_id, project_id=project_id)
+    return {"status": "deleted", "id": project_id}
+
+
 @router.get("/results")
 async def list_results(ctx: TenantContext = Depends(get_tenant_context)) -> list[dict[str, Any]]:
     # Placeholder — will read from DuckDB
     return []
+
+
+@router.delete("/results/{job_id}")
+async def delete_result(
+    job_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> dict[str, str]:
+    """Delete a fetch job from DuckDB history."""
+    _ensure_duckdb_schema(duck)
+    try:
+        duck.execute("DELETE FROM fetch_job_history WHERE job_id = ? AND tenant_id = ?", [job_id, ctx.tenant_id])
+    except Exception:
+        pass
+    return {"status": "deleted", "job_id": job_id}
 
 
 @router.get("/projects/{project_id}/summary")
@@ -1928,7 +1962,7 @@ async def create_anomaly_rule(
     return {"id": rule_id, "status": "created"}
 
 
-@router.put("/anomaly-rules/{rule_id}")
+@router.patch("/anomaly-rules/{rule_id}")
 async def update_anomaly_rule(
     rule_id: str,
     payload: AnomalyRulePayload,
