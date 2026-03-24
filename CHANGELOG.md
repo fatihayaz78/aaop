@@ -8,6 +8,15 @@
 
 ---
 
+## [S16-P13] — 2026-03-24
+### Added
+- Project cards with summary (last analysis, scheduled tasks, anomaly alerts)
+- Project create form: description, source_type, cp_code, fetch_mode, date_range
+- GET /projects/{id}/summary endpoint
+- Open in Log Analyzer / Schedule buttons per project
+
+---
+
 ## [S16-P12] — 2026-03-24
 ### Fixed
 - Scheduled Tasks edit button opens inline form

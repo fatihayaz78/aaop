@@ -113,6 +113,11 @@ export default function LogAnalyzer() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectModule, setNewProjectModule] = useState("akamai");
+  const [newProjectDesc, setNewProjectDesc] = useState("");
+  const [newProjectCpCode, setNewProjectCpCode] = useState("");
+  const [newProjectFetchMode, setNewProjectFetchMode] = useState("sampled");
+  const [newProjectDateRange, setNewProjectDateRange] = useState("last_1_day");
+  const [projectSummaries, setProjectSummaries] = useState<Record<string, Record<string, unknown>>>({});
 
   /* ── Log Analyzer tab state ── */
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -212,9 +217,16 @@ export default function LogAnalyzer() {
   }, []);
 
   useEffect(() => {
-    loadProjects();
+    loadProjects().then(() => {
+      // Load summaries after projects are loaded — we read from state on next render
+    });
     loadResults();
   }, [loadProjects, loadResults]);
+
+  // Load summaries when projects change
+  useEffect(() => {
+    if (projects.length > 0) loadProjectSummaries(projects);
+  }, [projects.length]);
 
   useEffect(() => {
     if (tab === "settings") { loadSettings(); loadBqHistory(); loadBqRecentJobs(); }
@@ -257,11 +269,30 @@ export default function LogAnalyzer() {
   const createProject = async () => {
     if (!newProjectName.trim()) return;
     try {
-      await apiPost("/log-analyzer/projects", { tenant_id: "s_sport_plus", name: newProjectName, sub_module: newProjectModule });
-      setNewProjectName("");
+      await apiPost("/log-analyzer/projects", {
+        name: newProjectName, sub_module: newProjectModule,
+        description: newProjectDesc, cp_code: newProjectCpCode,
+        fetch_mode: newProjectFetchMode, default_date_range: newProjectDateRange,
+      });
+      setNewProjectName(""); setNewProjectDesc(""); setNewProjectCpCode("");
       setShowNewProject(false);
       loadProjects();
     } catch { /* error */ }
+  };
+
+  const loadProjectSummaries = async (projs: LogProject[]) => {
+    const summaries: Record<string, Record<string, unknown>> = {};
+    for (const p of projs.slice(0, 10)) {
+      try {
+        summaries[p.projectId] = await apiGet(`/log-analyzer/projects/${p.projectId}/summary`);
+      } catch { /* */ }
+    }
+    setProjectSummaries(summaries);
+  };
+
+  const openProjectInAnalyzer = (p: LogProject) => {
+    setSelectedProjectId(p.projectId);
+    setTab("analyzer");
   };
 
   const deleteProject = async (id: string) => {
@@ -610,20 +641,62 @@ export default function LogAnalyzer() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((p) => (
-              <div key={p.projectId} className="rounded-lg border p-4"
-                style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
-                  <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>{p.subModule}</span>
+            {projects.map((p) => {
+              const summary = projectSummaries[p.projectId] as Record<string, unknown> | undefined;
+              const lastJob = summary?.last_job as Record<string, unknown> | null | undefined;
+              const schedCount = Number(summary?.scheduled_tasks_count ?? 0);
+              const anomalyCount = Number(summary?.last_anomaly_count ?? 0);
+              return (
+                <div key={p.projectId} className="rounded-lg border p-4"
+                  style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>
+                      {p.subModule === "akamai" ? "Akamai DS2" : p.subModule}
+                    </span>
+                  </div>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {String((p as any).description ?? "") !== "" && (
+                    <p className="text-xs mb-2 truncate" style={{ color: "var(--text-muted)" }}>{String((p as any).description)}</p>
+                  )}
+
+                  <div className="space-y-1 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>Last Analysis:</span>
+                      {lastJob ? (
+                        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                          {String(lastJob.end_date ?? "").slice(0, 10)} — {Number(lastJob.total_rows ?? 0).toLocaleString()} rows
+                        </span>
+                      ) : (
+                        <span className="text-xs italic" style={{ color: "var(--text-muted)" }}>No analysis yet</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>Scheduled:</span>
+                      {schedCount > 0 ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>{schedCount} active</span>
+                      ) : (
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>None</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>Anomalies:</span>
+                      {anomalyCount > 0 ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)" }}>{anomalyCount}</span>
+                      ) : (
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>None</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button onClick={() => openProjectInAnalyzer(p)} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>Open in Log Analyzer</button>
+                    <button onClick={() => { setSelectedProjectId(p.projectId); setTab("scheduled"); }} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Schedule</button>
+                    <button onClick={() => deleteProject(p.projectId)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--risk-high)" }}>Delete</button>
+                  </div>
                 </div>
-                <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Status: {p.status} | Created: {p.createdAt}</p>
-                <div className="flex gap-2">
-                  <button className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Edit</button>
-                  <button onClick={() => deleteProject(p.projectId)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--risk-high)" }}>Delete</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {projects.length === 0 && (
               <div className="col-span-3 rounded-lg border p-8 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>No projects. Create one to start analyzing logs.</p>
@@ -633,27 +706,63 @@ export default function LogAnalyzer() {
 
           {showNewProject && (
             <div className="fixed inset-0 z-50 flex justify-end" style={{ backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setShowNewProject(false)}>
-              <div className="w-96 h-full p-6 overflow-y-auto" style={{ backgroundColor: "var(--background-card)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="w-[28rem] h-full p-6 overflow-y-auto" style={{ backgroundColor: "var(--background-card)" }} onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>New Project</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Project Name</label>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Project Name *</label>
                     <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)}
                       className="w-full text-sm px-3 py-2 rounded border outline-none"
                       style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                       placeholder="My Akamai Analysis" />
                   </div>
                   <div>
-                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Sub-Module</label>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Description</label>
+                    <input type="text" value={newProjectDesc} onChange={(e) => setNewProjectDesc(e.target.value)}
+                      className="w-full text-sm px-3 py-2 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                      placeholder="Daily CDN analysis for live streams" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Log Source</label>
                     <select value={newProjectModule} onChange={(e) => setNewProjectModule(e.target.value)}
                       className="w-full text-sm px-3 py-2 rounded border"
                       style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
-                      <option value="akamai">Akamai DS2</option>
+                      <option value="akamai">Akamai DataStream 2</option>
                       <option value="medianova" disabled>Medianova (Coming Soon)</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>CP Code</label>
+                    <input type="text" value={newProjectCpCode} onChange={(e) => setNewProjectCpCode(e.target.value)}
+                      className="w-full text-sm px-3 py-2 rounded border outline-none font-mono"
+                      style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                      placeholder="e.g. 60890" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Default Fetch Mode</label>
+                      <select value={newProjectFetchMode} onChange={(e) => setNewProjectFetchMode(e.target.value)}
+                        className="w-full text-sm px-3 py-2 rounded border"
+                        style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                        <option value="sampled">Sampled</option>
+                        <option value="full">Full</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Default Date Range</label>
+                      <select value={newProjectDateRange} onChange={(e) => setNewProjectDateRange(e.target.value)}
+                        className="w-full text-sm px-3 py-2 rounded border"
+                        style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                        <option value="last_24h">Last 24 Hours</option>
+                        <option value="last_1_day">Last 1 Day</option>
+                        <option value="last_1_week">Last 1 Week</option>
+                        <option value="last_1_month">Last 1 Month</option>
+                      </select>
+                    </div>
+                  </div>
                   <div className="flex gap-2 pt-4">
-                    <button onClick={createProject} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Create</button>
+                    <button onClick={createProject} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Create Project</button>
                     <button onClick={() => setShowNewProject(false)} className="px-4 py-2 rounded text-sm border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Cancel</button>
                   </div>
                 </div>

@@ -308,3 +308,11 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - PATCH /scheduled-tasks/{id}: partial merge, all fields Optional
 - notify_emails: JSON array, add/remove per email
 - Tests: 4 passed, 0 failed
+
+### S16-P13 — COMPLETE
+- Projects: card grid, summary endpoint, new fields (description/cp_code/fetch_mode/date_range)
+- GET /projects/{id}/summary: last_job + scheduled_tasks_count + last_anomaly_count
+- "Open in Log Analyzer" + "Schedule" buttons on project cards
+- Log Analyzer tab: project config auto-load on selection
+- 3 yeni test (test_projects.py)
+- Tests: 91 passed, 0 failed

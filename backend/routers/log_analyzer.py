@@ -68,6 +68,11 @@ class ExportRequest(BaseModel):
 class CreateProjectRequest(BaseModel):
     name: str
     sub_module: str = "akamai"
+    description: str = ""
+    source_type: str = "akamai_ds2"
+    cp_code: str = ""
+    fetch_mode: str = "sampled"
+    default_date_range: str = "last_1_day"
 
 
 class StructureAnalyzeRequest(BaseModel):
@@ -483,7 +488,17 @@ async def _ensure_schema(db: SQLiteClient) -> None:
         )"""
     )
 
-    # ── Column migrations for existing tables ──
+    # ── Column migrations for log_projects ──
+    for col, default in [
+        ("description", "''"), ("source_type", "'akamai_ds2'"),
+        ("cp_code", "''"), ("fetch_mode", "'sampled'"), ("default_date_range", "'last_1_day'"),
+    ]:
+        try:
+            await db.execute(f"ALTER TABLE log_projects ADD COLUMN {col} TEXT DEFAULT {default}")
+        except Exception:
+            pass
+
+    # ── Column migrations for settings ──
     for col, default in [
         ("cp_code", "''"),
         ("email_provider", "''"),
@@ -584,9 +599,11 @@ async def create_project(
     await _ensure_schema(db)
     project_id = str(uuid.uuid4())
     await db.execute(
-        """INSERT INTO log_projects (id, tenant_id, name, sub_module, is_active, created_at)
-           VALUES (?, ?, ?, ?, 1, datetime('now'))""",
-        (project_id, ctx.tenant_id, payload.name, payload.sub_module),
+        """INSERT INTO log_projects (id, tenant_id, name, sub_module, description, source_type, cp_code, fetch_mode, default_date_range, is_active, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))""",
+        (project_id, ctx.tenant_id, payload.name, payload.sub_module,
+         payload.description, payload.source_type, payload.cp_code,
+         payload.fetch_mode, payload.default_date_range),
     )
     logger.info("project_created", tenant_id=ctx.tenant_id, project_id=project_id, name=payload.name)
     return {
@@ -594,6 +611,11 @@ async def create_project(
         "tenant_id": ctx.tenant_id,
         "name": payload.name,
         "sub_module": payload.sub_module,
+        "description": payload.description,
+        "source_type": payload.source_type,
+        "cp_code": payload.cp_code,
+        "fetch_mode": payload.fetch_mode,
+        "default_date_range": payload.default_date_range,
         "is_active": 1,
     }
 
@@ -602,6 +624,50 @@ async def create_project(
 async def list_results(ctx: TenantContext = Depends(get_tenant_context)) -> list[dict[str, Any]]:
     # Placeholder — will read from DuckDB
     return []
+
+
+@router.get("/projects/{project_id}/summary")
+async def get_project_summary(
+    project_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> dict[str, Any]:
+    """Return project info + last job + scheduled task count + anomaly count."""
+    await _ensure_schema(db)
+    _ensure_duckdb_schema(duck)
+
+    project = await db.fetch_one(
+        "SELECT * FROM log_projects WHERE id = ? AND tenant_id = ?", (project_id, ctx.tenant_id),
+    )
+    if not project:
+        return {"error": "Project not found"}
+
+    # Last job from DuckDB
+    last_job = None
+    try:
+        row = duck.fetch_one(
+            "SELECT * FROM fetch_job_history WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1",
+            [ctx.tenant_id],
+        )
+        if row:
+            last_job = {k: row[k] for k in ("job_id", "start_date", "end_date", "total_rows", "total_files", "status", "completed_at")}
+    except Exception:
+        pass
+
+    # Scheduled tasks count
+    tasks_row = await db.fetch_one(
+        "SELECT COUNT(*) as cnt FROM scheduled_tasks WHERE tenant_id = ? AND project_id = ? AND is_active = 1",
+        (ctx.tenant_id, project_id),
+    )
+    scheduled_count = tasks_row["cnt"] if tasks_row else 0
+
+    return {
+        "project": dict(project),
+        "last_job": last_job,
+        "scheduled_tasks_count": scheduled_count,
+        "last_anomaly_count": 0,
+    }
 
 
 # ── Settings endpoints ──
