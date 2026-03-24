@@ -161,6 +161,7 @@ export default function LogAnalyzer() {
 
   /* ── BQ Export state ── */
   const [showBqExport, setShowBqExport] = useState(false);
+  const [expandedCharts, setExpandedCharts] = useState<Set<string>>(new Set());
 
   /* ── Log Structure state ── */
   const [structStartDate, setStructStartDate] = useState("");
@@ -961,35 +962,52 @@ export default function LogAnalyzer() {
                 </div>
               )}
 
-              {/* 10 Charts grid */}
+              {/* 13 Charts grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {([
-                  { key: "status_code_distribution", title: "Status Code Distribution", x: "status", y: "count", type: "bar" as const },
-                  { key: "cache_hit_ratio", title: "Cache Hit Ratio", x: "label", y: "count", type: "bar" as const },
-                  { key: "bandwidth_by_hour", title: "Bandwidth by Hour (MB)", x: "hour", y: "mb", type: "line" as const },
-                  { key: "top_error_paths", title: "Top Error Paths", x: "path", y: "count", type: "bar" as const },
-                  { key: "latency_percentiles", title: "Latency Percentiles (ms)", x: "percentile", y: "ms", type: "bar" as const },
-                  { key: "geo_distribution", title: "Geographic Distribution", x: "country", y: "count", type: "bar" as const },
-                  { key: "content_type_breakdown", title: "Content Type Breakdown", x: "type", y: "count", type: "bar" as const },
-                  { key: "cache_status_breakdown", title: "Cache Status Breakdown", x: "status", y: "count", type: "bar" as const },
-                  { key: "error_rate_trend", title: "Error Rate Trend (%)", x: "hour", y: "error_rate", type: "line" as const },
-                  { key: "bytes_vs_client", title: "Server vs Client (MB)", x: "hour", y: "server_mb", type: "line" as const },
-                  { key: "top_client_ips", title: "Top 10 Client IPs (MB)", x: "ip", y: "mb", type: "bar" as const },
-                  { key: "request_volume_by_hour", title: "Request Volume by Hour", x: "hour", y: "requests", type: "bar" as const },
-                  { key: "anomaly_timeline", title: "Anomaly Timeline (Latency)", x: "hour", y: "avg_ms", type: "line" as const },
+                  { key: "status_code_distribution", title: "Status Code Distribution", desc: "HTTP response code breakdown across all requests", x: "status", y: "count", type: "bar" as const },
+                  { key: "cache_hit_ratio", title: "Cache Hit Ratio", desc: "Percentage of requests served from Akamai cache vs origin", x: "label", y: "count", type: "bar" as const },
+                  { key: "bandwidth_by_hour", title: "Bandwidth by Hour (MB)", desc: "Total data transferred per UTC hour (MB)", x: "hour", y: "mb", type: "line" as const },
+                  { key: "top_error_paths", title: "Top Error Paths", desc: "Most frequently requested paths returning 4xx/5xx errors", x: "path", y: "count", type: "bar" as const },
+                  { key: "latency_percentiles", title: "Latency Percentiles (ms)", desc: "Request transfer time distribution (p50/p75/p95/p99)", x: "percentile", y: "ms", type: "bar" as const },
+                  { key: "geo_distribution", title: "Top Cities", desc: "Top 15 cities by request volume", x: "city", y: "count", type: "bar" as const },
+                  { key: "content_type_breakdown", title: "Content Type Breakdown", desc: "Distribution of response content types", x: "type", y: "count", type: "bar" as const },
+                  { key: "cache_status_breakdown", title: "Cache Status Breakdown", desc: "Akamai cache status codes across all requests", x: "status", y: "count", type: "bar" as const },
+                  { key: "error_rate_trend", title: "Error Rate Trend (%)", desc: "Hourly percentage of error responses (4xx/5xx)", x: "hour", y: "error_rate", type: "line" as const },
+                  { key: "bytes_vs_client", title: "Server vs Client (MB)", desc: "Hourly comparison of total bytes vs bytes delivered to client", x: "hour", y: "server_mb", type: "line" as const },
+                  { key: "top_client_ips", title: "Top 10 Client IPs (MB)", desc: "Top 10 anonymized client IPs by bandwidth consumed (MB)", x: "ip", y: "mb", type: "bar" as const },
+                  { key: "request_volume_by_hour", title: "Request Volume by Hour", desc: "Number of requests per UTC hour", x: "hour", y: "requests", type: "bar" as const },
+                  { key: "anomaly_timeline", title: "Anomaly Timeline (Latency)", desc: "Hourly average transfer latency with anomaly detection (z-score)", x: "hour", y: "avg_ms", type: "line" as const },
                 ] as const).map((chart) => {
                   const data = chartsData[chart.key] ?? [];
                   if (!data.length) return null;
+                  const isExpanded = expandedCharts.has(chart.key);
                   return (
                     <div key={chart.key} className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                      <div className="flex items-start justify-between mb-1">
+                        <div>
+                          <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{chart.title}</span>
+                          <p className="text-xs italic" style={{ color: "var(--text-muted)" }}>{chart.desc}</p>
+                        </div>
+                        <button onClick={() => setExpandedCharts((prev) => {
+                          const next = new Set(Array.from(prev));
+                          if (next.has(chart.key)) next.delete(chart.key); else next.add(chart.key);
+                          return next;
+                        })} className="text-xs px-1" style={{ color: "var(--text-muted)" }} title={isExpanded ? "Collapse" : "Expand"}>
+                          {isExpanded ? "\u2921" : "\u2922"}
+                        </button>
+                      </div>
                       <RechartsWrapper
                         data={data as Record<string, unknown>[]}
                         xKey={chart.x}
                         yKey={chart.y}
-                        title={chart.title}
-                        height={180}
+                        title=""
+                        height={isExpanded ? 400 : 180}
                         type={chart.type}
                       />
+                      {chart.key === "top_client_ips" && (
+                        <p className="text-xs mt-1 italic" style={{ color: "var(--text-muted)" }}>Client IPs are anonymized (SHA256)</p>
+                      )}
                       <details className="mt-2">
                         <summary className="text-xs cursor-pointer select-none" style={{ color: "var(--text-muted)" }}>Data Table</summary>
                         <div className="mt-1 max-h-40 overflow-y-auto">

@@ -8,6 +8,18 @@
 
 ---
 
+## [S16-P16] — 2026-03-24
+### Fixed
+- Cache Status integer mapping (float/string coerce)
+- Geographic: city-based grouping with country suffix
+- All hourly charts: full 24h timeline
+- Top 10 IPs: truncated labels, full hash in table
+### Added
+- Per-chart expand/collapse toggle
+- Chart descriptions below titles
+
+---
+
 ## [S16-P15] — 2026-03-24
 ### Fixed
 - Cache Hit Ratio: percentage labels, always 2 bars

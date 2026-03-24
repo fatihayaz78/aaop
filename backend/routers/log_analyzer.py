@@ -1439,74 +1439,85 @@ def _run_analysis(df: Any) -> dict[str, Any]:
                 {"percentile": "p99", "ms": round(float(vals.quantile(0.99)), 1)},
             ]
 
-    # 6. Geographic distribution (sorted by count desc)
-    if "country" in df.columns:
+    # 6. Top Cities (city + country label)
+    if "city" in df.columns:
+        df_geo = df.copy()
+        df_geo["city_clean"] = df_geo["city"].fillna("Unknown").replace({"": "Unknown", "-": "Unknown"})
+        if "country" in df_geo.columns:
+            df_geo["city_label"] = df_geo["city_clean"] + " (" + df_geo["country"].fillna("??") + ")"
+        else:
+            df_geo["city_label"] = df_geo["city_clean"]
+        geo = df_geo["city_label"].value_counts().head(15)
+        charts["geo_distribution"] = [{"city": str(k), "count": int(v)} for k, v in geo.items()]
+    elif "country" in df.columns:
         geo = df["country"].dropna().value_counts().head(15)
-        charts["geo_distribution"] = [{"country": str(k), "count": int(v)} for k, v in geo.items()]
+        charts["geo_distribution"] = [{"city": str(k), "count": int(v)} for k, v in geo.items()]
 
     # 7. Content type breakdown
     if "content_type" in df.columns:
         ct = df["content_type"].dropna().value_counts().head(10)
         charts["content_type_breakdown"] = [{"type": str(k)[:40], "count": int(v)} for k, v in ct.items()]
 
-    # 8. Cache status breakdown (integer → label)
+    # 8. Cache status breakdown (robust float→int→label)
     if "cache_status" in df.columns:
-        cs = df["cache_status"].dropna().astype(int).value_counts().sort_index()
+        cs_raw = pd.to_numeric(df["cache_status"], errors="coerce").dropna()
+        cs = cs_raw.astype(int).value_counts().sort_index()
         charts["cache_status_breakdown"] = [
             {"status": _CACHE_STATUS_LABELS.get(int(k), f"Unknown({k})"), "count": int(v)}
             for k, v in cs.items()
         ]
 
-    # 9. Error rate trend (hourly)
+    # 9. Error rate trend (hourly, full 24h)
     if "req_time_sec" in df.columns and "status_code" in df.columns:
         df_hr = df[df["req_time_sec"].notna()].copy()
         df_hr["hour"] = pd.to_datetime(df_hr["req_time_sec"], unit="s", utc=True).dt.hour
         hourly = df_hr.groupby("hour").agg(
             total=("status_code", "count"),
             errors=("status_code", lambda x: (x >= 400).sum()),
-        ).reset_index()
-        hourly["error_rate"] = (hourly["errors"] / hourly["total"] * 100).round(2)
-        charts["error_rate_trend"] = [{"hour": int(r["hour"]), "error_rate": float(r["error_rate"])} for _, r in hourly.iterrows()]
+        )
+        hourly = hourly.reindex(range(24), fill_value=0)
+        hourly["error_rate"] = (hourly["errors"] / hourly["total"].replace(0, 1) * 100).round(2)
+        charts["error_rate_trend"] = [{"hour": h, "error_rate": float(hourly.loc[h, "error_rate"])} for h in range(24)]
 
-    # 10. Bytes vs client_bytes (hourly, as MB)
+    # 10. Bytes vs client_bytes (hourly, full 24h, as MB)
     if "req_time_sec" in df.columns and "bytes" in df.columns and "client_bytes" in df.columns:
         df_bc = df[df["req_time_sec"].notna()].copy()
         df_bc["hour"] = pd.to_datetime(df_bc["req_time_sec"], unit="s", utc=True).dt.hour
-        bc = df_bc.groupby("hour").agg(bytes=("bytes", "sum"), client_bytes=("client_bytes", "sum")).reset_index()
+        bc = df_bc.groupby("hour").agg(bytes=("bytes", "sum"), client_bytes=("client_bytes", "sum"))
+        bc = bc.reindex(range(24), fill_value=0)
         charts["bytes_vs_client"] = [
-            {"hour": int(r["hour"]), "server_mb": round(int(r["bytes"]) / (1024**2), 1), "client_mb": round(int(r["client_bytes"]) / (1024**2), 1)}
-            for _, r in bc.iterrows()
+            {"hour": h, "server_mb": round(int(bc.loc[h, "bytes"]) / (1024**2), 1), "client_mb": round(int(bc.loc[h, "client_bytes"]) / (1024**2), 1)}
+            for h in range(24)
         ]
 
-    # 11. Top 10 Client IPs by Bandwidth
+    # 11. Top 10 Client IPs by Bandwidth (full hash in data, truncated in label)
     if "client_ip" in df.columns and "bytes" in df.columns:
         ip_bw = df.groupby("client_ip")["bytes"].sum().sort_values(ascending=False).head(10)
-        charts["top_client_ips"] = [{"ip": str(k)[:16], "mb": round(int(v) / (1024**2), 1)} for k, v in ip_bw.items()]
+        charts["top_client_ips"] = [{"ip": str(k)[:12] + "...", "full_ip": str(k), "mb": round(int(v) / (1024**2), 1)} for k, v in ip_bw.items()]
 
-    # 12. Request Volume by Hour
+    # 12. Request Volume by Hour (full 24h)
     if "req_time_sec" in df.columns:
         df_rv = df[df["req_time_sec"].notna()].copy()
         df_rv["hour"] = pd.to_datetime(df_rv["req_time_sec"], unit="s", utc=True).dt.hour
-        rv = df_rv.groupby("hour").size().reset_index(name="requests")
-        charts["request_volume_by_hour"] = [{"hour": int(r["hour"]), "requests": int(r["requests"])} for _, r in rv.iterrows()]
+        rv = df_rv.groupby("hour").size()
+        rv = rv.reindex(range(24), fill_value=0)
+        charts["request_volume_by_hour"] = [{"hour": h, "requests": int(rv[h])} for h in range(24)]
 
-    # 13. Anomaly Timeline (z-score on transfer_time_ms per hour)
+    # 13. Anomaly Timeline (full 24h, z-score on transfer_time_ms per hour)
     if "req_time_sec" in df.columns and "transfer_time_ms" in df.columns:
         df_at = df[df["req_time_sec"].notna() & df["transfer_time_ms"].notna()].copy()
         df_at["hour"] = pd.to_datetime(df_at["req_time_sec"], unit="s", utc=True).dt.hour
-        hourly_lat = df_at.groupby("hour")["transfer_time_ms"].mean().reset_index()
-        mean_val = hourly_lat["transfer_time_ms"].mean()
-        std_val = hourly_lat["transfer_time_ms"].std()
-        if std_val and std_val > 0:
-            hourly_lat["z_score"] = ((hourly_lat["transfer_time_ms"] - mean_val) / std_val).round(2)
-        else:
-            hourly_lat["z_score"] = 0.0
-        hourly_lat["anomaly"] = (abs(hourly_lat["z_score"]) > 2.5).astype(int) if std_val and std_val > 0 else 0
-        charts["anomaly_timeline"] = [
-            {"hour": int(r["hour"]), "avg_ms": round(float(r["transfer_time_ms"]), 1),
-             "z_score": float(r["z_score"]), "anomaly": int(r["anomaly"])}
-            for _, r in hourly_lat.iterrows()
-        ]
+        hourly_lat = df_at.groupby("hour")["transfer_time_ms"].mean()
+        hourly_lat = hourly_lat.reindex(range(24), fill_value=0)
+        mean_val = hourly_lat[hourly_lat > 0].mean() if (hourly_lat > 0).any() else 0
+        std_val = hourly_lat[hourly_lat > 0].std() if (hourly_lat > 0).any() else 0
+        result_at = []
+        for h in range(24):
+            avg_ms = float(hourly_lat[h])
+            z = round((avg_ms - mean_val) / std_val, 2) if std_val and std_val > 0 and avg_ms > 0 else 0.0
+            anomaly = 1 if abs(z) > 2.5 else 0
+            result_at.append({"hour": h, "avg_ms": round(avg_ms, 1), "z_score": z, "anomaly": anomaly})
+        charts["anomaly_timeline"] = result_at
 
     return {"summary": summary, "charts": charts}
 

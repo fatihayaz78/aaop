@@ -330,3 +330,12 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Cache Hit: % label + 2 bar fix + string coerce
 - Bandwidth by Hour: 24 saat tam timeline, bytes sample log
 - Tests: 92 passed, 0 failed
+
+### S16-P16 — COMPLETE
+- Cache Status: float/string → int coerce, labels fix
+- Geographic: city grouping, "{city} ({country})" format
+- All 5 hourly charts: reindex(range(24), fill_value=0)
+- Top 10 IPs: truncated display, full hash in Data Table, SHA256 note
+- Expand/collapse per chart (⤢/⤡ toggle, 180→400px)
+- 13 chart descriptions (italic, text-xs)
+- Tests: 92 passed, 0 failed
