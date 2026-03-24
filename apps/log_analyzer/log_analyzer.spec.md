@@ -222,3 +222,27 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Frontend: "Akamai CP Code" input → Log Analyzer Settings accordion
 - 5 yeni test (path generation, multi-day, gz parsing, cp_code validation)
 - Tests: 57 passed, 0 failed
+
+### S16-P5 — COMPLETE
+- _analyze_fields(): null handling fix, structlog rows_parsed/fields_found
+- DS2_FIELD_TYPES: 22 alan için known type overrides
+- DS2_FIELD_DESCRIPTIONS: 22 alan için açıklama
+- DS2_DEFAULT_CATEGORIES: 22 alan için auto-suggest kategori
+- Category öncelik sırası: saved DB mapping > DS2 default > None
+- Frontend: Description kolonu eklendi, sample values "—" fallback,
+  category dropdown pre-select, saved mappings persist across re-analysis
+- 4 yeni test (descriptions, auto-suggest, saved mapping override)
+- Tests: 61 passed, 0 failed
+
+### S16-P6 — COMPLETE
+- S3 listing: Delimiter="/" ile recursive scan engellendi
+- Per-prefix structlog: s3_prefix_scan files_found=N
+- Hard limits: MAX_FILES_PER_DAY=500, MAX_FILES_PER_JOB=2000
+- boto3 calls ThreadPoolExecutor'a taşındı (event loop blocking fix)
+- Cancel flag: her S3 list/get_object sonrası kontrol
+- DuckDB cache: log_fetch_cache + fetch_job_history tabloları
+- Cache strategy: gün bazlı parquet cache, force_refresh seçeneği
+- Stop button: cancel endpoint + frontend red button
+- Frontend: Force refresh checkbox, progress cache hit info
+- 8 yeni test (test_fetch_cache.py)
+- Tests: 69 passed, 0 failed

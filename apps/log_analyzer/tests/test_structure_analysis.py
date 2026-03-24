@@ -8,6 +8,8 @@ import io
 import pytest
 
 from backend.routers.log_analyzer import (
+    DS2_DEFAULT_CATEGORIES,
+    DS2_FIELD_DESCRIPTIONS,
     VALID_CATEGORIES,
     _analyze_fields,
     _build_s3_prefixes,
@@ -100,7 +102,7 @@ def test_infer_field_types_from_entry():
     field_map = {f["field_name"]: f for f in fields}
 
     assert field_map["version"]["inferred_type"] == "integer"
-    assert field_map["cp_code"]["inferred_type"] == "string"
+    assert field_map["cp_code"]["inferred_type"] == "integer"  # DS2 fallback override
     assert field_map["req_time_sec"]["inferred_type"] == "timestamp"
     assert field_map["bytes"]["inferred_type"] == "integer"
     assert field_map["client_ip"]["inferred_type"] == "ip_hash"
@@ -325,3 +327,70 @@ async def test_structure_analyze_no_cp_code():
 
     assert "CP Code" in result["error"]
     assert result["fields"] == []
+
+
+# ── DS2 field descriptions ──
+
+
+def test_ds2_field_descriptions():
+    """All 22 DS2 fields have descriptions."""
+    expected_fields = {
+        "version", "cp_code", "req_time_sec", "bytes", "client_bytes",
+        "content_type", "response_body_size", "user_agent", "hostname",
+        "req_path", "status_code", "client_ip", "req_range", "cache_status",
+        "dns_lookup_time_ms", "transfer_time_ms", "turn_around_time_ms",
+        "error_code", "cache_hit", "edge_ip", "country", "city",
+    }
+    assert expected_fields == set(DS2_FIELD_DESCRIPTIONS.keys())
+    assert len(DS2_FIELD_DESCRIPTIONS) == 22
+    # All descriptions are non-empty strings
+    for field, desc in DS2_FIELD_DESCRIPTIONS.items():
+        assert isinstance(desc, str) and len(desc) > 0, f"Empty description for {field}"
+
+
+def test_analyze_fields_includes_description():
+    """_analyze_fields() includes description from DS2_FIELD_DESCRIPTIONS."""
+    entries = [{"status_code": 200, "unknown_field": "foo"}]
+    fields = _analyze_fields(entries)
+    field_map = {f["field_name"]: f for f in fields}
+
+    assert field_map["status_code"]["description"] == "HTTP response status code"
+    assert field_map["unknown_field"]["description"] == ""
+
+
+# ── Auto-suggest categories ──
+
+
+def test_auto_suggest_categories():
+    """DS2 fields get correct default categories."""
+    assert DS2_DEFAULT_CATEGORIES["version"] == "meta"
+    assert DS2_DEFAULT_CATEGORIES["req_time_sec"] == "timing"
+    assert DS2_DEFAULT_CATEGORIES["bytes"] == "traffic"
+    assert DS2_DEFAULT_CATEGORIES["content_type"] == "content"
+    assert DS2_DEFAULT_CATEGORIES["client_ip"] == "client"
+    assert DS2_DEFAULT_CATEGORIES["hostname"] == "network"
+    assert DS2_DEFAULT_CATEGORIES["status_code"] == "response"
+    assert DS2_DEFAULT_CATEGORIES["cache_hit"] == "cache"
+    assert DS2_DEFAULT_CATEGORIES["country"] == "geo"
+    # All 22 fields have a default category
+    assert len(DS2_DEFAULT_CATEGORIES) == 22
+
+
+def test_saved_mapping_overrides_default():
+    """Saved DB mapping takes priority over DS2 default category."""
+    # Simulate: status_code default is "response", but user saved it as "custom"
+    entries = [{"status_code": 200, "country": "TR"}]
+    fields = _analyze_fields(entries)
+
+    # Simulate merge logic from structure_analyze endpoint
+    saved_mappings = {"status_code": "custom"}
+    for f in fields:
+        fname = str(f["field_name"])
+        saved = saved_mappings.get(fname)
+        f["current_category"] = saved or DS2_DEFAULT_CATEGORIES.get(fname)
+
+    field_map = {f["field_name"]: f for f in fields}
+    # Saved mapping wins over default
+    assert field_map["status_code"]["current_category"] == "custom"
+    # No saved mapping → use default
+    assert field_map["country"]["current_category"] == "geo"

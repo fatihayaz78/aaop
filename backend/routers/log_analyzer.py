@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from apps.log_analyzer.schemas import SubModuleStatus
-from backend.dependencies import get_sqlite, get_tenant_context
+from backend.dependencies import get_duckdb, get_sqlite, get_tenant_context
+from shared.clients.duckdb_client import DuckDBClient
 from shared.clients.sqlite_client import SQLiteClient
 from shared.schemas.base_event import TenantContext
 from shared.utils.encryption import decrypt, encrypt
@@ -39,21 +40,23 @@ def _mask_key(value: str | None) -> str | None:
 
 
 class SettingsPayload(BaseModel):
+    """Partial settings update — only non-None fields are written."""
+    cp_code: str | None = None
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
-    aws_region: str = "eu-central-1"
+    aws_region: str | None = None
     s3_bucket: str | None = None
-    s3_prefix: str = "logs/"
-    cp_code: str | None = None
+    s3_prefix: str | None = None
     gcp_project_id: str | None = None
     gcp_dataset_id: str | None = None
     gcp_credentials_json: str | None = None
-    bigquery_enabled: int = 0
+    bigquery_enabled: int | None = None
 
 
 class FetchRangeRequest(BaseModel):
     start_date: str
     end_date: str
+    cache_mode: str = "auto"  # "auto" or "force_refresh"
 
 
 class ExportRequest(BaseModel):
@@ -80,6 +83,62 @@ class FieldMappingRequest(BaseModel):
 VALID_CATEGORIES = {
     "meta", "timing", "traffic", "content", "client",
     "network", "response", "cache", "geo", "custom",
+}
+
+# DS2 known field type overrides (fallback when inference returns "string")
+DS2_FIELD_TYPES: dict[str, str] = {
+    "req_time_sec": "timestamp",
+    "dns_lookup_time_ms": "integer",
+    "transfer_time_ms": "integer",
+    "turn_around_time_ms": "integer",
+    "bytes": "integer",
+    "client_bytes": "integer",
+    "response_body_size": "integer",
+    "status_code": "integer",
+    "cache_status": "integer",
+    "cache_hit": "boolean",
+    "client_ip": "ip_hash",
+    "edge_ip": "string",
+    "version": "integer",
+    "cp_code": "integer",
+}
+
+DS2_FIELD_DESCRIPTIONS: dict[str, str] = {
+    "version": "Log format version number",
+    "cp_code": "Akamai Content Provider Code",
+    "req_time_sec": "Request timestamp (Unix epoch, UTC)",
+    "bytes": "Total bytes transferred",
+    "client_bytes": "Bytes sent to client",
+    "content_type": "MIME type of response content",
+    "response_body_size": "Full object size in bytes",
+    "user_agent": "Client User-Agent string",
+    "hostname": "Requested hostname (e.g. cdn.ssportplus.com)",
+    "req_path": "Request path",
+    "status_code": "HTTP response status code",
+    "client_ip": "Client IP (SHA256 hashed for PII)",
+    "req_range": "HTTP Range header value",
+    "cache_status": "Akamai cache status integer (0-9)",
+    "dns_lookup_time_ms": "DNS resolution time in ms",
+    "transfer_time_ms": "Transfer duration in ms",
+    "turn_around_time_ms": "Edge turnaround time in ms",
+    "error_code": "Akamai error code string",
+    "cache_hit": "Binary cache hit flag (0/1)",
+    "edge_ip": "Akamai edge node IP address",
+    "country": "Client country code (ISO 3166)",
+    "city": "Client city name",
+}
+
+DS2_DEFAULT_CATEGORIES: dict[str, str] = {
+    "version": "meta", "cp_code": "meta",
+    "req_time_sec": "timing", "dns_lookup_time_ms": "timing",
+    "transfer_time_ms": "timing", "turn_around_time_ms": "timing",
+    "bytes": "traffic", "client_bytes": "traffic", "response_body_size": "traffic",
+    "content_type": "content", "req_path": "content",
+    "user_agent": "client", "client_ip": "client", "req_range": "client",
+    "hostname": "network", "edge_ip": "network",
+    "status_code": "response", "error_code": "response",
+    "cache_status": "cache", "cache_hit": "cache",
+    "country": "geo", "city": "geo",
 }
 
 
@@ -138,30 +197,54 @@ def _analyze_fields(entries: list[dict[str, object]]) -> list[dict[str, object]]
     result = []
     for field in sorted(all_fields):
         values = [e.get(field) for e in entries]
-        non_null = [v for v in values if v is not None]
+        # Treat None and empty string as null
+        non_null = [v for v in values if v is not None and v != ""]
         null_count = len(values) - len(non_null)
 
-        # Sample values: 3 distinct non-null
+        # Sample values: 3 distinct non-empty
         seen: list[str] = []
         seen_set: set[str] = set()
         for v in non_null:
             s = str(v)
-            if s not in seen_set and len(seen) < 3:
+            if s and s not in seen_set and len(seen) < 3:
                 seen.append(s[:60])
                 seen_set.add(s)
 
-        unique_count = len(set(str(v) for v in non_null))
+        unique_count = len(set(str(v) for v in non_null)) if non_null else 0
+
+        # Type inference with DS2 fallback
+        inferred = _infer_type(non_null)
+        if inferred == "string" and field in DS2_FIELD_TYPES:
+            inferred = DS2_FIELD_TYPES[field]
 
         result.append({
             "field_name": field,
+            "description": DS2_FIELD_DESCRIPTIONS.get(field, ""),
             "sample_values": seen,
             "null_count": null_count,
             "unique_count": unique_count,
-            "inferred_type": _infer_type(non_null),
+            "inferred_type": inferred,
             "current_category": None,
         })
 
     return result
+
+
+def _cache_key(tenant_id: str, cp_code: str, date_str: str) -> str:
+    """Build cache key for a single day: tenant_id:cp_code:date."""
+    return f"{tenant_id}:{cp_code}:{date_str}"
+
+
+def _date_range(start_date: str, end_date: str) -> list[str]:
+    """Return list of YYYY-MM-DD strings from start to end inclusive."""
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    dates: list[str] = []
+    current = start
+    while current <= end:
+        dates.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+    return dates
 
 
 def _build_s3_prefixes(cp_code: str, start_date: str, end_date: str) -> list[str]:
@@ -192,6 +275,16 @@ def _build_s3_prefixes(cp_code: str, start_date: str, end_date: str) -> list[str
         prefixes.append(prefix)
         current += timedelta(hours=1)
 
+    logger.info(
+        "s3_prefixes_built",
+        input_start=start_date,
+        input_end=end_date,
+        utc_start=utc_start.isoformat(),
+        utc_end=utc_end.isoformat(),
+        total=len(prefixes),
+        first=prefixes[0] if prefixes else None,
+        last=prefixes[-1] if prefixes else None,
+    )
     return prefixes
 
 
@@ -208,19 +301,52 @@ _schema_migrated = False
 
 
 async def _ensure_schema(db: SQLiteClient) -> None:
+    """Ensure all log_analyzer tables exist and run column migrations."""
     global _schema_migrated  # noqa: PLW0603
     if _schema_migrated:
         return
     _schema_migrated = True
-    """Run lightweight migrations for columns/tables added after initial schema."""
-    # Add cp_code column to settings if missing (SQLite has no ADD COLUMN IF NOT EXISTS)
-    try:
-        await db.execute("ALTER TABLE settings ADD COLUMN cp_code TEXT DEFAULT ''")
-        logger.info("schema_migration", action="added cp_code column to settings")
-    except Exception:
-        pass  # Column already exists
 
-    # Ensure field_category_mappings table exists
+    # ── Create tables used by log_analyzer ──
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS log_projects (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            sub_module TEXT NOT NULL,
+            config_json TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        )"""
+    )
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS log_sources (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            config_json TEXT,
+            last_fetch TEXT,
+            status TEXT DEFAULT 'idle'
+        )"""
+    )
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS settings (
+            id TEXT PRIMARY KEY DEFAULT 'global',
+            tenant_id TEXT NOT NULL,
+            aws_access_key_id TEXT,
+            aws_secret_access_key TEXT,
+            aws_region TEXT DEFAULT 'eu-central-1',
+            s3_bucket TEXT,
+            s3_prefix TEXT DEFAULT 'logs/',
+            cp_code TEXT DEFAULT '',
+            gcp_project_id TEXT,
+            gcp_dataset_id TEXT,
+            gcp_credentials_json TEXT,
+            bigquery_enabled INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        )"""
+    )
     await db.execute(
         """CREATE TABLE IF NOT EXISTS field_category_mappings (
             id TEXT PRIMARY KEY,
@@ -231,6 +357,58 @@ async def _ensure_schema(db: SQLiteClient) -> None:
             UNIQUE(tenant_id, field_name)
         )"""
     )
+
+    # ── Column migrations for existing tables ──
+    # Add cp_code to settings if table was created before this column existed
+    try:
+        await db.execute("ALTER TABLE settings ADD COLUMN cp_code TEXT DEFAULT ''")
+        logger.info("schema_migration", action="added cp_code column to settings")
+    except Exception:
+        pass  # Column already exists
+
+    logger.info("log_analyzer_schema_ready")
+
+
+_duckdb_schema_ready = False
+
+
+def _ensure_duckdb_schema(duck: DuckDBClient) -> None:
+    """Create DuckDB tables for log_analyzer fetch cache and job history."""
+    global _duckdb_schema_ready  # noqa: PLW0603
+    if _duckdb_schema_ready:
+        return
+    _duckdb_schema_ready = True
+    duck.execute("""
+        CREATE TABLE IF NOT EXISTS log_fetch_cache (
+            cache_key TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            cp_code TEXT NOT NULL,
+            fetch_date TEXT NOT NULL,
+            files_count INTEGER,
+            rows_count INTEGER,
+            fetched_at TEXT,
+            parquet_path TEXT
+        )
+    """)
+    duck.execute("""
+        CREATE TABLE IF NOT EXISTS fetch_job_history (
+            job_id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            project_id TEXT,
+            cp_code TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            total_files INTEGER,
+            total_rows INTEGER,
+            cache_hits INTEGER,
+            cache_misses INTEGER,
+            status TEXT,
+            created_at TEXT,
+            completed_at TEXT,
+            parquet_paths TEXT
+        )
+    """)
+    logger.info("duckdb_log_analyzer_tables_ready")
 
 
 # ── Existing endpoints ──
@@ -257,6 +435,7 @@ async def list_projects(
     ctx: TenantContext = Depends(get_tenant_context),
     db: SQLiteClient = Depends(get_sqlite),
 ) -> list[dict[str, Any]]:
+    await _ensure_schema(db)
     rows = await db.fetch_all(
         "SELECT * FROM log_projects WHERE tenant_id = ? ORDER BY created_at DESC",
         (ctx.tenant_id,),
@@ -270,6 +449,7 @@ async def create_project(
     ctx: TenantContext = Depends(get_tenant_context),
     db: SQLiteClient = Depends(get_sqlite),
 ) -> dict[str, Any]:
+    await _ensure_schema(db)
     project_id = str(uuid.uuid4())
     await db.execute(
         """INSERT INTO log_projects (id, tenant_id, name, sub_module, is_active, created_at)
@@ -333,16 +513,47 @@ async def save_settings(
     ctx: TenantContext = Depends(get_tenant_context),
     db: SQLiteClient = Depends(get_sqlite),
 ) -> dict[str, str]:
-    """Save settings, encrypting AWS/GCP keys."""
+    """Partial-update settings — only non-None fields overwrite existing values."""
     await _ensure_schema(db)
+    logger.info(
+        "save_settings_payload",
+        tenant_id=ctx.tenant_id,
+        cp_code=payload.cp_code,
+        s3_bucket=payload.s3_bucket,
+        aws_region=payload.aws_region,
+        has_aws_key=bool(payload.aws_access_key_id),
+        has_gcp_creds=bool(payload.gcp_credentials_json),
+    )
+
+    row_id = f"{ctx.tenant_id}_global"
     settings = get_settings()
     secret = settings.jwt_secret_key
 
-    enc_aws_key = encrypt(payload.aws_access_key_id, secret) if payload.aws_access_key_id else None
-    enc_aws_secret = encrypt(payload.aws_secret_access_key, secret) if payload.aws_secret_access_key else None
-    enc_gcp_creds = encrypt(payload.gcp_credentials_json, secret) if payload.gcp_credentials_json else None
+    # Read existing row (may be None if first save)
+    existing = await db.fetch_one("SELECT * FROM settings WHERE id = ?", (row_id,))
+    old = dict(existing) if existing else {}
 
-    row_id = f"{ctx.tenant_id}_global"
+    def _merge(field: str, new_val: str | int | None, *, is_encrypted: bool = False) -> str | int | None:
+        """Merge a field: None=keep existing, ''=clear, value=overwrite."""
+        if new_val is None:
+            return old.get(field)
+        if isinstance(new_val, str) and new_val == "":
+            return "" if not is_encrypted else None
+        if is_encrypted and isinstance(new_val, str):
+            return encrypt(new_val, secret)
+        return new_val
+
+    merged_aws_key = _merge("aws_access_key_id", payload.aws_access_key_id, is_encrypted=True)
+    merged_aws_secret = _merge("aws_secret_access_key", payload.aws_secret_access_key, is_encrypted=True)
+    merged_gcp_creds = _merge("gcp_credentials_json", payload.gcp_credentials_json, is_encrypted=True)
+    merged_aws_region = _merge("aws_region", payload.aws_region)
+    merged_s3_bucket = _merge("s3_bucket", payload.s3_bucket)
+    merged_s3_prefix = _merge("s3_prefix", payload.s3_prefix)
+    merged_cp_code = _merge("cp_code", payload.cp_code)
+    merged_gcp_project = _merge("gcp_project_id", payload.gcp_project_id)
+    merged_gcp_dataset = _merge("gcp_dataset_id", payload.gcp_dataset_id)
+    merged_bq_enabled = _merge("bigquery_enabled", payload.bigquery_enabled)
+
     await db.execute(
         """INSERT INTO settings (id, tenant_id, aws_access_key_id, aws_secret_access_key,
            aws_region, s3_bucket, s3_prefix, cp_code, gcp_project_id, gcp_dataset_id,
@@ -362,11 +573,11 @@ async def save_settings(
              updated_at = datetime('now')
         """,
         (
-            row_id, ctx.tenant_id, enc_aws_key, enc_aws_secret,
-            payload.aws_region, payload.s3_bucket, payload.s3_prefix,
-            payload.cp_code,
-            payload.gcp_project_id, payload.gcp_dataset_id,
-            enc_gcp_creds, payload.bigquery_enabled,
+            row_id, ctx.tenant_id, merged_aws_key, merged_aws_secret,
+            merged_aws_region, merged_s3_bucket, merged_s3_prefix,
+            merged_cp_code,
+            merged_gcp_project, merged_gcp_dataset,
+            merged_gcp_creds, merged_bq_enabled,
         ),
     )
     return {"status": "saved", "tenant_id": ctx.tenant_id}
@@ -379,6 +590,7 @@ async def test_connection(
     db: SQLiteClient = Depends(get_sqlite),
 ) -> dict[str, Any]:
     """Test AWS S3 or GCP BigQuery connectivity using stored credentials."""
+    await _ensure_schema(db)
     row = await db.fetch_one(
         "SELECT * FROM settings WHERE tenant_id = ?", (ctx.tenant_id,),
     )
@@ -446,6 +658,7 @@ async def clear_credentials(
     db: SQLiteClient = Depends(get_sqlite),
 ) -> dict[str, str]:
     """Clear AWS + GCP credential fields."""
+    await _ensure_schema(db)
     await db.execute(
         """UPDATE settings SET
            aws_access_key_id = NULL,
@@ -458,7 +671,34 @@ async def clear_credentials(
     return {"status": "credentials_cleared", "tenant_id": ctx.tenant_id}
 
 
-# ── Akamai fetch range ──
+# ── Akamai fetch / configure ──
+
+# In-memory job store (good enough for single-process local dev)
+_fetch_jobs: dict[str, dict[str, Any]] = {}
+
+
+class AkamaiConfigureRequest(BaseModel):
+    project_id: str | None = None
+    s3_bucket: str = "ssport-datastream"
+    s3_prefix: str = "logs/"
+    schedule_cron: str = "0 */6 * * *"
+    enabled: bool = True
+
+
+@router.post("/akamai/configure")
+async def configure_akamai(
+    payload: AkamaiConfigureRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+) -> dict[str, str]:
+    """Save Akamai sub-module configuration for a project."""
+    logger.info(
+        "akamai_configure",
+        tenant_id=ctx.tenant_id,
+        project_id=payload.project_id,
+        s3_bucket=payload.s3_bucket,
+        schedule_cron=payload.schedule_cron,
+    )
+    return {"status": "saved", "tenant_id": ctx.tenant_id}
 
 
 @router.post("/akamai/fetch-range")
@@ -466,41 +706,360 @@ async def fetch_range(
     payload: FetchRangeRequest,
     ctx: TenantContext = Depends(get_tenant_context),
     db: SQLiteClient = Depends(get_sqlite),
+    duck: DuckDBClient = Depends(get_duckdb),
 ) -> dict[str, Any]:
-    """Accept start/end date range, build S3 prefixes with correct path structure."""
+    """Start a background fetch job for S3 logs in a date range."""
+    await _ensure_schema(db)
+    _ensure_duckdb_schema(duck)
     job_id = str(uuid.uuid4())
 
-    # Read cp_code from settings
+    # Read settings
     row = await db.fetch_one(
-        "SELECT cp_code FROM settings WHERE tenant_id = ?", (ctx.tenant_id,),
+        "SELECT * FROM settings WHERE tenant_id = ?", (ctx.tenant_id,),
     )
-    cp_code = dict(row).get("cp_code") if row else None
+    if not row:
+        return {"error": "No credentials configured. Go to Settings first."}
+    row_dict = dict(row)
+
+    cp_code = row_dict.get("cp_code")
     if not cp_code:
         return {"error": "CP Code not configured. Set it in Log Analyzer Settings."}
 
+    enc_key = row_dict.get("aws_access_key_id")
+    enc_secret = row_dict.get("aws_secret_access_key")
+    if not enc_key or not enc_secret:
+        return {"error": "AWS credentials not configured."}
+
+    app_settings = get_settings()
+    secret = app_settings.jwt_secret_key
     try:
-        prefixes = _build_s3_prefixes(cp_code, payload.start_date, payload.end_date)
+        aws_key = decrypt(enc_key, secret)
+        aws_secret_val = decrypt(enc_secret, secret)
+    except Exception:
+        return {"error": "Failed to decrypt AWS credentials."}
+
+    bucket = row_dict.get("s3_bucket") or "ssport-datastream"
+    region = row_dict.get("s3_region") or row_dict.get("aws_region") or "eu-central-1"
+
+    try:
+        dates = _date_range(payload.start_date, payload.end_date)
     except ValueError:
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
 
-    logger.info(
-        "akamai_fetch_range",
-        tenant_id=ctx.tenant_id,
-        start_date=payload.start_date,
-        end_date=payload.end_date,
-        job_id=job_id,
-        s3_prefixes_count=len(prefixes),
-        cp_code=cp_code,
-    )
-    return {
+    cache_mode = payload.cache_mode or "auto"
+
+    # Initialize job
+    _fetch_jobs[job_id] = {
         "job_id": job_id,
         "status": "queued",
-        "start_date": payload.start_date,
-        "end_date": payload.end_date,
+        "progress": 10,
+        "total_files": 0,
+        "files_downloaded": 0,
+        "rows_parsed": 0,
+        "cache_hits": 0,
+        "cache_misses": 0,
+        "error": None,
+        "cancelled": False,
+        "message": None,
         "tenant_id": ctx.tenant_id,
         "cp_code": cp_code,
-        "s3_prefixes_count": len(prefixes),
+        "start_date": payload.start_date,
+        "end_date": payload.end_date,
     }
+    logger.info("fetch_job_created", job_id=job_id, status="queued", days=len(dates), cache_mode=cache_mode)
+
+    # Launch background task
+    import asyncio
+
+    asyncio.get_event_loop().create_task(
+        _run_fetch_job(
+            job_id, ctx.tenant_id, cp_code, aws_key, aws_secret_val,
+            bucket, region, dates, cache_mode, duck,
+        )
+    )
+
+    return _fetch_jobs[job_id]
+
+
+MAX_FILES_PER_DAY = 500
+MAX_FILES_PER_JOB = 2000
+
+# Thread executor for blocking boto3 calls — keeps event loop responsive
+from concurrent.futures import ThreadPoolExecutor
+
+_s3_executor = ThreadPoolExecutor(max_workers=4)
+
+
+async def _run_fetch_job(
+    job_id: str,
+    tenant_id: str,
+    cp_code: str,
+    aws_key: str,
+    aws_secret: str,
+    bucket: str,
+    region: str,
+    dates: list[str],
+    cache_mode: str,
+    duck: DuckDBClient,
+) -> None:
+    """Background task: download and parse S3 files, day by day with cache.
+
+    All boto3 calls run in a thread executor so the event loop stays responsive
+    for cancel requests.
+    """
+    import asyncio
+    import json
+    from pathlib import Path
+
+    loop = asyncio.get_event_loop()
+    job = _fetch_jobs[job_id]
+    total_rows = 0
+    total_files = 0
+    cache_hits = 0
+    cache_misses = 0
+    parquet_paths: list[str] = []
+
+    def _is_cancelled() -> bool:
+        return bool(job.get("cancelled"))
+
+    def _mark_cancelled(msg: str) -> None:
+        job["status"] = "cancelled"
+        job["message"] = msg
+        logger.info("fetch_job_cancelled", job_id=job_id, message=msg)
+
+    try:
+        job["status"] = "downloading"
+        job["progress"] = 15
+        logger.info("fetch_job_status", job_id=job_id, status="downloading")
+
+        import boto3
+        from botocore.exceptions import ClientError
+
+        from apps.log_analyzer.sub_modules.akamai.parser import parse_auto
+
+        s3 = boto3.client(
+            "s3",
+            aws_access_key_id=aws_key,
+            aws_secret_access_key=aws_secret,
+            region_name=region,
+        )
+
+        for day_idx, date_str in enumerate(dates):
+            if _is_cancelled():
+                _mark_cancelled(f"Cancelled after {day_idx} of {len(dates)} days")
+                return
+
+            ck = _cache_key(tenant_id, cp_code, date_str)
+
+            # Check cache (unless force_refresh)
+            if cache_mode == "auto":
+                try:
+                    cached = duck.fetch_one(
+                        "SELECT * FROM log_fetch_cache WHERE cache_key = ?", [ck],
+                    )
+                    if cached and cached.get("parquet_path"):
+                        ppath = cached["parquet_path"]
+                        if Path(ppath).exists():
+                            cache_hits += 1
+                            total_rows += cached.get("rows_count", 0)
+                            total_files += cached.get("files_count", 0)
+                            parquet_paths.append(ppath)
+                            job["cache_hits"] = cache_hits
+                            job["rows_parsed"] = total_rows
+                            job["message"] = f"Day {date_str}: cache ({cached.get('rows_count', 0):,} rows)"
+                            logger.info("fetch_day_cache_hit", job_id=job_id, date=date_str, rows=cached.get("rows_count"))
+                            continue
+                except Exception:
+                    pass
+
+            # Build hourly prefixes for this single day
+            prefixes = _build_s3_prefixes(cp_code, date_str, date_str)
+
+            # List files for this day — use Delimiter="/" for direct children only
+            day_keys: list[str] = []
+            for prefix in prefixes:
+                if _is_cancelled():
+                    _mark_cancelled(f"Cancelled during listing {date_str}")
+                    return
+
+                try:
+                    resp = await loop.run_in_executor(
+                        _s3_executor,
+                        lambda p=prefix: s3.list_objects_v2(Bucket=bucket, Prefix=p, Delimiter="/"),
+                    )
+                    prefix_files = [
+                        obj["Key"] for obj in resp.get("Contents", [])
+                        if obj["Key"].endswith((".gz", ".tsv", ".csv"))
+                    ]
+                    logger.info("s3_prefix_scan", prefix=prefix, files_found=len(prefix_files))
+                    day_keys.extend(prefix_files)
+                except ClientError:
+                    pass
+
+                if _is_cancelled():
+                    _mark_cancelled(f"Cancelled during listing {date_str}")
+                    return
+
+            # Hard limit per day
+            if len(day_keys) > MAX_FILES_PER_DAY:
+                logger.warning("fetch_day_too_many_files", date=date_str, count=len(day_keys), limit=MAX_FILES_PER_DAY)
+                # Sort by key (which includes timestamp) and take most recent
+                day_keys.sort(reverse=True)
+                day_keys = day_keys[:MAX_FILES_PER_DAY]
+
+            # Hard limit per job
+            if total_files + len(day_keys) > MAX_FILES_PER_JOB:
+                job["status"] = "failed"
+                job["error"] = f"Too many files ({total_files + len(day_keys)}). Reduce date range or use sampling."
+                job["progress"] = 0
+                logger.warning("fetch_job_too_many_files", job_id=job_id, total=total_files + len(day_keys))
+                return
+
+            job["status"] = "parsing"
+            job["message"] = f"Day {date_str}: downloading {len(day_keys)} files..."
+
+            # Download and parse this day's files
+            day_entries: list[dict[str, object]] = []
+            for file_idx, key in enumerate(day_keys):
+                if _is_cancelled():
+                    _mark_cancelled(f"Cancelled during {date_str} ({file_idx}/{len(day_keys)} files)")
+                    return
+                try:
+                    obj = await loop.run_in_executor(
+                        _s3_executor,
+                        lambda k=key: s3.get_object(Bucket=bucket, Key=k),
+                    )
+                    content = _read_s3_content(obj["Body"], key)
+                    parsed = parse_auto(content)
+                    for entry in parsed:
+                        day_entries.append(entry.model_dump())
+                except Exception as exc:
+                    logger.warning("fetch_job_file_error", job_id=job_id, key=key, error=str(exc))
+
+                if _is_cancelled():
+                    _mark_cancelled(f"Cancelled during {date_str} ({file_idx + 1}/{len(day_keys)} files)")
+                    return
+
+            total_files += len(day_keys)
+            total_rows += len(day_entries)
+            cache_misses += 1
+
+            # Save as parquet and cache
+            ppath = f"data/logs/{tenant_id}/{cp_code}/{date_str}.parquet"
+            try:
+                import pandas as pd
+
+                Path(ppath).parent.mkdir(parents=True, exist_ok=True)
+                df = pd.DataFrame(day_entries) if day_entries else pd.DataFrame()
+                df.to_parquet(ppath, index=False)
+                parquet_paths.append(ppath)
+
+                duck.execute(
+                    """INSERT OR REPLACE INTO log_fetch_cache
+                       (cache_key, tenant_id, cp_code, fetch_date, files_count, rows_count, fetched_at, parquet_path)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [ck, tenant_id, cp_code, date_str, len(day_keys), len(day_entries),
+                     datetime.now(timezone.utc).isoformat(), ppath],
+                )
+            except Exception as exc:
+                logger.warning("fetch_cache_write_error", job_id=job_id, date=date_str, error=str(exc))
+
+            # Update progress
+            job["files_downloaded"] = total_files
+            job["rows_parsed"] = total_rows
+            job["cache_hits"] = cache_hits
+            job["cache_misses"] = cache_misses
+            job["total_files"] = total_files
+            pct = 15 + int((day_idx + 1) / len(dates) * 80)
+            job["progress"] = min(pct, 95)
+            job["message"] = f"Day {date_str}: {len(day_entries):,} rows from {len(day_keys)} files"
+            logger.info("fetch_day_complete", job_id=job_id, date=date_str, rows=len(day_entries), files=len(day_keys))
+
+        # Done
+        job["status"] = "completed"
+        job["progress"] = 100
+        job["message"] = f"Completed: {total_rows:,} rows from {total_files} files ({cache_hits} cached, {cache_misses} fetched)"
+
+        # Save to DuckDB history
+        try:
+            duck.execute(
+                """INSERT OR REPLACE INTO fetch_job_history
+                   (job_id, tenant_id, cp_code, start_date, end_date, total_files, total_rows,
+                    cache_hits, cache_misses, status, created_at, completed_at, parquet_paths)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [job_id, tenant_id, cp_code, dates[0], dates[-1], total_files, total_rows,
+                 cache_hits, cache_misses, "completed",
+                 job.get("created_at", datetime.now(timezone.utc).isoformat()),
+                 datetime.now(timezone.utc).isoformat(),
+                 json.dumps(parquet_paths)],
+            )
+        except Exception as exc:
+            logger.warning("fetch_history_write_error", job_id=job_id, error=str(exc))
+
+        logger.info("fetch_job_status", job_id=job_id, status="completed",
+                     rows=total_rows, files=total_files, cache_hits=cache_hits)
+
+    except Exception as exc:
+        job["status"] = "failed"
+        job["error"] = str(exc)
+        job["progress"] = 0
+        logger.error("fetch_job_error", job_id=job_id, error=str(exc))
+
+
+@router.get("/akamai/jobs/{job_id}")
+async def get_fetch_job(
+    job_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> dict[str, Any]:
+    """Poll fetch job status — check in-memory first, then DuckDB."""
+    job = _fetch_jobs.get(job_id)
+    if job:
+        return job
+    # Fallback to DuckDB history
+    _ensure_duckdb_schema(duck)
+    try:
+        row = duck.fetch_one(
+            "SELECT * FROM fetch_job_history WHERE job_id = ?", [job_id],
+        )
+        if row:
+            return {**row, "progress": 100}
+    except Exception:
+        pass
+    return {"job_id": job_id, "status": "not_found", "error": "Job not found"}
+
+
+@router.post("/akamai/jobs/{job_id}/cancel")
+async def cancel_fetch_job(
+    job_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+) -> dict[str, str]:
+    """Cancel a running fetch job."""
+    logger.info("job_cancel_requested", job_id=job_id, current_status=_fetch_jobs.get(job_id, {}).get("status"), known_jobs=list(_fetch_jobs.keys())[:5])
+    job = _fetch_jobs.get(job_id)
+    if not job:
+        return {"cancelled": False, "status": "not_found", "message": f"Job {job_id} not found"}
+    if job["status"] in ("completed", "failed", "cancelled"):
+        return {"cancelled": False, "status": job["status"], "message": f"Job already {job['status']}"}
+    job["cancelled"] = True
+    return {"cancelled": True, "status": "cancelling", "message": "Cancel requested"}
+
+
+@router.get("/akamai/jobs")
+async def list_fetch_jobs(
+    ctx: TenantContext = Depends(get_tenant_context),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> list[dict[str, Any]]:
+    """List fetch job history from DuckDB."""
+    _ensure_duckdb_schema(duck)
+    try:
+        rows = duck.fetch_all(
+            "SELECT * FROM fetch_job_history WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 20",
+            [ctx.tenant_id],
+        )
+        return rows
+    except Exception:
+        return []
 
 
 # ── BigQuery export endpoints ──
@@ -639,23 +1198,36 @@ async def structure_analyze(
                 for entry in parsed:
                     if len(all_entries) >= sample_size:
                         break
+                    # model_dump excludes_none=False keeps all fields including None
                     all_entries.append(entry.model_dump())
                 files_scanned += 1
             except Exception:
                 logger.warning("structure_analyze_file_error", key=key)
                 continue
 
+        logger.info(
+            "structure_analyze_parsed",
+            rows_parsed=len(all_entries),
+            files_scanned=files_scanned,
+            fields_found=len(all_entries[0]) if all_entries else 0,
+        )
+
+        if not all_entries:
+            return {"error": "Files found but no rows could be parsed. Check file format.", **_empty}
+
         # Analyze fields
         fields = _analyze_fields(all_entries)
 
-        # Merge saved category mappings
+        # Merge saved category mappings (DB saved > DS2 default > None)
         mappings = await db.fetch_all(
             "SELECT field_name, category FROM field_category_mappings WHERE tenant_id = ?",
             (ctx.tenant_id,),
         )
         mapping_dict = {m["field_name"]: m["category"] for m in mappings}
         for f in fields:
-            f["current_category"] = mapping_dict.get(str(f["field_name"]))
+            fname = str(f["field_name"])
+            saved = mapping_dict.get(fname)
+            f["current_category"] = saved or DS2_DEFAULT_CATEGORIES.get(fname)
 
         return {
             "fields": fields,
@@ -677,6 +1249,7 @@ async def save_field_mapping(
     db: SQLiteClient = Depends(get_sqlite),
 ) -> dict[str, str]:
     """Upsert a field→category mapping."""
+    await _ensure_schema(db)
     if payload.category not in VALID_CATEGORIES:
         return {"status": "error", "message": f"Invalid category. Must be one of: {', '.join(sorted(VALID_CATEGORIES))}"}
 
@@ -698,6 +1271,7 @@ async def list_field_mappings(
     db: SQLiteClient = Depends(get_sqlite),
 ) -> list[dict[str, Any]]:
     """Return all saved field→category mappings for a tenant."""
+    await _ensure_schema(db)
     rows = await db.fetch_all(
         "SELECT * FROM field_category_mappings WHERE tenant_id = ? ORDER BY field_name",
         (ctx.tenant_id,),

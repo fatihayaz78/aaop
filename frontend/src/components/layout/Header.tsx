@@ -23,11 +23,9 @@ export default function Header() {
             borderColor: "var(--border)",
             color: "var(--text-primary)",
           }}
-          defaultValue="bein_sports"
+          defaultValue="s_sport_plus"
         >
-          <option value="bein_sports">beIN Sports</option>
-          <option value="tivibu">Tivibu</option>
-          <option value="dazn">DAZN</option>
+          <option value="s_sport_plus">S Sport Plus</option>
         </select>
 
         {/* User menu */}

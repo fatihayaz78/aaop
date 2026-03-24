@@ -79,6 +79,7 @@ interface AppSettings {
 /* ── Log Structure types ── */
 interface FieldAnalysis {
   field_name: string;
+  description: string;
   sample_values: string[];
   null_count: number;
   unique_count: number;
@@ -160,28 +161,29 @@ export default function LogAnalyzer() {
 
   /* ── Data loading ── */
   const loadProjects = useCallback(async () => {
-    try { setProjects(await apiGet<LogProject[]>("/log-analyzer/projects?tenant_id=bein_sports")); } catch { /* backend offline */ }
+    try { setProjects(await apiGet<LogProject[]>("/log-analyzer/projects?tenant_id=s_sport_plus")); } catch { /* backend offline */ }
   }, []);
 
   const loadResults = useCallback(async () => {
-    try { setResults(await apiGet<AnalysisResult[]>("/log-analyzer/results?tenant_id=bein_sports&limit=20")); } catch { /* backend offline */ }
+    try { setResults(await apiGet<AnalysisResult[]>("/log-analyzer/results?tenant_id=s_sport_plus&limit=20")); } catch { /* backend offline */ }
   }, []);
 
   const loadSettings = useCallback(async () => {
     try {
-      const s = await apiGet<AwsSettings & BqSettings>("/log-analyzer/settings?tenant_id=bein_sports");
+      const s = await apiGet<AwsSettings & BqSettings & { cp_code?: string }>("/log-analyzer/settings?tenant_id=s_sport_plus");
       setAwsSettings({ aws_access_key_id: s.aws_access_key_id ?? "", aws_secret_access_key: s.aws_secret_access_key ?? "", aws_region: s.aws_region ?? "eu-central-1", s3_bucket: s.s3_bucket ?? "ssport-datastream", s3_prefix: s.s3_prefix ?? "logs/" });
       setBqSettings({ gcp_project_id: s.gcp_project_id ?? "", bq_dataset_id: s.bq_dataset_id ?? "", gcp_service_account_json: s.gcp_service_account_json ?? "", bq_export_enabled: s.bq_export_enabled ?? false });
+      setAppSettings((prev) => ({ ...prev, cp_code: s.cp_code ?? "" }));
     } catch { /* backend offline */ }
   }, []);
 
   const loadBqHistory = useCallback(async () => {
-    try { setBqHistory(await apiGet<BqExportJob[]>("/log-analyzer/bigquery/jobs?tenant_id=bein_sports&limit=10")); } catch { /* */ }
+    try { setBqHistory(await apiGet<BqExportJob[]>("/log-analyzer/bigquery/jobs?tenant_id=s_sport_plus&limit=10")); } catch { /* */ }
   }, []);
 
   const loadBqRecentJobs = useCallback(async () => {
     try {
-      const jobs = await apiGet<{ jobId: string; createdAt: string }[]>("/log-analyzer/akamai/jobs?tenant_id=bein_sports&limit=10");
+      const jobs = await apiGet<{ jobId: string; createdAt: string }[]>("/log-analyzer/akamai/jobs?tenant_id=s_sport_plus&limit=10");
       setBqRecentJobs(jobs.map((j) => ({ jobId: j.jobId, label: `${j.jobId} (${j.createdAt})` })));
     } catch { /* */ }
   }, []);
@@ -193,13 +195,26 @@ export default function LogAnalyzer() {
 
   useEffect(() => {
     if (tab === "settings") { loadSettings(); loadBqHistory(); loadBqRecentJobs(); }
+    if (tab === "structure") {
+      // Load saved mappings on tab switch
+      (async () => {
+        try {
+          const mappings = await apiGet<{ field_name: string; category: string }[]>("/log-analyzer/structure/mappings?tenant_id=s_sport_plus");
+          const cats: Record<string, string> = {};
+          const saved = new Set<string>();
+          for (const m of mappings) { cats[m.field_name] = m.category; saved.add(m.field_name); }
+          setFieldCategories((prev) => ({ ...cats, ...prev }));
+          setSavedFields((prev) => new Set([...Array.from(prev), ...Array.from(saved)]));
+        } catch { /* */ }
+      })();
+    }
   }, [tab, loadSettings, loadBqHistory, loadBqRecentJobs]);
 
   /* ── Projects ── */
   const createProject = async () => {
     if (!newProjectName.trim()) return;
     try {
-      await apiPost("/log-analyzer/projects", { tenant_id: "bein_sports", name: newProjectName, sub_module: newProjectModule });
+      await apiPost("/log-analyzer/projects", { tenant_id: "s_sport_plus", name: newProjectName, sub_module: newProjectModule });
       setNewProjectName("");
       setShowNewProject(false);
       loadProjects();
@@ -212,38 +227,55 @@ export default function LogAnalyzer() {
   };
 
   /* ── Akamai ── */
-  const configureAkamai = async () => {
-    try { await apiPost("/log-analyzer/akamai/configure", { tenant_id: "bein_sports", ...akamaiConfig, enabled: true }); } catch { /* error */ }
-  };
+  const [configMsg, setConfigMsg] = useState("");
+  const [forceRefresh, setForceRefresh] = useState(false);
 
-  const fetchLogs = async () => {
+  const configureAkamai = async () => {
     try {
-      const job = await apiPost<FetchJob>("/log-analyzer/akamai/fetch", { tenant_id: "bein_sports" });
-      setFetchJob(job);
-      pollJob(job.jobId);
-    } catch { /* error */ }
+      await apiPost("/log-analyzer/akamai/configure", { project_id: selectedProjectId || null, ...akamaiConfig, enabled: true });
+      setConfigMsg("Config saved.");
+      setTimeout(() => setConfigMsg(""), 3000);
+    } catch { setConfigMsg("Failed to save config."); }
   };
 
   const fetchLogsForRange = async () => {
     if (!startDate || !endDate) return;
+    setFetchJob(null);
     try {
-      const job = await apiPost<FetchJob>("/log-analyzer/akamai/fetch-range", { tenant_id: "bein_sports", start_date: startDate, end_date: endDate });
-      setFetchJob(job);
-      pollJob(job.jobId);
-    } catch { /* error */ }
+      const res = await apiPost<FetchJob & { error?: string }>("/log-analyzer/akamai/fetch-range", { start_date: startDate, end_date: endDate, cache_mode: forceRefresh ? "force_refresh" : "auto" });
+      if (res.error) {
+        setFetchJob({ jobId: "", job_id: "", status: "failed", error: res.error, progress: 0 });
+        return;
+      }
+      const jobId = res.job_id || res.jobId;
+      setFetchJob({ ...res, jobId: jobId });
+      pollJob(jobId);
+    } catch { setFetchJob({ jobId: "", status: "failed", error: "Failed to connect to backend.", progress: 0 }); }
   };
 
   const pollJob = (jobId: string) => {
     const interval = setInterval(async () => {
       try {
-        const job = await apiGet<FetchJob>(`/log-analyzer/akamai/jobs/${jobId}`);
+        const raw = await apiGet<Record<string, unknown>>(`/log-analyzer/akamai/jobs/${jobId}`);
+        const job: FetchJob = {
+          jobId: (raw.job_id || raw.jobId || jobId) as string,
+          status: raw.status as FetchJob["status"],
+          progress: raw.progress as number | undefined,
+          total_files: raw.total_files as number | undefined,
+          files_downloaded: raw.files_downloaded as number | undefined,
+          rows_parsed: raw.rows_parsed as number | undefined,
+          cache_hits: raw.cache_hits as number | undefined,
+          cache_misses: raw.cache_misses as number | undefined,
+          message: raw.message as string | undefined,
+          error: raw.error as string | undefined,
+        };
         setFetchJob(job);
-        if (job.status === "completed" || job.status === "failed") {
+        if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
           clearInterval(interval);
           if (job.status === "completed") loadCharts(jobId);
         }
       } catch { clearInterval(interval); }
-    }, 5000);
+    }, 2000);
   };
 
   const loadCharts = async (jobId: string) => {
@@ -258,18 +290,26 @@ export default function LogAnalyzer() {
   };
 
   const downloadReport = async () => {
-    try { await apiPost("/log-analyzer/akamai/report", { tenant_id: "bein_sports" }); } catch { /* error */ }
+    try { await apiPost("/log-analyzer/akamai/report", { tenant_id: "s_sport_plus" }); } catch { /* error */ }
   };
 
   /* ── Settings ── */
   const saveAppSettings = async () => {
-    setAppSettingsMsg("Settings saved locally.");
-    setTimeout(() => setAppSettingsMsg(""), 3000);
+    try {
+      await apiPost("/log-analyzer/settings", { cp_code: appSettings.cp_code });
+      setAppSettingsMsg("Settings saved.");
+      setTimeout(() => setAppSettingsMsg(""), 3000);
+    } catch { setAppSettingsMsg("Failed to save settings."); }
   };
 
   const saveAwsSettings = async () => {
     try {
-      await apiPost("/log-analyzer/settings", { tenant_id: "bein_sports", ...awsSettings });
+      await apiPost("/log-analyzer/settings", {
+        aws_access_key_id: awsSettings.aws_access_key_id,
+        aws_secret_access_key: awsSettings.aws_secret_access_key,
+        s3_bucket: awsSettings.s3_bucket,
+        aws_region: awsSettings.aws_region,
+      });
       setSettingsMsg("AWS settings saved.");
       setS3TestResult(null);
       setTimeout(() => setSettingsMsg(""), 3000);
@@ -279,7 +319,7 @@ export default function LogAnalyzer() {
   const testS3Connection = async () => {
     setS3TestResult(null);
     try {
-      const res = await apiGet<{ success: boolean; message: string }>("/log-analyzer/settings/test-connection?type=s3&tenant_id=bein_sports");
+      const res = await apiGet<{ success: boolean; message: string }>("/log-analyzer/settings/test-connection?type=s3&tenant_id=s_sport_plus");
       setS3TestResult(res);
     } catch { setS3TestResult({ success: false, message: "Connection test request failed." }); }
   };
@@ -287,7 +327,7 @@ export default function LogAnalyzer() {
   const testBqConnection = async () => {
     setBqTestResult(null);
     try {
-      const res = await apiGet<{ success: boolean; message: string }>("/log-analyzer/settings/test-connection?type=bq&tenant_id=bein_sports");
+      const res = await apiGet<{ success: boolean; message: string }>("/log-analyzer/settings/test-connection?type=bq&tenant_id=s_sport_plus");
       setBqTestResult(res);
     } catch { setBqTestResult({ success: false, message: "Connection test request failed." }); }
   };
@@ -295,7 +335,7 @@ export default function LogAnalyzer() {
   const clearCredentials = async () => {
     if (!confirm("This is a HIGH RISK action. Are you sure you want to clear all credentials?")) return;
     try {
-      await apiDelete("/log-analyzer/settings/credentials?tenant_id=bein_sports");
+      await apiDelete("/log-analyzer/settings/credentials?tenant_id=s_sport_plus");
       setAwsSettings({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "ssport-datastream", s3_prefix: "logs/" });
       setSettingsMsg("Credentials cleared.");
       setS3TestResult(null);
@@ -319,13 +359,14 @@ export default function LogAnalyzer() {
         setStructError(res.error);
       } else {
         setStructResult(res);
-        // Pre-fill categories from saved mappings
-        const cats: Record<string, string> = {};
+        // Pre-fill categories from API response (saved or DS2 default)
+        const cats: Record<string, string> = { ...fieldCategories };
         for (const f of res.fields) {
-          if (f.current_category) cats[f.field_name] = f.current_category;
+          if (f.current_category && !cats[f.field_name]) {
+            cats[f.field_name] = f.current_category;
+          }
         }
         setFieldCategories(cats);
-        setSavedFields(new Set(Object.keys(cats)));
       }
     } catch { setStructError("Failed to connect to backend."); }
     setStructLoading(false);
@@ -356,7 +397,11 @@ export default function LogAnalyzer() {
 
   const saveBqSettings = async () => {
     try {
-      await apiPost("/log-analyzer/settings", { tenant_id: "bein_sports", gcp_project_id: bqSettings.gcp_project_id, gcp_dataset_id: bqSettings.bq_dataset_id, gcp_credentials_json: bqSettings.gcp_service_account_json });
+      await apiPost("/log-analyzer/settings", {
+        gcp_project_id: bqSettings.gcp_project_id,
+        gcp_dataset_id: bqSettings.bq_dataset_id,
+        gcp_credentials_json: bqSettings.gcp_service_account_json,
+      });
       setBqSettingsMsg("GCP settings saved.");
       setBqTestResult(null);
       setTimeout(() => setBqSettingsMsg(""), 3000);
@@ -400,7 +445,22 @@ export default function LogAnalyzer() {
   const bqExportProgress = bqExportJob?.status === "completed" ? 100 : bqExportJob?.status === "running" ? (bqExportJob.progress ?? 50) : bqExportJob?.status === "queued" ? 10 : 0;
 
   /* ── Shared ── */
-  const jobProgress = fetchJob?.status === "completed" ? 100 : fetchJob?.status === "running" ? (fetchJob.progress ?? 50) : fetchJob?.status === "queued" ? 10 : 0;
+  const jobProgress = fetchJob?.progress ?? (
+    fetchJob?.status === "completed" ? 100 :
+    fetchJob?.status === "parsing" ? 70 :
+    fetchJob?.status === "downloading" ? 40 :
+    fetchJob?.status === "queued" ? 10 :
+    fetchJob?.status === "cancelled" ? 0 : 0
+  );
+  const isJobRunning = fetchJob?.status === "queued" || fetchJob?.status === "downloading" || fetchJob?.status === "parsing";
+
+  const cancelJob = async () => {
+    const jid = fetchJob?.jobId || fetchJob?.job_id;
+    if (!jid) return;
+    try {
+      await apiPost(`/log-analyzer/akamai/jobs/${jid}/cancel`, {});
+    } catch { /* */ }
+  };
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "projects", label: "Projects" },
@@ -589,19 +649,23 @@ export default function LogAnalyzer() {
                   className="w-full text-sm px-3 py-1.5 rounded border outline-none"
                   style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
               </div>
-              <div className="flex items-end">
-                <button onClick={fetchLogsForRange} disabled={!startDate || !endDate || fetchJob?.status === "running"}
+              <div className="flex flex-col items-start gap-2 justify-end">
+                <button onClick={fetchLogsForRange} disabled={!startDate || !endDate || isJobRunning}
                   className="px-4 py-1.5 rounded text-sm font-medium disabled:opacity-50"
                   style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
-                  Fetch Logs for Range
+                  Fetch Logs
                 </button>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" checked={forceRefresh} onChange={(e) => setForceRefresh(e.target.checked)} />
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>Force refresh (ignore cache)</span>
+                </label>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <button onClick={configureAkamai} className="px-4 py-1.5 rounded text-sm font-medium border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Save Config</button>
-              <button onClick={fetchLogs} disabled={fetchJob?.status === "running"} className="px-4 py-1.5 rounded text-sm font-medium disabled:opacity-50" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Fetch Logs</button>
               <button onClick={downloadReport} className="px-4 py-1.5 rounded text-sm font-medium border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Download Report (DOCX)</button>
+              {configMsg && <span className="text-xs" style={{ color: configMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>{configMsg}</span>}
             </div>
           </div>
 
@@ -609,14 +673,43 @@ export default function LogAnalyzer() {
           {fetchJob && (
             <div className="mb-6">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Job: {fetchJob.jobId}</span>
-                <span className="text-xs" style={{ color: fetchJob.status === "completed" ? "var(--risk-low)" : fetchJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }}>
-                  {fetchJob.status}
+                <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {fetchJob.jobId ? `Job: ${fetchJob.jobId.slice(0, 8)}...` : "Job"}
+                  {fetchJob.files_downloaded != null && fetchJob.total_files ? ` — ${fetchJob.files_downloaded}/${fetchJob.total_files} files` : ""}
+                  {fetchJob.rows_parsed ? ` — ${fetchJob.rows_parsed.toLocaleString()} rows` : ""}
+                  {fetchJob.cache_hits ? ` (${fetchJob.cache_hits} cached)` : ""}
                 </span>
+                <div className="flex items-center gap-2">
+                  {isJobRunning && (
+                    <button onClick={cancelJob} className="text-xs px-2 py-0.5 rounded border"
+                      style={{ borderColor: "var(--risk-high)", color: "var(--risk-high)" }}>
+                      Stop
+                    </button>
+                  )}
+                  <span className="text-xs" style={{
+                    color: fetchJob.status === "completed" ? "var(--risk-low)" :
+                           fetchJob.status === "failed" ? "var(--risk-high)" :
+                           fetchJob.status === "cancelled" ? "var(--risk-medium)" :
+                           "var(--brand-primary)"
+                  }}>
+                    {fetchJob.status}
+                  </span>
+                </div>
               </div>
               <div className="w-full h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
-                <div className="h-2 rounded-full transition-all" style={{ width: `${jobProgress}%`, backgroundColor: fetchJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }} />
+                <div className="h-2 rounded-full transition-all" style={{
+                  width: `${jobProgress}%`,
+                  backgroundColor: fetchJob.status === "failed" ? "var(--risk-high)" :
+                                   fetchJob.status === "cancelled" ? "var(--risk-medium)" :
+                                   "var(--brand-primary)"
+                }} />
               </div>
+              {fetchJob.message && (
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{fetchJob.message}</p>
+              )}
+              {fetchJob.status === "failed" && fetchJob.error && (
+                <p className="text-xs mt-1" style={{ color: "var(--risk-high)" }}>{fetchJob.error}</p>
+              )}
             </div>
           )}
 
@@ -734,7 +827,7 @@ export default function LogAnalyzer() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {["Field Name", "Type", "Sample Values", "Null %", "Unique Count", "Category", "Action"].map((h) => (
+                      {["Field Name", "Type", "Description", "Sample Values", "Null %", "Unique Count", "Category", "Action"].map((h) => (
                         <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
                       ))}
                     </tr>
@@ -753,12 +846,15 @@ export default function LogAnalyzer() {
                             </span>
                           </td>
                           <td className="px-4 py-2">
+                            <span className="text-xs italic" style={{ color: "var(--text-muted)" }}>{f.description || "—"}</span>
+                          </td>
+                          <td className="px-4 py-2">
                             <div className="flex flex-wrap gap-1">
-                              {f.sample_values.map((v, i) => (
+                              {f.sample_values.length > 0 ? f.sample_values.map((v, i) => (
                                 <span key={i} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
                                   {v.length > 20 ? v.slice(0, 20) + "..." : v}
                                 </span>
-                              ))}
+                              )) : <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>}
                             </div>
                           </td>
                           <td className="px-4 py-2">

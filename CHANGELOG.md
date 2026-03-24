@@ -8,6 +8,32 @@
 
 ---
 
+## [S16-P6] — 2026-03-24
+### Fixed
+- S3 recursive listing bug (Delimiter="/" fix)
+- boto3 blocking event loop (ThreadPoolExecutor)
+- Stop button now works (cancel flag checked after every await)
+### Added
+- DuckDB day-based parquet cache (log_fetch_cache table)
+- fetch_job_history DuckDB table
+- Force refresh (ignore cache) checkbox
+- MAX_FILES_PER_DAY=500, MAX_FILES_PER_JOB=2000 hard limits
+- Per-prefix S3 scan logging
+
+---
+
+## [S16-P5] — 2026-03-24
+### Fixed
+- Sample values and unique count were empty (null handling bug)
+- Type inference fallback using DS2_FIELD_TYPES known types
+### Added
+- DS2_FIELD_DESCRIPTIONS for all 22 fields
+- DS2_DEFAULT_CATEGORIES auto-suggest (saved mapping takes priority)
+- Description column in Log Structure table
+- Category dropdown pre-selects saved/suggested value on load
+
+---
+
 ## [S16-P3] — 2026-03-24
 ### Fixed
 - S3 path format: logs/{cp_code}/{year}/{DD}/{MM}/{HH}/ (day before month)
