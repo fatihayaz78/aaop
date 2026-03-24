@@ -6,7 +6,7 @@ import uuid
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from apps.log_analyzer.schemas import SubModuleStatus
@@ -54,6 +54,11 @@ class ExportRequest(BaseModel):
     categories: list[str]
 
 
+class CreateProjectRequest(BaseModel):
+    name: str
+    sub_module: str = "akamai"
+
+
 # ── Existing endpoints ──
 
 
@@ -74,9 +79,37 @@ async def list_sub_modules() -> list[SubModuleStatus]:
 
 
 @router.get("/projects")
-async def list_projects(ctx: TenantContext = Depends(get_tenant_context)) -> list[dict[str, Any]]:
-    # Placeholder — will read from SQLite in full implementation
-    return []
+async def list_projects(
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> list[dict[str, Any]]:
+    rows = await db.fetch_all(
+        "SELECT * FROM log_projects WHERE tenant_id = ? ORDER BY created_at DESC",
+        (ctx.tenant_id,),
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/projects")
+async def create_project(
+    payload: CreateProjectRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, Any]:
+    project_id = str(uuid.uuid4())
+    await db.execute(
+        """INSERT INTO log_projects (id, tenant_id, name, sub_module, is_active, created_at)
+           VALUES (?, ?, ?, ?, 1, datetime('now'))""",
+        (project_id, ctx.tenant_id, payload.name, payload.sub_module),
+    )
+    logger.info("project_created", tenant_id=ctx.tenant_id, project_id=project_id, name=payload.name)
+    return {
+        "id": project_id,
+        "tenant_id": ctx.tenant_id,
+        "name": payload.name,
+        "sub_module": payload.sub_module,
+        "is_active": 1,
+    }
 
 
 @router.get("/results")
@@ -161,6 +194,74 @@ async def save_settings(
     return {"status": "saved", "tenant_id": ctx.tenant_id}
 
 
+@router.get("/settings/test-connection")
+async def test_connection(
+    type: str = Query(..., description="Connection type: s3 or bq"),
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, Any]:
+    """Test AWS S3 or GCP BigQuery connectivity using stored credentials."""
+    row = await db.fetch_one(
+        "SELECT * FROM settings WHERE tenant_id = ?", (ctx.tenant_id,),
+    )
+    if not row:
+        return {"success": False, "message": "No credentials configured. Save settings first."}
+
+    settings = get_settings()
+    secret = settings.jwt_secret_key
+    row_dict = dict(row)
+
+    if type == "s3":
+        enc_key = row_dict.get("aws_access_key_id")
+        enc_secret = row_dict.get("aws_secret_access_key")
+        if not enc_key or not enc_secret:
+            return {"success": False, "message": "AWS credentials not configured."}
+        try:
+            aws_key = decrypt(enc_key, secret)
+            aws_secret = decrypt(enc_secret, secret)
+            bucket = row_dict.get("s3_bucket") or "ssport-datastream"
+            region = row_dict.get("s3_region") or row_dict.get("aws_region") or "eu-central-1"
+
+            import boto3
+            from botocore.exceptions import ClientError, NoCredentialsError
+
+            s3 = boto3.client(
+                "s3",
+                aws_access_key_id=aws_key,
+                aws_secret_access_key=aws_secret,
+                region_name=region,
+            )
+            s3.head_bucket(Bucket=bucket)
+            return {"success": True, "message": f"S3 connection successful. Bucket '{bucket}' is accessible."}
+        except (ClientError, NoCredentialsError) as exc:
+            return {"success": False, "message": f"S3 connection failed: {exc}"}
+        except Exception as exc:
+            return {"success": False, "message": f"S3 connection failed: {exc}"}
+
+    elif type == "bq":
+        enc_creds = row_dict.get("gcp_credentials_json")
+        if not enc_creds:
+            return {"success": False, "message": "GCP credentials not configured."}
+        try:
+            import json
+
+            from google.cloud import bigquery
+            from google.oauth2 import service_account
+
+            creds_json = decrypt(enc_creds, secret)
+            creds_dict = json.loads(creds_json)
+            credentials = service_account.Credentials.from_service_account_info(creds_dict)
+            project_id = row_dict.get("gcp_project_id") or creds_dict.get("project_id")
+            client = bigquery.Client(credentials=credentials, project=project_id)
+            datasets = list(client.list_datasets(max_results=1))
+            dataset_info = f" Found {len(datasets)} dataset(s)." if datasets else " No datasets found."
+            return {"success": True, "message": f"BigQuery connection successful.{dataset_info}"}
+        except Exception as exc:
+            return {"success": False, "message": f"BigQuery connection failed: {exc}"}
+
+    return {"success": False, "message": f"Unknown connection type: '{type}'. Use 's3' or 'bq'."}
+
+
 @router.delete("/settings/credentials")
 async def clear_credentials(
     ctx: TenantContext = Depends(get_tenant_context),
@@ -208,24 +309,22 @@ async def fetch_range(
 # ── BigQuery export endpoints ──
 
 
-@router.get("/bigquery/export")
+@router.post("/bigquery/export")
 async def bigquery_export(
-    job_id: str,
-    categories: str = "meta,timing,traffic",
+    payload: ExportRequest,
     ctx: TenantContext = Depends(get_tenant_context),
 ) -> dict[str, Any]:
     """Accept job_id and categories, return export status stub."""
-    category_list = [c.strip() for c in categories.split(",") if c.strip()]
     logger.info(
         "bigquery_export_request",
         tenant_id=ctx.tenant_id,
-        job_id=job_id,
-        categories=category_list,
+        job_id=payload.job_id,
+        categories=payload.categories,
     )
     return {
-        "job_id": job_id,
-        "status": "pending",
-        "categories": category_list,
+        "job_id": payload.job_id,
+        "status": "queued",
+        "categories": payload.categories,
         "tenant_id": ctx.tenant_id,
     }
 

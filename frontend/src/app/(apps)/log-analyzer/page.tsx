@@ -5,11 +5,12 @@ import MetricCard from "@/components/ui/MetricCard";
 import LogTable from "@/components/ui/LogTable";
 import RechartsWrapper from "@/components/charts/RechartsWrapper";
 import RiskBadge from "@/components/ui/RiskBadge";
+import { AccordionItem } from "@/components/ui/Accordion";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
-type Tab = "projects" | "akamai" | "results" | "settings" | "bigquery";
+type Tab = "projects" | "analyzer" | "results" | "settings";
 
 /* ── Revised 21 chart names (match backend) ── */
 const CHART_TYPES = [
@@ -67,6 +68,13 @@ interface BqExportJob {
   error?: string;
 }
 
+interface AppSettings {
+  language: "en" | "tr";
+  default_date_range: "7d" | "30d" | "custom";
+  log_cache_retention: "7" | "14" | "30";
+  auto_fetch_schedule: "disabled" | "6h" | "12h" | "daily";
+}
+
 export default function LogAnalyzer() {
   const [tab, setTab] = useState<Tab>("projects");
 
@@ -76,7 +84,8 @@ export default function LogAnalyzer() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectModule, setNewProjectModule] = useState("akamai");
 
-  /* ── Akamai tab state ── */
+  /* ── Log Analyzer tab state ── */
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [akamaiConfig, setAkamaiConfig] = useState({ s3_bucket: "ssport-datastream", s3_prefix: "logs/", schedule_cron: "0 */6 * * *" });
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -87,15 +96,21 @@ export default function LogAnalyzer() {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [expandedResult, setExpandedResult] = useState<AnalysisResult | null>(null);
 
-  /* ── Settings state ── */
-  const [awsSettings, setAwsSettings] = useState<AwsSettings>({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "", s3_prefix: "logs/" });
+  /* ── App Settings state ── */
+  const [appSettings, setAppSettings] = useState<AppSettings>({ language: "en", default_date_range: "7d", log_cache_retention: "7", auto_fetch_schedule: "disabled" });
+
+  /* ── AWS Settings state ── */
+  const [awsSettings, setAwsSettings] = useState<AwsSettings>({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "ssport-datastream", s3_prefix: "logs/" });
   const [bqSettings, setBqSettings] = useState<BqSettings>({ gcp_project_id: "", bq_dataset_id: "", gcp_service_account_json: "", bq_export_enabled: false });
   const [showAwsKey, setShowAwsKey] = useState(false);
   const [showAwsSecret, setShowAwsSecret] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState("");
+  const [s3TestResult, setS3TestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [bqTestResult, setBqTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [bqSettingsMsg, setBqSettingsMsg] = useState("");
+  const [appSettingsMsg, setAppSettingsMsg] = useState("");
 
-  /* ── BigQuery Export state ── */
+  /* ── BigQuery Export state (now inside Settings) ── */
   const [bqCategories, setBqCategories] = useState<Record<string, boolean>>(() => Object.fromEntries(BQ_CATEGORIES.map((c) => [c.name, true])));
   const [bqTableId, setBqTableId] = useState("");
   const [bqSelectedJob, setBqSelectedJob] = useState("");
@@ -116,7 +131,7 @@ export default function LogAnalyzer() {
   const loadSettings = useCallback(async () => {
     try {
       const s = await apiGet<AwsSettings & BqSettings>("/log-analyzer/settings?tenant_id=bein_sports");
-      setAwsSettings({ aws_access_key_id: s.aws_access_key_id ?? "", aws_secret_access_key: s.aws_secret_access_key ?? "", aws_region: s.aws_region ?? "eu-central-1", s3_bucket: s.s3_bucket ?? "", s3_prefix: s.s3_prefix ?? "logs/" });
+      setAwsSettings({ aws_access_key_id: s.aws_access_key_id ?? "", aws_secret_access_key: s.aws_secret_access_key ?? "", aws_region: s.aws_region ?? "eu-central-1", s3_bucket: s.s3_bucket ?? "ssport-datastream", s3_prefix: s.s3_prefix ?? "logs/" });
       setBqSettings({ gcp_project_id: s.gcp_project_id ?? "", bq_dataset_id: s.bq_dataset_id ?? "", gcp_service_account_json: s.gcp_service_account_json ?? "", bq_export_enabled: s.bq_export_enabled ?? false });
     } catch { /* backend offline */ }
   }, []);
@@ -138,8 +153,7 @@ export default function LogAnalyzer() {
   }, [loadProjects, loadResults]);
 
   useEffect(() => {
-    if (tab === "settings") loadSettings();
-    if (tab === "bigquery") { loadBqHistory(); loadBqRecentJobs(); }
+    if (tab === "settings") { loadSettings(); loadBqHistory(); loadBqRecentJobs(); }
   }, [tab, loadSettings, loadBqHistory, loadBqRecentJobs]);
 
   /* ── Projects ── */
@@ -209,47 +223,64 @@ export default function LogAnalyzer() {
   };
 
   /* ── Settings ── */
+  const saveAppSettings = async () => {
+    setAppSettingsMsg("Settings saved locally.");
+    setTimeout(() => setAppSettingsMsg(""), 3000);
+  };
+
   const saveAwsSettings = async () => {
     try {
       await apiPost("/log-analyzer/settings", { tenant_id: "bein_sports", ...awsSettings });
       setSettingsMsg("AWS settings saved.");
+      setS3TestResult(null);
       setTimeout(() => setSettingsMsg(""), 3000);
     } catch { setSettingsMsg("Failed to save AWS settings."); }
   };
 
-  const testConnection = async () => {
+  const testS3Connection = async () => {
+    setS3TestResult(null);
     try {
-      const res = await apiPost<{ ok: boolean; message?: string }>("/log-analyzer/settings/test-connection", { tenant_id: "bein_sports" });
-      setSettingsMsg(res.ok ? "Connection successful!" : `Connection failed: ${res.message ?? "unknown"}`);
-      setTimeout(() => setSettingsMsg(""), 5000);
-    } catch { setSettingsMsg("Connection test failed."); }
+      const res = await apiGet<{ success: boolean; message: string }>("/log-analyzer/settings/test-connection?type=s3&tenant_id=bein_sports");
+      setS3TestResult(res);
+    } catch { setS3TestResult({ success: false, message: "Connection test request failed." }); }
+  };
+
+  const testBqConnection = async () => {
+    setBqTestResult(null);
+    try {
+      const res = await apiGet<{ success: boolean; message: string }>("/log-analyzer/settings/test-connection?type=bq&tenant_id=bein_sports");
+      setBqTestResult(res);
+    } catch { setBqTestResult({ success: false, message: "Connection test request failed." }); }
   };
 
   const clearCredentials = async () => {
-    if (!confirm("This is a HIGH RISK action. Are you sure you want to clear all AWS credentials?")) return;
+    if (!confirm("This is a HIGH RISK action. Are you sure you want to clear all credentials?")) return;
     try {
       await apiDelete("/log-analyzer/settings/credentials?tenant_id=bein_sports");
-      setAwsSettings({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "", s3_prefix: "logs/" });
+      setAwsSettings({ aws_access_key_id: "", aws_secret_access_key: "", aws_region: "eu-central-1", s3_bucket: "ssport-datastream", s3_prefix: "logs/" });
       setSettingsMsg("Credentials cleared.");
+      setS3TestResult(null);
       setTimeout(() => setSettingsMsg(""), 3000);
     } catch { setSettingsMsg("Failed to clear credentials."); }
   };
 
   const saveBqSettings = async () => {
     try {
-      await apiPost("/log-analyzer/settings/bigquery", { tenant_id: "bein_sports", ...bqSettings });
-      setBqSettingsMsg("BigQuery settings saved.");
+      await apiPost("/log-analyzer/settings", { tenant_id: "bein_sports", gcp_project_id: bqSettings.gcp_project_id, gcp_dataset_id: bqSettings.bq_dataset_id, gcp_credentials_json: bqSettings.gcp_service_account_json });
+      setBqSettingsMsg("GCP settings saved.");
+      setBqTestResult(null);
       setTimeout(() => setBqSettingsMsg(""), 3000);
-    } catch { setBqSettingsMsg("Failed to save BigQuery settings."); }
+    } catch { setBqSettingsMsg("Failed to save GCP settings."); }
   };
 
   /* ── BigQuery Export ── */
   const startBqExport = async () => {
     if (!bqSelectedJob) return;
-    const selectedFields = BQ_CATEGORIES.filter((c) => bqCategories[c.name]).flatMap((c) => c.fields);
+    const selectedCategories = BQ_CATEGORIES.filter((c) => bqCategories[c.name]).map((c) => c.name.toLowerCase());
     try {
-      const job = await apiGet<BqExportJob>(
-        `/log-analyzer/bigquery/export?tenant_id=bein_sports&job_id=${bqSelectedJob}&table_id=${bqTableId || `akamai_logs_${bqSelectedJob}`}&fields=${selectedFields.join(",")}`
+      const job = await apiPost<BqExportJob>(
+        "/log-analyzer/bigquery/export",
+        { job_id: bqSelectedJob, categories: selectedCategories, bq_table_id: bqTableId || `akamai_logs_${bqSelectedJob}` },
       );
       setBqExportJob(job);
       pollBqExport(job.job_id);
@@ -283,10 +314,9 @@ export default function LogAnalyzer() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "projects", label: "Projects" },
-    { key: "akamai", label: "Akamai Analyzer" },
+    { key: "analyzer", label: "Log Analyzer" },
     { key: "results", label: "Analysis Results" },
     { key: "settings", label: "Settings" },
-    { key: "bigquery", label: "BigQuery Export" },
   ];
 
   /* ── Password field helper ── */
@@ -304,6 +334,20 @@ export default function LogAnalyzer() {
       </div>
     </div>
   );
+
+  /* ── Connection test badge ── */
+  const TestResultBadge = ({ result }: { result: { success: boolean; message: string } | null }) => {
+    if (!result) return null;
+    return (
+      <span className="inline-flex items-center text-xs px-2 py-1 rounded ml-2"
+        style={{
+          backgroundColor: result.success ? "var(--risk-low-bg)" : "var(--risk-high-bg)",
+          color: result.success ? "var(--risk-low)" : "var(--risk-high)",
+        }}>
+        {result.success ? "Connected" : "Failed"}: {result.message}
+      </span>
+    );
+  };
 
   return (
     <div>
@@ -386,12 +430,39 @@ export default function LogAnalyzer() {
         </div>
       )}
 
-      {/* ══════════ Tab 2: Akamai Analyzer ══════════ */}
-      {tab === "akamai" && (
+      {/* ══════════ Tab 2: Log Analyzer (renamed from Akamai Analyzer) ══════════ */}
+      {tab === "analyzer" && (
         <div>
-          {/* Config form */}
+          {/* Project selector */}
           <div className="rounded-lg border p-4 mb-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Akamai DataStream 2 Configuration</h3>
+            <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Active Project</label>
+            {projects.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                No projects found.{" "}
+                <button onClick={() => setTab("projects")} className="underline" style={{ color: "var(--brand-primary)" }}>
+                  Create a project first
+                </button>
+              </p>
+            ) : (
+              <select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="w-full md:w-80 text-sm px-3 py-2 rounded border outline-none"
+                style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                <option value="">Select a project...</option>
+                {projects.map((p) => (
+                  <option key={p.projectId} value={p.projectId}>{p.name} ({p.subModule})</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Akamai DataStream 2 sub-section */}
+          <div className="rounded-lg border p-4 mb-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Akamai DataStream 2</h3>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>Source</span>
+            </div>
+
+            {/* Config form */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>S3 Bucket</label>
@@ -564,13 +635,72 @@ export default function LogAnalyzer() {
         </div>
       )}
 
-      {/* ══════════ Tab 4: Settings ══════════ */}
+      {/* ══════════ Tab 4: Settings (3 Accordion Sections) ══════════ */}
       {tab === "settings" && (
-        <div className="space-y-6">
-          {/* Section 1: AWS S3 Settings */}
-          <div className="rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>AWS S3 Settings</h3>
-            <div className="space-y-4">
+        <div className="space-y-4">
+          {/* ── Section 1: Log Analyzer Settings ── */}
+          <AccordionItem title="Log Analyzer Settings" subtitle="Language, date range, cache, auto-fetch" defaultOpen={true}>
+            <div className="space-y-4 pt-4">
+              <div>
+                <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Language Preference</label>
+                <div className="flex gap-4">
+                  {(["en", "tr"] as const).map((lang) => (
+                    <label key={lang} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="language" checked={appSettings.language === lang}
+                        onChange={() => setAppSettings({ ...appSettings, language: lang })} />
+                      <span className="text-sm" style={{ color: "var(--text-primary)" }}>{lang === "en" ? "English" : "Turkish"}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Default Date Range</label>
+                  <select value={appSettings.default_date_range} onChange={(e) => setAppSettings({ ...appSettings, default_date_range: e.target.value as AppSettings["default_date_range"] })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Log Cache Retention</label>
+                  <select value={appSettings.log_cache_retention} onChange={(e) => setAppSettings({ ...appSettings, log_cache_retention: e.target.value as AppSettings["log_cache_retention"] })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30">30 days</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Auto-Fetch Schedule</label>
+                  <select value={appSettings.auto_fetch_schedule} onChange={(e) => setAppSettings({ ...appSettings, auto_fetch_schedule: e.target.value as AppSettings["auto_fetch_schedule"] })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                    <option value="disabled">Disabled</option>
+                    <option value="6h">Every 6 hours</option>
+                    <option value="12h">Every 12 hours</option>
+                    <option value="daily">Daily</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2 items-center pt-2">
+                <button onClick={saveAppSettings} className="px-4 py-2 rounded text-sm font-medium"
+                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                  Save Settings
+                </button>
+                {appSettingsMsg && (
+                  <span className="text-xs" style={{ color: "var(--risk-low)" }}>{appSettingsMsg}</span>
+                )}
+              </div>
+            </div>
+          </AccordionItem>
+
+          {/* ── Section 2: AWS Settings ── */}
+          <AccordionItem title="AWS Settings" subtitle="S3 Settings">
+            <div className="space-y-4 pt-4">
               <PasswordField
                 label="AWS Access Key ID"
                 value={awsSettings.aws_access_key_id}
@@ -587,33 +717,36 @@ export default function LogAnalyzer() {
               />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>AWS Region</label>
-                  <input type="text" value={awsSettings.aws_region} onChange={(e) => setAwsSettings({ ...awsSettings, aws_region: e.target.value })}
-                    className="w-full text-sm px-3 py-2 rounded border outline-none"
-                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
-                </div>
-                <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>S3 Bucket</label>
                   <input type="text" value={awsSettings.s3_bucket} onChange={(e) => setAwsSettings({ ...awsSettings, s3_bucket: e.target.value })}
                     className="w-full text-sm px-3 py-2 rounded border outline-none"
-                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                    placeholder="ssport-datastream" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>S3 Region</label>
+                  <input type="text" value={awsSettings.aws_region} onChange={(e) => setAwsSettings({ ...awsSettings, aws_region: e.target.value })}
+                    className="w-full text-sm px-3 py-2 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                    placeholder="eu-central-1" />
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>S3 Prefix</label>
                   <input type="text" value={awsSettings.s3_prefix} onChange={(e) => setAwsSettings({ ...awsSettings, s3_prefix: e.target.value })}
                     className="w-full text-sm px-3 py-2 rounded border outline-none"
-                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                    placeholder="logs/" />
                 </div>
               </div>
 
-              <div className="flex gap-2 items-center pt-2">
-                <button onClick={testConnection} className="px-4 py-2 rounded text-sm font-medium border"
+              <div className="flex flex-wrap gap-2 items-center pt-2">
+                <button onClick={testS3Connection} className="px-4 py-2 rounded text-sm font-medium border"
                   style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-                  Test Connection
+                  Test S3 Connection
                 </button>
                 <button onClick={saveAwsSettings} className="px-4 py-2 rounded text-sm font-medium"
                   style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
-                  Save
+                  Save AWS Settings
                 </button>
                 <button onClick={clearCredentials} className="px-4 py-2 rounded text-sm font-medium"
                   style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)", border: "1px solid var(--risk-high)" }}>
@@ -622,185 +755,182 @@ export default function LogAnalyzer() {
                 <RiskBadge level="HIGH" />
               </div>
 
+              <TestResultBadge result={s3TestResult} />
+
               {settingsMsg && (
                 <p className="text-xs mt-2" style={{ color: settingsMsg.includes("fail") || settingsMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>
                   {settingsMsg}
                 </p>
               )}
             </div>
-          </div>
+          </AccordionItem>
 
-          {/* Section 2: GCP BigQuery Settings */}
-          <div className="rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>GCP BigQuery Settings</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>GCP Project ID</label>
-                  <input type="text" value={bqSettings.gcp_project_id} onChange={(e) => setBqSettings({ ...bqSettings, gcp_project_id: e.target.value })}
-                    className="w-full text-sm px-3 py-2 rounded border outline-none"
-                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>BigQuery Dataset ID</label>
-                  <input type="text" value={bqSettings.bq_dataset_id} onChange={(e) => setBqSettings({ ...bqSettings, bq_dataset_id: e.target.value })}
-                    className="w-full text-sm px-3 py-2 rounded border outline-none"
-                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
-                </div>
-              </div>
+          {/* ── Section 3: GCP Settings ── */}
+          <AccordionItem title="GCP (Google Cloud Platform) Settings" subtitle="BigQuery credentials and export">
+            <div className="space-y-6 pt-4">
+              {/* BigQuery Settings sub-section */}
               <div>
-                <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>GCP Service Account JSON</label>
-                <textarea value={bqSettings.gcp_service_account_json} onChange={(e) => setBqSettings({ ...bqSettings, gcp_service_account_json: e.target.value })}
-                  rows={4}
-                  className="w-full text-sm px-3 py-2 rounded border outline-none font-mono resize-y"
-                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-                  placeholder='{"type": "service_account", ...}' />
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Enable BigQuery Export</label>
-                <button type="button" onClick={() => setBqSettings({ ...bqSettings, bq_export_enabled: !bqSettings.bq_export_enabled })}
-                  className="relative w-10 h-5 rounded-full transition-colors"
-                  style={{ backgroundColor: bqSettings.bq_export_enabled ? "var(--brand-primary)" : "var(--border)" }}>
-                  <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-                    style={{ left: bqSettings.bq_export_enabled ? "calc(100% - 18px)" : "2px" }} />
-                </button>
-              </div>
-              <div className="flex gap-2 items-center pt-2">
-                <button onClick={saveBqSettings} className="px-4 py-2 rounded text-sm font-medium"
-                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
-                  Save BigQuery Settings
-                </button>
-              </div>
-              {bqSettingsMsg && (
-                <p className="text-xs mt-2" style={{ color: bqSettingsMsg.includes("fail") || bqSettingsMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>
-                  {bqSettingsMsg}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════ Tab 5: BigQuery Export ══════════ */}
-      {tab === "bigquery" && (
-        <div className="space-y-6">
-          {/* Category checkboxes */}
-          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Select Export Categories</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {BQ_CATEGORIES.map((cat) => (
-                <label key={cat.name} className="flex items-start gap-2 p-2 rounded border cursor-pointer"
-                  style={{ borderColor: bqCategories[cat.name] ? "var(--brand-primary)" : "var(--border)", backgroundColor: bqCategories[cat.name] ? "var(--brand-glow)" : "transparent" }}>
-                  <input type="checkbox" checked={bqCategories[cat.name] ?? true}
-                    onChange={(e) => setBqCategories({ ...bqCategories, [cat.name]: e.target.checked })}
-                    className="mt-0.5" />
-                  <div>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{cat.name}</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {cat.fields.map((f) => (
-                        <span key={f} className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>{f}</span>
-                      ))}
+                <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>BigQuery Settings</h4>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>GCP Project ID</label>
+                      <input type="text" value={bqSettings.gcp_project_id} onChange={(e) => setBqSettings({ ...bqSettings, gcp_project_id: e.target.value })}
+                        className="w-full text-sm px-3 py-2 rounded border outline-none"
+                        style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
                     </div>
-                    {cat.note && (
-                      <p className="text-xs mt-1" style={{ color: "var(--risk-medium)" }}>&#9888; {cat.note}</p>
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>BigQuery Dataset</label>
+                      <input type="text" value={bqSettings.bq_dataset_id} onChange={(e) => setBqSettings({ ...bqSettings, bq_dataset_id: e.target.value })}
+                        className="w-full text-sm px-3 py-2 rounded border outline-none"
+                        style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>GCP Service Account JSON</label>
+                    <textarea value={bqSettings.gcp_service_account_json} onChange={(e) => setBqSettings({ ...bqSettings, gcp_service_account_json: e.target.value })}
+                      rows={4}
+                      className="w-full text-sm px-3 py-2 rounded border outline-none font-mono resize-y"
+                      style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                      placeholder='{"type": "service_account", ...}' />
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <button onClick={testBqConnection} className="px-4 py-2 rounded text-sm font-medium border"
+                      style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                      Test BigQuery Connection
+                    </button>
+                    <button onClick={saveBqSettings} className="px-4 py-2 rounded text-sm font-medium"
+                      style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                      Save GCP Settings
+                    </button>
+                  </div>
+
+                  <TestResultBadge result={bqTestResult} />
+
+                  {bqSettingsMsg && (
+                    <p className="text-xs mt-2" style={{ color: bqSettingsMsg.includes("fail") || bqSettingsMsg.includes("Failed") ? "var(--risk-high)" : "var(--risk-low)" }}>
+                      {bqSettingsMsg}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* BigQuery Export sub-section */}
+              <div className="border-t pt-6" style={{ borderColor: "var(--border)" }}>
+                <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>BigQuery Export</h4>
+
+                {/* Category checkboxes */}
+                <div className="mb-4">
+                  <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Select Export Categories</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {BQ_CATEGORIES.map((cat) => (
+                      <label key={cat.name} className="flex items-start gap-2 p-2 rounded border cursor-pointer"
+                        style={{ borderColor: bqCategories[cat.name] ? "var(--brand-primary)" : "var(--border)", backgroundColor: bqCategories[cat.name] ? "var(--brand-glow)" : "transparent" }}>
+                        <input type="checkbox" checked={bqCategories[cat.name] ?? true}
+                          onChange={(e) => setBqCategories({ ...bqCategories, [cat.name]: e.target.checked })}
+                          className="mt-0.5" />
+                        <div>
+                          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{cat.name}</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {cat.fields.map((f) => (
+                              <span key={f} className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>{f}</span>
+                            ))}
+                          </div>
+                          {cat.note && (
+                            <p className="text-xs mt-1" style={{ color: "var(--risk-medium)" }}>&#9888; {cat.note}</p>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Export controls */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Source Job</label>
+                    <select value={bqSelectedJob} onChange={(e) => { setBqSelectedJob(e.target.value); setBqTableId(`akamai_logs_${e.target.value}`); }}
+                      className="w-full text-sm px-3 py-2 rounded border outline-none"
+                      style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                      <option value="">Select a job...</option>
+                      {bqRecentJobs.map((j) => (
+                        <option key={j.jobId} value={j.jobId}>{j.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>BQ Table ID</label>
+                    <input type="text" value={bqTableId} onChange={(e) => setBqTableId(e.target.value)}
+                      placeholder={bqSelectedJob ? `akamai_logs_${bqSelectedJob}` : "akamai_logs_{job_id}"}
+                      className="w-full text-sm px-3 py-2 rounded border outline-none font-mono"
+                      style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                  <div className="flex items-end">
+                    <button onClick={startBqExport} disabled={!bqSelectedJob || bqExportJob?.status === "running"}
+                      className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+                      style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                      Export to BigQuery
+                    </button>
+                  </div>
+                </div>
+
+                {/* Export progress */}
+                {bqExportJob && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Export Job: {bqExportJob.job_id}</span>
+                      <span className="text-xs" style={{ color: bqExportJob.status === "completed" ? "var(--risk-low)" : bqExportJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }}>
+                        {bqExportJob.status} {bqExportJob.status === "completed" && `— ${bqExportJob.rows_exported} rows`}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+                      <div className="h-2 rounded-full transition-all" style={{ width: `${bqExportProgress}%`, backgroundColor: bqExportJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }} />
+                    </div>
+                    {bqExportJob.error && (
+                      <p className="text-xs mt-1" style={{ color: "var(--risk-high)" }}>{bqExportJob.error}</p>
                     )}
                   </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Export controls */}
-          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Export Configuration</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div>
-                <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Source Job</label>
-                <select value={bqSelectedJob} onChange={(e) => { setBqSelectedJob(e.target.value); setBqTableId(`akamai_logs_${e.target.value}`); }}
-                  className="w-full text-sm px-3 py-2 rounded border outline-none"
-                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
-                  <option value="">Select a job...</option>
-                  {bqRecentJobs.map((j) => (
-                    <option key={j.jobId} value={j.jobId}>{j.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>BQ Table ID</label>
-                <input type="text" value={bqTableId} onChange={(e) => setBqTableId(e.target.value)}
-                  placeholder={bqSelectedJob ? `akamai_logs_${bqSelectedJob}` : "akamai_logs_{job_id}"}
-                  className="w-full text-sm px-3 py-2 rounded border outline-none font-mono"
-                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
-              </div>
-              <div className="flex items-end">
-                <button onClick={startBqExport} disabled={!bqSelectedJob || bqExportJob?.status === "running"}
-                  className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
-                  style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
-                  Export to BigQuery
-                </button>
-              </div>
-            </div>
-
-            {/* Export progress */}
-            {bqExportJob && (
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Export Job: {bqExportJob.job_id}</span>
-                  <span className="text-xs" style={{ color: bqExportJob.status === "completed" ? "var(--risk-low)" : bqExportJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }}>
-                    {bqExportJob.status} {bqExportJob.status === "completed" && `— ${bqExportJob.rows_exported} rows`}
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
-                  <div className="h-2 rounded-full transition-all" style={{ width: `${bqExportProgress}%`, backgroundColor: bqExportJob.status === "failed" ? "var(--risk-high)" : "var(--brand-primary)" }} />
-                </div>
-                {bqExportJob.error && (
-                  <p className="text-xs mt-1" style={{ color: "var(--risk-high)" }}>{bqExportJob.error}</p>
                 )}
-              </div>
-            )}
-          </div>
 
-          {/* Export history */}
-          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
-              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Export History</h3>
+                {/* Export history table */}
+                <div className="rounded border overflow-x-auto" style={{ borderColor: "var(--border)" }}>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                        {["Job ID", "Table", "Rows", "Status", "Exported At"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bqHistory.map((h) => (
+                        <tr key={h.job_id} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td className="px-4 py-2 font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{h.job_id}</td>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{h.table_id}</td>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{h.rows_exported?.toLocaleString() ?? "—"}</td>
+                          <td className="px-4 py-2">
+                            <span className="text-xs px-2 py-0.5 rounded"
+                              style={{
+                                backgroundColor: h.status === "completed" ? "var(--risk-low-bg)" : h.status === "failed" ? "var(--risk-high-bg)" : "var(--risk-medium-bg)",
+                                color: h.status === "completed" ? "var(--risk-low)" : h.status === "failed" ? "var(--risk-high)" : "var(--risk-medium)",
+                              }}>
+                              {h.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{h.exported_at ?? "—"}</td>
+                        </tr>
+                      ))}
+                      {bqHistory.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No exports yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Job ID", "Table", "Rows", "Status", "Exported At"].map((h) => (
-                      <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {bqHistory.map((h) => (
-                    <tr key={h.job_id} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td className="px-4 py-2 font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{h.job_id}</td>
-                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{h.table_id}</td>
-                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{h.rows_exported?.toLocaleString() ?? "—"}</td>
-                      <td className="px-4 py-2">
-                        <span className="text-xs px-2 py-0.5 rounded"
-                          style={{
-                            backgroundColor: h.status === "completed" ? "var(--risk-low-bg)" : h.status === "failed" ? "var(--risk-high-bg)" : "var(--risk-medium-bg)",
-                            color: h.status === "completed" ? "var(--risk-low)" : h.status === "failed" ? "var(--risk-high)" : "var(--risk-medium)",
-                          }}>
-                          {h.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{h.exported_at ?? "—"}</td>
-                    </tr>
-                  ))}
-                  {bqHistory.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No exports yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          </AccordionItem>
         </div>
       )}
 

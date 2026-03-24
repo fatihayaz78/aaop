@@ -8,13 +8,10 @@ Temel özellik: İstenen kadar log kaynağı eklenebilir (sub-module mimarisi)
 ## 2. TABS
 | Tab | Açıklama | Veri |
 |---|---|---|
-| Overview | Aktif projeler, son analizler | DuckDB: cdn_analysis |
-| Projects | Log projeleri CRUD | SQLite: log_projects |
-| Akamai Analyzer | DataStream 2 analizi | S3 + DuckDB |
-| Medianova | Placeholder | — |
-| Add Source | Yeni log kaynağı ekle | SQLite: log_sources |
-| Reports | DOCX rapor geçmişi + download | DuckDB + dosya sistemi |
-| Agent Chat | Log Analyzer AI asistanı | LLM Gateway |
+| Projects | Log projeleri CRUD, yeni proje oluşturma | SQLite: log_projects |
+| Log Analyzer | Proje seçici + Akamai DataStream 2 sub-section, S3 fetch | S3 + DuckDB |
+| Settings | 3 accordion: Log Analyzer Settings / AWS Settings / GCP Settings (BQ export dahil) | SQLite: settings |
+| Analysis Results | Geçmiş analiz sonuçları tablosu | DuckDB: cdn_analysis |
 
 ## 3. AGENT MİMARİSİ
 ```python
@@ -56,11 +53,12 @@ apps/log_analyzer/
     ├── base_sub_module.py   ← BaseSubModule (configure/fetch_logs/analyze/generate_report)
     ├── akamai/
     │   ├── parser.py        ← DataStream 2 CSV (21 alan)
+    │   ├── analyzer.py      ← Korelasyon analizi, anomali tespiti (z-score, IQR)
+    │   ├── bigquery_exporter.py ← 9 kategori BQ export
+    │   ├── schemas.py       ← AkamaiLogEntry (22 DS2 alanı)
     │   ├── scheduler.py     ← AsyncIOScheduler, her 6 saatte S3 fetch
-    │   ├── analyzer.py      ← Anomali tespiti, error rate
     │   ├── charts.py        ← 21 Plotly grafik — kaleido==0.2.1 (PIN'Lİ)
-    │   ├── reporter.py      ← python-docx DOCX rapor
-    │   └── schemas.py
+    │   └── reporter.py      ← python-docx DOCX rapor
     └── medianova/
         └── __init__.py      ← Stub placeholder
 ```
@@ -130,6 +128,18 @@ CREATE TABLE log_sources (
     source_type TEXT NOT NULL, config_json TEXT,
     last_fetch TEXT, status TEXT DEFAULT 'idle'
 );
+CREATE TABLE settings (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    tenant_id TEXT NOT NULL,
+    aws_access_key_id_enc TEXT,
+    aws_secret_access_key_enc TEXT,
+    s3_bucket TEXT DEFAULT 'ssport-datastream',
+    s3_region TEXT DEFAULT 'eu-central-1',
+    gcp_project_id TEXT,
+    bq_dataset TEXT,
+    gcp_credentials_enc TEXT,
+    updated_at TEXT DEFAULT (datetime('now'))
+);
 ```
 ### Redis
 ```
@@ -145,4 +155,42 @@ APScheduler     → AsyncIOScheduler (sync değil)
 S3 credentials  → .env: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET
 Log cache       → data/logs/ (haftalık temizle)
 DOCX raporlar   → data/reports/{tenant_id}/
+encryption   → shared/utils/encryption.py — Fernet AES-256 (JWT_SECRET_KEY'den türetilir)
+client_ip    → SHA256 hash (parser.py), asla LLM'e veya BigQuery'e gönderilmez
+credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakter masked
 ```
+
+## 13. BIGQUERY KATEGORİ-ALAN EŞLEMESİ
+| Kategori | Alanlar | PII Notu |
+|---|---|---|
+| meta | version, cp_code | — |
+| timing | req_time_sec, dns_lookup_time_ms, transfer_time_ms, turn_around_time_ms | — |
+| traffic | bytes, client_bytes, response_body_size | — |
+| content | content_type, req_path | — |
+| client | user_agent, req_range | client_ip EXCLUDED (PII) |
+| network | hostname, edge_ip | — |
+| response | status_code, error_code | — |
+| cache | cache_status, cache_hit | — |
+| geo | country, city | — |
+
+## 14. SPRINT GEÇMİŞİ
+### S15 — COMPLETE (commit: a54d0c0)
+- AkamaiLogEntry 22 DS2 alanı (schemas.py)
+- TSV parser + client_ip SHA256 hash (parser.py)
+- 21 grafik — DS2 uyumlu, (figure, summary_df) tuple (charts.py)
+- bigquery_exporter.py — 9 kategori export
+- settings tablosu + Fernet encryption (shared/utils/encryption.py)
+- 6 yeni endpoint: settings CRUD, fetch-range, bigquery export, test-connection
+- Frontend: 5 tab (Projects/Akamai Analyzer/Analysis Results/Settings/BigQuery Export)
+- Test: 451 passed, 0 failed
+
+### S16-P1 — COMPLETE
+- BUG FIX: POST /log-analyzer/projects 405 → POST handler eklendi
+- BUG FIX: GET /log-analyzer/settings/test-connection 404 → route eklendi (s3 + bq)
+- BUG FIX: POST /log-analyzer/bigquery/export GET→POST düzeltildi
+- "Akamai Analyzer" tab → "Log Analyzer" olarak yeniden adlandırıldı
+- Log Analyzer tab: proje seçici + Akamai DataStream 2 sub-section
+- "BigQuery Export" tab kaldırıldı → Settings/GCP Settings altına taşındı
+- Settings tab: 3 accordion (Log Analyzer Settings / AWS Settings / GCP Settings)
+- frontend/src/components/ui/Accordion.tsx oluşturuldu
+- Tests: 448 passed, 0 failed

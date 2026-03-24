@@ -97,6 +97,37 @@ WS     /ws/log-analyzer/stream                   WebSocket: log ingest real-time
 }
 ```
 
+### S15 Endpoints
+
+#### Settings
+```
+GET    /log-analyzer/settings              → Masked credentials döner
+POST   /log-analyzer/settings              → AWS + GCP credentials kaydet (encrypted)
+DELETE /log-analyzer/settings/credentials  → Credentials sil
+GET    /log-analyzer/settings/test-connection?type=s3|bq → Bağlantı testi
+```
+
+#### Fetch & Export
+```
+POST /log-analyzer/akamai/fetch-range
+  Body: { job_id, cp_code, start_date, end_date }
+  → S3'ten TSV indir, cache'le, FetchJob döner
+
+POST /log-analyzer/bigquery/export
+  Body: { job_id, categories: [...], bq_table_id }
+  → Seçili kategorileri BQ'ya export et
+
+GET /log-analyzer/bigquery/jobs/{id}
+  → Export job durumu (queued/running/complete/failed)
+```
+
+### S16-P1 Fixes
+```
+POST /log-analyzer/projects — eklendi (CreateProjectRequest → LogProject)
+GET  /log-analyzer/settings/test-connection?type=s3|bq — eklendi, daima 200 döner
+POST /log-analyzer/bigquery/export — GET'ten POST'a düzeltildi
+```
+
 ---
 
 ## 5. ALERT CENTER (M13)

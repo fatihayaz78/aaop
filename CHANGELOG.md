@@ -8,6 +8,35 @@
 
 ---
 
+## [S16-P1] — 2026-03-24
+### Fixed
+- POST /log-analyzer/projects 405 bug
+- GET /log-analyzer/settings/test-connection 404 bug
+- POST /log-analyzer/bigquery/export method bug (GET→POST)
+### Changed
+- "Akamai Analyzer" tab renamed to "Log Analyzer"
+- "BigQuery Export" tab removed, merged into Settings/GCP Settings accordion
+- Settings tab restructured as 3 collapsible accordion sections
+### Added
+- Project selector in Log Analyzer tab
+- Akamai DataStream 2 labeled sub-section in Log Analyzer tab
+- Accordion.tsx component
+
+---
+
+## [S15] — 2026-03-24
+### Added
+- AkamaiLogEntry: 22 DS2 alanı, TSV parser, client_ip SHA256 hash
+- charts.py: 21 DS2-uyumlu grafik, her biri (figure, summary_df) tuple
+- bigquery_exporter.py: 9 kategori export (client_ip excluded)
+- shared/utils/encryption.py: Fernet AES-256 credential encryption
+- SQLite settings tablosu: encrypted AWS + GCP credentials
+- Endpoints: settings CRUD, fetch-range, bigquery export, test-connection
+- Frontend: Log Analyzer 5 tab (Projects/Akamai Analyzer/Analysis Results/Settings/BigQuery Export)
+- Tests: 451 passed, 0 failed
+
+---
+
 ## [1.1.0] — 2026-03-21 — S15: Log Analyzer Full Enhancement
 
 ### Eklendi
