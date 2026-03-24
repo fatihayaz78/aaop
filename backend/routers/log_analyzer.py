@@ -1376,18 +1376,51 @@ def _run_analysis(df: Any) -> dict[str, Any]:
     if "status_code" in df.columns:
         sc = df["status_code"].dropna().astype(int).value_counts().sort_index().head(20)
         charts["status_code_distribution"] = [{"status": int(k), "count": int(v)} for k, v in sc.items()]
+        # Diagnostic: top 5 status codes
+        top5_sc = sc.head(5)
+        logger.info("chart_status_codes",
+                     top5={f"status_{int(k)}": f"{int(v)} ({round(int(v)/total_rows*100,1)}%)" for k, v in top5_sc.items()})
 
-    # 2. Cache hit ratio
+    # 2. Cache hit ratio (show both % labels and raw counts)
     if "cache_hit" in df.columns:
         ch = df["cache_hit"].dropna().astype(int).value_counts()
-        charts["cache_hit_ratio"] = [{"label": "Hit" if int(k) == 1 else "Miss", "count": int(v)} for k, v in ch.items()]
+        ch_total = int(ch.sum())
+        null_count = int(df["cache_hit"].isna().sum())
+        hit_count = int(ch.get(1, 0))
+        miss_count = int(ch.get(0, 0))
+        hit_pct = round(hit_count / ch_total * 100, 1) if ch_total else 0
+        miss_pct = round(miss_count / ch_total * 100, 1) if ch_total else 0
+        logger.info("chart_cache_hit",
+                     hit_count=hit_count, miss_count=miss_count,
+                     hit_pct=hit_pct, miss_pct=miss_pct, null_count=null_count)
+        charts["cache_hit_ratio"] = [
+            {"label": f"Hit ({hit_pct}%)", "count": hit_count},
+            {"label": f"Miss ({miss_pct}%)", "count": miss_count},
+        ]
 
-    # 3. Bandwidth by hour (bytes as MB for readability)
+    # 3. Bandwidth by hour (bytes as MB, fill missing hours with 0)
     if "req_time_sec" in df.columns and "bytes" in df.columns:
+        # Sample 5 bytes values for magnitude check
+        bytes_sample = df["bytes"].dropna().head(5).tolist()
+        logger.info("chart_bandwidth_bytes_sample", sample=bytes_sample)
+
         df_bw = df[df["req_time_sec"].notna()].copy()
         df_bw["hour"] = pd.to_datetime(df_bw["req_time_sec"], unit="s", utc=True).dt.hour
-        bw = df_bw.groupby("hour")["bytes"].sum().reset_index()
-        charts["bandwidth_by_hour"] = [{"hour": int(r["hour"]), "mb": round(int(r["bytes"]) / (1024**2), 1)} for _, r in bw.iterrows()]
+        bw = df_bw.groupby("hour")["bytes"].sum()
+        # Fill missing hours with 0 for complete 0-23 range
+        all_hours = pd.Series(0, index=range(24), dtype="int64")
+        for h in bw.index:
+            all_hours[int(h)] = int(bw[h])
+        total_mb = round(int(all_hours.sum()) / (1024**2), 1)
+        hours_with_data = int((all_hours > 0).sum())
+        mean_mb = round(total_mb / hours_with_data, 1) if hours_with_data else 0
+        max_hour = int(all_hours.idxmax()) if hours_with_data else 0
+        min_hour_val = all_hours[all_hours > 0]
+        min_hour = int(min_hour_val.idxmin()) if len(min_hour_val) else 0
+        logger.info("chart_bandwidth_by_hour",
+                     total_mb=total_mb, mean_mb_per_hour=mean_mb,
+                     max_hour=max_hour, min_hour=min_hour, hours_with_data=hours_with_data)
+        charts["bandwidth_by_hour"] = [{"hour": h, "mb": round(int(all_hours[h]) / (1024**2), 1)} for h in range(24)]
 
     # 4. Top error paths (last 50 chars for display, full in tooltip)
     if "status_code" in df.columns and "req_path" in df.columns:

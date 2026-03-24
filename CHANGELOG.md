@@ -8,6 +8,15 @@
 
 ---
 
+## [S16-P15] — 2026-03-24
+### Fixed
+- Cache Hit Ratio: percentage labels, always 2 bars
+- Bandwidth by Hour: full 24h timeline, missing hours filled with 0
+### Added
+- Diagnostic structlog for status codes, cache hit, bandwidth bytes
+
+---
+
 ## [S16-P14] — 2026-03-24
 ### Fixed
 - Project delete endpoint (was missing)

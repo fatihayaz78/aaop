@@ -324,3 +324,9 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - BQ export: scheduled_tasks'a bq_export_enabled + bq_export_categories
 - Log Analyzer tab: collapsible BQ export section
 - Tests: 92 passed, 0 failed
+
+### S16-P15 — COMPLETE (diagnostics)
+- Status Code diagnostic structlog eklendi
+- Cache Hit: % label + 2 bar fix + string coerce
+- Bandwidth by Hour: 24 saat tam timeline, bytes sample log
+- Tests: 92 passed, 0 failed
