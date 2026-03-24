@@ -8,6 +8,15 @@
 
 ---
 
+## [S16-P17] — 2026-03-24
+### Added
+- Captain logAR AI Chat panel in Log Analyzer tab
+- POST /log-analyzer/chat with job context + Turkish support
+- GET /log-analyzer/chat/suggestions (context-aware)
+- Anthropic API key status in Settings
+
+---
+
 ## [S16-P16] — 2026-03-24
 ### Fixed
 - Cache Status integer mapping (float/string coerce)

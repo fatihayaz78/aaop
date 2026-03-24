@@ -339,3 +339,13 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Expand/collapse per chart (⤢/⤡ toggle, 180→400px)
 - 13 chart descriptions (italic, text-xs)
 - Tests: 92 passed, 0 failed
+
+### S16-P17 — COMPLETE
+- POST /log-analyzer/chat: multi-turn, job context, Turkish support
+- GET /log-analyzer/chat/suggestions: 4 context-aware suggestions
+- GET /log-analyzer/chat/api-status: ANTHROPIC_API_KEY check
+- Frontend: Captain logAR chat panel (collapsible, bottom of page)
+- Suggested question chips, message history, multi-turn history
+- Settings: API key status indicator (green/red)
+- 7 yeni test (test_chat.py)
+- Tests: 99 passed, 0 failed

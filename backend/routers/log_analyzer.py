@@ -2295,3 +2295,171 @@ async def test_email(
         return {"success": True, "message": f"Test email sent to {username}"}
     except Exception as exc:
         return {"success": False, "message": f"Email test failed: {exc}"}
+
+
+# ── Agent Chat ──
+
+
+class ChatRequest(BaseModel):
+    message: str
+    job_id: str | None = None
+    conversation_id: str | None = None
+    history: list[dict[str, str]] = []
+
+
+def _build_chat_context(job_id: str | None) -> str:
+    """Build analysis context string for the LLM from current job data."""
+    if not job_id:
+        return "No analysis data loaded. Answer general CDN questions."
+
+    job = _fetch_jobs.get(job_id)
+    if not job:
+        return "Job data not available in memory."
+
+    parts = [
+        f"Date range: {job.get('start_date', '?')} to {job.get('end_date', '?')}",
+        f"Total rows: {job.get('rows_parsed', 0):,}",
+        f"Total files: {job.get('total_files', 0)}",
+        f"Status: {job.get('status', '?')}",
+        f"Cache hits: {job.get('cache_hits', 0)} days from cache, {job.get('cache_misses', 0)} days fetched",
+    ]
+
+    # Try to add analysis summary if parquet paths available
+    if job.get("parquet_paths"):
+        try:
+            import pandas as pd
+            from pathlib import Path
+
+            dfs = []
+            for p in job["parquet_paths"][:5]:
+                if Path(p).exists():
+                    dfs.append(pd.read_parquet(p))
+            if dfs:
+                df = pd.concat(dfs, ignore_index=True)
+                for col in ("bytes", "status_code", "cache_hit", "transfer_time_ms"):
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                total = len(df)
+                if "status_code" in df.columns:
+                    errs = int((df["status_code"] >= 400).sum())
+                    parts.append(f"Error rate: {round(errs/total*100, 1)}% ({errs:,} errors)")
+                if "cache_hit" in df.columns:
+                    hits = int((df["cache_hit"].dropna() == 1).sum())
+                    valid = df["cache_hit"].dropna().shape[0]
+                    parts.append(f"Cache hit: {round(hits/valid*100, 1) if valid else 0}%")
+                if "transfer_time_ms" in df.columns:
+                    avg = df["transfer_time_ms"].mean()
+                    parts.append(f"Avg latency: {round(avg, 1)}ms")
+                if "country" in df.columns:
+                    top3 = df["country"].dropna().value_counts().head(3)
+                    parts.append(f"Top countries: {', '.join(f'{k}({v})' for k, v in top3.items())}")
+                if "bytes" in df.columns:
+                    gb = round(int(df["bytes"].sum()) / (1024**3), 2)
+                    parts.append(f"Total bandwidth: {gb} GB")
+        except Exception:
+            pass
+
+    return "\n".join(parts)
+
+
+def _generate_suggestions(job_id: str | None) -> list[str]:
+    """Generate 4 context-aware chat suggestions."""
+    suggestions = ["Summarize the key findings", "What should I investigate next?"]
+
+    if not job_id:
+        suggestions.extend(["What metrics matter for CDN performance?", "How does caching work in Akamai?"])
+        return suggestions[:4]
+
+    job = _fetch_jobs.get(job_id)
+    if job and job.get("parquet_paths"):
+        try:
+            import pandas as pd
+            from pathlib import Path
+
+            dfs = []
+            for p in job["parquet_paths"][:3]:
+                if Path(p).exists():
+                    dfs.append(pd.read_parquet(p))
+            if dfs:
+                df = pd.concat(dfs, ignore_index=True)
+                for col in ("status_code", "cache_hit", "country"):
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce") if col != "country" else df[col]
+
+                if "status_code" in df.columns:
+                    err_rate = (df["status_code"] >= 400).sum() / len(df) * 100
+                    if err_rate > 5:
+                        suggestions.append(f"What's causing the {err_rate:.1f}% error rate?")
+                if "country" in df.columns:
+                    non_tr = df[df["country"].astype(str) != "TR"]
+                    if len(non_tr) > 0:
+                        suggestions.append("Which IPs accessed from outside Turkey?")
+        except Exception:
+            pass
+
+    if len(suggestions) < 4:
+        suggestions.extend(["Compare cache performance across hours", "Which content types have the most errors?"])
+    return suggestions[:4]
+
+
+@router.post("/chat")
+async def chat(
+    payload: ChatRequest,
+    ctx: TenantContext = Depends(get_tenant_context),
+) -> dict[str, Any]:
+    """AI chat powered by Captain logAR."""
+    conversation_id = payload.conversation_id or str(uuid.uuid4())
+    context = _build_chat_context(payload.job_id)
+
+    system_prompt = (
+        "You are Captain logAR, an AI analyst for S Sport Plus CDN logs.\n"
+        "You have access to the current analysis:\n"
+        f"{context}\n\n"
+        "Answer questions about CDN performance, errors, anomalies, and patterns.\n"
+        "Be concise and actionable. Use Turkish if the user writes in Turkish."
+    )
+
+    # Build messages for multi-turn
+    messages: list[dict[str, str]] = []
+    for h in payload.history[-10:]:
+        messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": payload.message})
+
+    try:
+        from anthropic import AsyncAnthropic
+
+        settings = get_settings()
+        if not settings.anthropic_api_key:
+            return {"response": "Anthropic API key not configured. Set ANTHROPIC_API_KEY in .env", "conversation_id": conversation_id}
+
+        client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        response = await client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2048,
+            system=system_prompt,
+            messages=messages,
+        )
+        text = response.content[0].text if response.content else "No response generated."
+        logger.info("chat_response", conversation_id=conversation_id, input_tokens=response.usage.input_tokens, output_tokens=response.usage.output_tokens)
+        return {"response": text, "conversation_id": conversation_id}
+    except Exception as exc:
+        logger.error("chat_error", error=str(exc))
+        return {"response": f"Chat error: {exc}", "conversation_id": conversation_id}
+
+
+@router.get("/chat/suggestions")
+async def chat_suggestions(
+    job_id: str | None = None,
+    ctx: TenantContext = Depends(get_tenant_context),
+) -> dict[str, list[str]]:
+    """Return context-aware chat suggestions."""
+    return {"suggestions": _generate_suggestions(job_id)}
+
+
+@router.get("/chat/api-status")
+async def chat_api_status() -> dict[str, Any]:
+    """Check if Anthropic API key is configured."""
+    settings = get_settings()
+    has_key = bool(settings.anthropic_api_key)
+    return {"configured": has_key}

@@ -6,7 +6,6 @@ import LogTable from "@/components/ui/LogTable";
 import RechartsWrapper from "@/components/charts/RechartsWrapper";
 import RiskBadge from "@/components/ui/RiskBadge";
 import { AccordionItem } from "@/components/ui/Accordion";
-import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
@@ -162,6 +161,15 @@ export default function LogAnalyzer() {
   /* ── BQ Export state ── */
   const [showBqExport, setShowBqExport] = useState(false);
   const [expandedCharts, setExpandedCharts] = useState<Set<string>>(new Set());
+
+  /* ── Chat state ── */
+  const [chatCollapsed, setChatCollapsed] = useState(true);
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatConversationId, setChatConversationId] = useState("");
+  const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
 
   /* ── Log Structure state ── */
   const [structStartDate, setStructStartDate] = useState("");
@@ -408,6 +416,52 @@ export default function LogAnalyzer() {
   const downloadReport = async () => {
     try { await apiPost("/log-analyzer/akamai/report", { tenant_id: "s_sport_plus" }); } catch { /* error */ }
   };
+
+  /* ── Chat ── */
+  const loadChatSuggestions = async (jid?: string) => {
+    try {
+      const res = await apiGet<{ suggestions: string[] }>(`/log-analyzer/chat/suggestions?job_id=${jid || ""}`);
+      setChatSuggestions(res.suggestions);
+    } catch { /* */ }
+  };
+
+  const sendChatMessage = async (msg: string) => {
+    if (!msg.trim()) return;
+    const userMsg = { role: "user" as const, content: msg };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatInput("");
+    setChatLoading(true);
+    try {
+      const history = chatMessages.slice(-10).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content }));
+      const res = await apiPost<{ response: string; conversation_id: string }>("/log-analyzer/chat", {
+        message: msg,
+        job_id: fetchJob?.jobId || fetchJob?.job_id || null,
+        conversation_id: chatConversationId || undefined,
+        history,
+      });
+      setChatMessages((prev) => [...prev, { role: "assistant", content: res.response }]);
+      setChatConversationId(res.conversation_id);
+      loadChatSuggestions(fetchJob?.jobId || fetchJob?.job_id);
+    } catch {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "Failed to get response." }]);
+    }
+    setChatLoading(false);
+  };
+
+  // Load suggestions when job completes
+  useEffect(() => {
+    if (fetchJob?.status === "completed") loadChatSuggestions(fetchJob.jobId || fetchJob.job_id);
+  }, [fetchJob?.status]);
+
+  // Check API key status on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiGet<{ configured: boolean }>("/log-analyzer/chat/api-status");
+        setApiKeyConfigured(res.configured);
+      } catch { /* */ }
+    })();
+  }, []);
 
   /* ── Settings ── */
   const saveAppSettings = async () => {
@@ -1874,6 +1928,17 @@ export default function LogAnalyzer() {
                 )}
               </div>
 
+              {/* AI Chat status */}
+              <div className="border-t pt-3 mt-3" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>AI Chat (Captain logAR)</span>
+                  {apiKeyConfigured === true && <span className="text-xs" style={{ color: "var(--risk-low)" }}>ANTHROPIC_API_KEY configured</span>}
+                  {apiKeyConfigured === false && <span className="text-xs" style={{ color: "var(--risk-high)" }}>ANTHROPIC_API_KEY not set in .env</span>}
+                  {apiKeyConfigured === null && <span className="text-xs" style={{ color: "var(--text-muted)" }}>Checking...</span>}
+                </div>
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Uses Anthropic Claude Sonnet. Key configured via .env file only.</p>
+              </div>
+
               {/* Email Notifications sub-section */}
               <div className="border-t pt-4 mt-4" style={{ borderColor: "var(--border)" }}>
                 <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Email Notifications</h4>
@@ -2197,7 +2262,76 @@ export default function LogAnalyzer() {
         </div>
       )}
 
-      <AgentChatPanel appName="Log Analyzer" />
+      {/* ══════════ Captain logAR Chat Panel ══════════ */}
+      <div className="mt-6 rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+        <button onClick={() => { setChatCollapsed(!chatCollapsed); if (chatCollapsed && chatSuggestions.length === 0) loadChatSuggestions(fetchJob?.jobId || fetchJob?.job_id); }}
+          className="w-full flex items-center justify-between px-4 py-3 text-left">
+          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Captain logAR — AI Analyst</span>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>{chatCollapsed ? "Expand" : "Collapse"}</span>
+        </button>
+        {!chatCollapsed && (
+          <div className="border-t px-4 pb-4" style={{ borderColor: "var(--border)" }}>
+            {/* Messages */}
+            <div className="h-80 overflow-y-auto py-3 space-y-3">
+              {chatMessages.length === 0 && (
+                <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>Ask Captain logAR about your CDN analysis</p>
+              )}
+              {chatMessages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className="max-w-[80%] rounded-lg px-3 py-2 text-sm" style={{
+                    backgroundColor: m.role === "user" ? "var(--brand-primary)" : "var(--background)",
+                    color: m.role === "user" ? "#fff" : "var(--text-secondary)",
+                  }}>
+                    <pre className="whitespace-pre-wrap font-sans text-sm">{m.content}</pre>
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="rounded-lg px-3 py-2 text-sm flex items-center gap-2" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)" }}>
+                    <div className="w-3 h-3 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--brand-primary)" }} />
+                    Captain logAR is analyzing...
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Suggestions */}
+            {chatSuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {chatSuggestions.map((s, i) => (
+                  <button key={i} onClick={() => sendChatMessage(s)}
+                    className="text-xs px-2 py-1 rounded border"
+                    style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Input */}
+            <div className="flex gap-2">
+              <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !chatLoading) sendChatMessage(chatInput); }}
+                placeholder="Ask about CDN performance, errors, anomalies..."
+                className="flex-1 text-sm px-3 py-2 rounded border outline-none"
+                style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              <button onClick={() => sendChatMessage(chatInput)} disabled={chatLoading || !chatInput.trim()}
+                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+                style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+                Send
+              </button>
+              {chatMessages.length > 0 && (
+                <button onClick={() => { setChatMessages([]); setChatConversationId(""); }}
+                  className="px-2 py-2 rounded text-xs border"
+                  style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
