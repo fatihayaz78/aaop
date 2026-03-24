@@ -298,6 +298,80 @@ def _read_s3_content(body: Any, key: str) -> str:
     return raw_bytes.decode("utf-8", errors="replace")
 
 
+# DS2 TSV field order (22 fields, positional — no header row in DS2)
+_DS2_FIELDS = [
+    "version", "cp_code", "req_time_sec", "bytes", "client_bytes",
+    "content_type", "response_body_size", "user_agent", "hostname",
+    "req_path", "status_code", "client_ip", "req_range", "cache_status",
+    "dns_lookup_time_ms", "transfer_time_ms", "turn_around_time_ms",
+    "error_code", "cache_hit", "edge_ip", "country", "city",
+]
+
+_DS2_INT_FIELDS = {
+    "bytes", "client_bytes", "response_body_size", "status_code",
+    "cache_status", "cache_hit", "dns_lookup_time_ms", "transfer_time_ms",
+    "turn_around_time_ms", "version",
+}
+_DS2_FLOAT_FIELDS = {"req_time_sec"}
+
+
+def _parse_ds2_row(fields: list[str]) -> dict[str, object]:
+    """Convert a list of 22 TSV field values into a dict with type coercion + PII hash."""
+    import hashlib
+
+    if len(fields) < 22:
+        fields.extend([""] * (22 - len(fields)))
+
+    row: dict[str, object] = {}
+    for i, name in enumerate(_DS2_FIELDS):
+        val = fields[i].strip() if i < len(fields) else ""
+        if not val:
+            row[name] = None
+            continue
+
+        if name in ("client_ip", "user_agent"):
+            row[name] = hashlib.sha256(val.encode()).hexdigest()[:16]
+        elif name in _DS2_INT_FIELDS:
+            try:
+                row[name] = int(val)
+            except (ValueError, TypeError):
+                row[name] = None
+        elif name in _DS2_FLOAT_FIELDS:
+            try:
+                row[name] = float(val)
+            except (ValueError, TypeError):
+                row[name] = None
+        else:
+            row[name] = val
+
+    return row
+
+
+def _stream_s3_gz(s3: Any, bucket: str, key: str, max_rows: int | None = None) -> list[dict[str, object]]:
+    """Stream a .gz TSV file from S3 → parse rows in memory, no disk write."""
+    obj = s3.get_object(Bucket=bucket, Key=key)
+    body = obj["Body"].read()
+
+    rows: list[dict[str, object]] = []
+    if key.endswith(".gz"):
+        with gzip.open(io.BytesIO(body), "rt", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                fields = line.strip().split("\t")
+                if len(fields) >= 22:
+                    rows.append(_parse_ds2_row(fields))
+                if max_rows and len(rows) >= max_rows:
+                    break
+    else:
+        for line in body.decode("utf-8", errors="replace").splitlines():
+            fields = line.strip().split("\t")
+            if len(fields) >= 22:
+                rows.append(_parse_ds2_row(fields))
+            if max_rows and len(rows) >= max_rows:
+                break
+
+    return rows
+
+
 _schema_migrated = False
 
 
@@ -837,11 +911,11 @@ async def _run_fetch_job(
     fetch_mode: str,
     duck: DuckDBClient,
 ) -> None:
-    """Background task: download and parse S3 files, day by day with cache.
+    """Background task: stream S3 files via S3 Select, day by day with cache.
 
-    All boto3 calls run in a thread executor so the event loop stays responsive
-    for cancel requests.
-    fetch_mode: "sampled" (max 500/day, 2000/job) or "full" (no limits).
+    S3 Select queries TSV data directly on S3 (no local download for raw files).
+    Parquet cache stores parsed results for re-analysis.
+    fetch_mode: "sampled" (LIMIT 100/file, max 500 files/day) or "full" (no limits).
     """
     import asyncio
     import json
@@ -855,6 +929,9 @@ async def _run_fetch_job(
     cache_misses = 0
     parquet_paths: list[str] = []
 
+    # Per-file row limit for sampled mode
+    stream_limit = 100 if fetch_mode == "sampled" else None
+
     def _is_cancelled() -> bool:
         return bool(job.get("cancelled"))
 
@@ -866,12 +943,10 @@ async def _run_fetch_job(
     try:
         job["status"] = "downloading"
         job["progress"] = 15
-        logger.info("fetch_job_status", job_id=job_id, status="downloading")
+        logger.info("fetch_job_status", job_id=job_id, status="downloading", mode=fetch_mode)
 
         import boto3
         from botocore.exceptions import ClientError
-
-        from apps.log_analyzer.sub_modules.akamai.parser import parse_auto
 
         s3 = boto3.client(
             "s3",
@@ -887,7 +962,7 @@ async def _run_fetch_job(
 
             ck = _cache_key(tenant_id, cp_code, date_str)
 
-            # Check cache (unless force_refresh)
+            # Check parquet cache (unless force_refresh)
             if cache_mode == "auto":
                 try:
                     cached = duck.fetch_one(
@@ -911,16 +986,14 @@ async def _run_fetch_job(
             # Build hourly prefixes for this single day
             prefixes = _build_s3_prefixes(cp_code, date_str, date_str)
 
-            # List files for this day — use Delimiter="/" for direct children only
+            # List files for this day
             day_keys: list[str] = []
             for prefix in prefixes:
                 if _is_cancelled():
                     _mark_cancelled(f"Cancelled during listing {date_str}")
                     return
-
                 try:
                     if fetch_mode == "full":
-                        # Full mode: paginate to get ALL files
                         paginator = s3.get_paginator("list_objects_v2")
                         pages = await loop.run_in_executor(
                             _s3_executor,
@@ -931,7 +1004,6 @@ async def _run_fetch_job(
                                 if obj["Key"].endswith((".gz", ".tsv", ".csv")):
                                     day_keys.append(obj["Key"])
                     else:
-                        # Sampled mode: single list call (max 1000 per prefix)
                         resp = await loop.run_in_executor(
                             _s3_executor,
                             lambda p=prefix: s3.list_objects_v2(Bucket=bucket, Prefix=p, Delimiter="/"),
@@ -942,10 +1014,6 @@ async def _run_fetch_job(
                 except ClientError:
                     pass
 
-                if _is_cancelled():
-                    _mark_cancelled(f"Cancelled during listing {date_str}")
-                    return
-
             logger.info("s3_day_scan", date=date_str, files_found=len(day_keys), fetch_mode=fetch_mode)
 
             # Apply limits only in sampled mode
@@ -954,32 +1022,28 @@ async def _run_fetch_job(
                     logger.warning("fetch_day_too_many_files", date=date_str, count=len(day_keys), limit=MAX_FILES_PER_DAY)
                     day_keys.sort(reverse=True)
                     day_keys = day_keys[:MAX_FILES_PER_DAY]
-
                 if total_files + len(day_keys) > MAX_FILES_PER_JOB:
                     job["status"] = "failed"
                     job["error"] = f"Too many files ({total_files + len(day_keys)}). Use 'Full' mode or reduce date range."
                     job["progress"] = 0
-                    logger.warning("fetch_job_too_many_files", job_id=job_id, total=total_files + len(day_keys))
                     return
 
-            job["status"] = "parsing"
-            job["message"] = f"Day {date_str}: downloading {len(day_keys)} files..."
+            job["status"] = "streaming"
+            job["message"] = f"Day {date_str}: streaming {len(day_keys)} files..."
 
-            # Download and parse this day's files
+            # Stream S3 files → parse in memory, no disk write for raw data
             day_entries: list[dict[str, object]] = []
             for file_idx, key in enumerate(day_keys):
                 if _is_cancelled():
                     _mark_cancelled(f"Cancelled during {date_str} ({file_idx}/{len(day_keys)} files)")
                     return
                 try:
-                    obj = await loop.run_in_executor(
+                    rows = await loop.run_in_executor(
                         _s3_executor,
-                        lambda k=key: s3.get_object(Bucket=bucket, Key=k),
+                        lambda k=key: _stream_s3_gz(s3, bucket, k, max_rows=stream_limit),
                     )
-                    content = _read_s3_content(obj["Body"], key)
-                    parsed = parse_auto(content)
-                    for entry in parsed:
-                        day_entries.append(entry.model_dump())
+                    day_entries.extend(rows)
+                    logger.info("s3_stream_rows", file=key.split("/")[-1], rows=len(rows))
                 except Exception as exc:
                     logger.warning("fetch_job_file_error", job_id=job_id, key=key, error=str(exc))
 
@@ -987,15 +1051,18 @@ async def _run_fetch_job(
                     _mark_cancelled(f"Cancelled during {date_str} ({file_idx + 1}/{len(day_keys)} files)")
                     return
 
+                # Update progress within day
+                job["files_downloaded"] = total_files + file_idx + 1
+                job["rows_parsed"] = total_rows + len(day_entries)
+
             total_files += len(day_keys)
             total_rows += len(day_entries)
             cache_misses += 1
 
-            # Save as parquet and cache
+            # Save parsed results as parquet cache for analysis endpoint
             ppath = f"data/logs/{tenant_id}/{cp_code}/{date_str}.parquet"
             try:
                 import pandas as pd
-
                 Path(ppath).parent.mkdir(parents=True, exist_ok=True)
                 df = pd.DataFrame(day_entries) if day_entries else pd.DataFrame()
                 df.to_parquet(ppath, index=False)
@@ -1022,7 +1089,7 @@ async def _run_fetch_job(
             job["message"] = f"Day {date_str}: {len(day_entries):,} rows from {len(day_keys)} files"
             logger.info("fetch_day_complete", job_id=job_id, date=date_str, rows=len(day_entries), files=len(day_keys))
 
-        # Done — store parquet paths in job for analysis endpoint
+        # Done — store parquet paths for analysis endpoint
         job["status"] = "completed"
         job["progress"] = 100
         job["parquet_paths"] = parquet_paths
@@ -1081,16 +1148,16 @@ async def get_fetch_job(
 async def cancel_fetch_job(
     job_id: str,
     ctx: TenantContext = Depends(get_tenant_context),
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Cancel a running fetch job."""
-    logger.info("job_cancel_requested", job_id=job_id, current_status=_fetch_jobs.get(job_id, {}).get("status"), known_jobs=list(_fetch_jobs.keys())[:5])
+    logger.info("job_cancel_requested", job_id=job_id, current_status=_fetch_jobs.get(job_id, {}).get("status"))
     job = _fetch_jobs.get(job_id)
     if not job:
-        return {"cancelled": False, "status": "not_found", "message": f"Job {job_id} not found"}
+        return {"cancelled": False, "job_id": job_id, "status": "not_found", "message": f"Job {job_id} not found"}
     if job["status"] in ("completed", "failed", "cancelled"):
-        return {"cancelled": False, "status": job["status"], "message": f"Job already {job['status']}"}
+        return {"cancelled": False, "job_id": job_id, "status": job["status"], "message": f"Job already {job['status']}"}
     job["cancelled"] = True
-    return {"cancelled": True, "status": "cancelling", "message": "Cancel requested"}
+    return {"cancelled": True, "job_id": job_id, "status": "cancelling", "message": "Cancel requested"}
 
 
 @router.get("/akamai/jobs")
@@ -1551,18 +1618,9 @@ class AnomalyRulePayload(BaseModel):
     is_active: int = 1
 
 
-def _evaluate_rule(rule: dict[str, Any], df: Any) -> dict[str, Any]:
-    """Evaluate a single anomaly rule against a DataFrame."""
+def _get_mask(df: Any, field: str, op: str, val: str) -> Any:
+    """Apply operator to get boolean mask. Returns (mask, error_str|None)."""
     import json
-
-    field = rule["field"]
-    op = rule["operator"]
-    val = rule["value"]
-    total = len(df)
-
-    if field not in df.columns:
-        return {"rule_id": rule["id"], "rule_name": rule["name"], "severity": rule["severity"],
-                "affected_rows": 0, "pct_of_total": 0, "sample_values": [], "error": f"Field '{field}' not in data"}
 
     col = df[field].dropna()
 
@@ -1571,33 +1629,171 @@ def _evaluate_rule(rule: dict[str, Any], df: Any) -> dict[str, Any]:
             allowed = json.loads(val) if val.startswith("[") else [v.strip() for v in val.split(",")]
         except Exception:
             allowed = [val]
-        mask = ~col.astype(str).isin([str(a) for a in allowed])
+        return ~col.astype(str).isin([str(a) for a in allowed]), None
     elif op == "gt":
-        col_num = col.apply(lambda x: float(x) if str(x).replace(".", "").replace("-", "").isdigit() else None).dropna()
-        mask = col_num > float(val)
+        import pandas as pd
+        col_num = pd.to_numeric(col, errors="coerce").dropna()
+        return col_num > float(val), None
     elif op == "lt":
-        col_num = col.apply(lambda x: float(x) if str(x).replace(".", "").replace("-", "").isdigit() else None).dropna()
-        mask = col_num < float(val)
+        import pandas as pd
+        col_num = pd.to_numeric(col, errors="coerce").dropna()
+        return col_num < float(val), None
     elif op == "eq":
-        mask = col.astype(str) == str(val)
+        return col.astype(str) == str(val), None
     elif op == "contains":
-        mask = col.astype(str).str.contains(str(val), case=False, na=False)
-    else:
-        return {"rule_id": rule["id"], "rule_name": rule["name"], "severity": rule["severity"],
-                "affected_rows": 0, "pct_of_total": 0, "sample_values": [], "error": f"Unknown operator '{op}'"}
+        return col.astype(str).str.contains(str(val), case=False, na=False), None
+    return None, f"Unknown operator '{op}'"
 
-    affected = int(mask.sum())
-    samples = col[mask].astype(str).unique()[:5].tolist() if affected > 0 else []
+
+def _build_detail(rule: dict[str, Any], df: Any, affected_df: Any) -> dict[str, Any]:
+    """Build breakdown, top_offenders, timeline for a triggered rule."""
+    import pandas as pd
+
+    field = rule["field"]
+    op = rule["operator"]
+    detail: dict[str, Any] = {"breakdown": [], "top_offenders": [], "timeline": []}
+
+    # Timeline: hourly count of affected rows
+    if "req_time_sec" in affected_df.columns and not affected_df.empty:
+        ts = affected_df[affected_df["req_time_sec"].notna()].copy()
+        if not ts.empty:
+            ts["hour"] = pd.to_datetime(ts["req_time_sec"].astype(float), unit="s", utc=True).dt.hour
+            hourly = ts.groupby("hour").size().reset_index(name="count")
+            detail["timeline"] = [{"hour": int(r["hour"]), "count": int(r["count"])} for _, r in hourly.iterrows()]
+
+    # Country-specific breakdown (not_in on country)
+    if field == "country" and op == "not_in" and not affected_df.empty:
+        grp = affected_df.groupby("country").agg(
+            request_count=("country", "size"),
+            total_bytes=("bytes", lambda x: x.sum() if "bytes" in affected_df.columns else 0),
+        ).reset_index().sort_values("request_count", ascending=False)
+        aff_total = len(affected_df)
+        detail["breakdown"] = [
+            {"country": str(r["country"]), "request_count": int(r["request_count"]),
+             "total_bytes_mb": round(int(r["total_bytes"]) / (1024**2), 1),
+             "pct_of_affected": round(int(r["request_count"]) / aff_total * 100, 1) if aff_total else 0}
+            for _, r in grp.head(20).iterrows()
+        ]
+
+        # Top offenders by IP
+        if "client_ip" in affected_df.columns:
+            ip_grp = affected_df.groupby("client_ip").agg(
+                country=("country", "first"),
+                request_count=("client_ip", "size"),
+                total_bytes=("bytes", lambda x: x.sum() if "bytes" in affected_df.columns else 0),
+                first_seen=("req_time_sec", "min"),
+                last_seen=("req_time_sec", "max"),
+            ).reset_index().sort_values("request_count", ascending=False).head(10)
+
+            offenders = []
+            for _, r in ip_grp.iterrows():
+                ip_rows = affected_df[affected_df["client_ip"] == r["client_ip"]]
+                top_paths = ip_rows["req_path"].value_counts().head(3).index.tolist() if "req_path" in ip_rows.columns else []
+                fs = pd.Timestamp(r["first_seen"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["first_seen"]) else "—"
+                ls = pd.Timestamp(r["last_seen"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["last_seen"]) else "—"
+                offenders.append({
+                    "client_ip": str(r["client_ip"]),
+                    "country": str(r["country"]),
+                    "request_count": int(r["request_count"]),
+                    "total_bytes_mb": round(int(r["total_bytes"]) / (1024**2), 1),
+                    "first_seen": fs,
+                    "last_seen": ls,
+                    "top_paths": [str(p)[:60] for p in top_paths],
+                })
+            detail["top_offenders"] = offenders
+
+    # Session duration (gt on computed field)
+    elif field == "session_duration_hours" and op == "gt" and "client_ip" in df.columns and "req_time_sec" in df.columns:
+        threshold = float(rule["value"])
+        ip_sessions = df.groupby("client_ip").agg(
+            min_ts=("req_time_sec", "min"),
+            max_ts=("req_time_sec", "max"),
+            request_count=("client_ip", "size"),
+            total_bytes=("bytes", lambda x: x.sum() if "bytes" in df.columns else 0),
+        ).reset_index()
+        ip_sessions["session_hours"] = ((ip_sessions["max_ts"] - ip_sessions["min_ts"]) / 3600).round(2)
+        flagged = ip_sessions[ip_sessions["session_hours"] > threshold].sort_values("session_hours", ascending=False).head(10)
+
+        offenders = []
+        for _, r in flagged.iterrows():
+            ip_rows = df[df["client_ip"] == r["client_ip"]]
+            countries = ip_rows["country"].dropna().unique().tolist() if "country" in ip_rows.columns else []
+            fs = pd.Timestamp(r["min_ts"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["min_ts"]) else "—"
+            ls = pd.Timestamp(r["max_ts"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["max_ts"]) else "—"
+            offenders.append({
+                "client_ip": str(r["client_ip"]),
+                "session_hours": float(r["session_hours"]),
+                "request_count": int(r["request_count"]),
+                "total_bytes_mb": round(int(r["total_bytes"]) / (1024**2), 1),
+                "first_seen": fs,
+                "last_seen": ls,
+                "countries": [str(c) for c in countries[:5]],
+            })
+        detail["top_offenders"] = offenders
+        detail["breakdown"] = [
+            {"label": f">{threshold}h", "count": len(flagged)},
+            {"label": f"<={threshold}h", "count": len(ip_sessions) - len(flagged)},
+        ]
+
+    # Generic: top offenders for any field-based rule
+    elif not affected_df.empty and "client_ip" in affected_df.columns:
+        ip_grp = affected_df.groupby("client_ip").size().reset_index(name="request_count")
+        ip_grp = ip_grp.sort_values("request_count", ascending=False).head(10)
+        detail["top_offenders"] = [
+            {"client_ip": str(r["client_ip"]), "request_count": int(r["request_count"])}
+            for _, r in ip_grp.iterrows()
+        ]
+
+    return detail
+
+
+def _evaluate_rule(rule: dict[str, Any], df: Any) -> dict[str, Any]:
+    """Evaluate a single anomaly rule against a DataFrame with detailed breakdown."""
+    import pandas as pd
+
+    field = rule["field"]
+    op = rule["operator"]
+    val = rule["value"]
+    total = len(df)
+    base = {"rule_id": rule["id"], "rule_name": rule["name"], "severity": rule["severity"]}
+
+    # Handle computed fields (session_duration_hours)
+    if field == "session_duration_hours" and "client_ip" in df.columns and "req_time_sec" in df.columns:
+        threshold = float(val)
+        ip_sessions = df.groupby("client_ip").agg(
+            min_ts=("req_time_sec", "min"), max_ts=("req_time_sec", "max"),
+            request_count=("client_ip", "size"),
+        ).reset_index()
+        ip_sessions["session_hours"] = ((ip_sessions["max_ts"] - ip_sessions["min_ts"]) / 3600).round(2)
+        flagged_ips = set(ip_sessions[ip_sessions["session_hours"] > threshold]["client_ip"])
+        affected_mask = df["client_ip"].isin(flagged_ips)
+        affected = int(affected_mask.sum())
+        affected_df = df[affected_mask]
+        pct = round(affected / total * 100, 2) if total else 0
+        detail = _build_detail(rule, df, affected_df)
+        return {**base, "affected_rows": affected, "pct_of_total": pct,
+                "sample_values": list(flagged_ips)[:5], **detail}
+
+    if field not in df.columns:
+        return {**base, "affected_rows": 0, "pct_of_total": 0, "sample_values": [],
+                "breakdown": [], "top_offenders": [], "timeline": [],
+                "error": f"Field '{field}' not in data"}
+
+    mask, err = _get_mask(df, field, op, val)
+    if err:
+        return {**base, "affected_rows": 0, "pct_of_total": 0, "sample_values": [],
+                "breakdown": [], "top_offenders": [], "timeline": [], "error": err}
+
+    # Align mask index with df
+    affected_df = df.loc[mask.index[mask]] if mask is not None and mask.any() else df.iloc[:0]
+    affected = len(affected_df)
+    samples = df[field].loc[mask.index[mask]].astype(str).unique()[:5].tolist() if affected > 0 else []
     pct = round(affected / total * 100, 2) if total else 0
 
-    return {
-        "rule_id": rule["id"],
-        "rule_name": rule["name"],
-        "severity": rule["severity"],
-        "affected_rows": affected,
-        "pct_of_total": pct,
-        "sample_values": samples,
-    }
+    detail = _build_detail(rule, df, affected_df)
+
+    return {**base, "affected_rows": affected, "pct_of_total": pct,
+            "sample_values": samples, **detail}
 
 
 @router.get("/anomaly-rules")

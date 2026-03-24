@@ -88,7 +88,7 @@ export interface LogProject {
 export interface FetchJob {
   jobId: string;
   job_id?: string;
-  status: "queued" | "downloading" | "parsing" | "completed" | "failed" | "cancelled";
+  status: "queued" | "downloading" | "streaming" | "parsing" | "completed" | "failed" | "cancelled";
   progress?: number;
   total_files?: number;
   files_downloaded?: number;

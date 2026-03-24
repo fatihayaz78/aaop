@@ -279,3 +279,13 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Frontend: "Anomaly Rules" tab — rules CRUD + evaluate results (severity-colored)
 - 8 yeni test (test_anomaly_rules.py)
 - Tests: 81 passed, 0 failed
+
+### S16-P10 — COMPLETE
+- S3 Select kaldırıldı → streaming get_object (no disk write)
+- _stream_s3_gz(): gzip.open(BytesIO), line-by-line parse, max_rows param
+- sampled: 100 rows/file | full: tüm satırlar
+- Cancel endpoint 500 fix: dict[str, Any] response
+- Anomaly evaluation: breakdown + top_offenders + hourly timeline
+- Frontend: expandable anomaly result cards, Section A/B/C
+- 3 yeni test (test_anomaly_rules.py)
+- Tests: 84 passed, 0 failed

@@ -159,3 +159,74 @@ async def test_rule_crud():
         cursor = await conn.execute("SELECT COUNT(*) FROM anomaly_rules")
         count = await cursor.fetchone()
         assert count[0] == 0
+
+
+# ── Detailed evaluation tests ──
+
+
+def test_foreign_country_breakdown():
+    """Breakdown groups affected rows by country correctly."""
+    df = pd.DataFrame({
+        "country": ["TR", "DE", "DE", "US", "TR", "FR"],
+        "bytes": [1000, 2000, 3000, 4000, 5000, 6000],
+        "client_ip": ["ip1", "ip2", "ip3", "ip4", "ip5", "ip6"],
+        "req_time_sec": [1711000000, 1711001000, 1711002000, 1711003000, 1711004000, 1711005000],
+        "req_path": ["/a", "/b", "/c", "/d", "/e", "/f"],
+    })
+    rule = {"id": "r1", "name": "Foreign", "field": "country", "operator": "not_in", "value": '["TR"]', "severity": "high"}
+    result = _evaluate_rule(rule, df)
+
+    assert result["affected_rows"] == 4  # DE, DE, US, FR
+    assert len(result["breakdown"]) >= 3  # DE, US, FR
+
+    # Breakdown should be sorted by request_count desc
+    countries = [b["country"] for b in result["breakdown"]]
+    assert "DE" in countries
+    assert "US" in countries
+    assert "FR" in countries
+
+    # DE has 2 requests, should be first
+    de_row = next(b for b in result["breakdown"] if b["country"] == "DE")
+    assert de_row["request_count"] == 2
+
+
+def test_top_offenders_foreign():
+    """Top offenders sorted by request_count desc."""
+    df = pd.DataFrame({
+        "country": ["DE", "DE", "DE", "US", "US", "FR"],
+        "bytes": [1000, 2000, 3000, 4000, 5000, 6000],
+        "client_ip": ["ipA", "ipA", "ipA", "ipB", "ipB", "ipC"],
+        "req_time_sec": [1711000000, 1711001000, 1711002000, 1711003000, 1711004000, 1711005000],
+        "req_path": ["/live/a", "/live/b", "/api/c", "/live/d", "/api/e", "/other"],
+    })
+    rule = {"id": "r2", "name": "Foreign", "field": "country", "operator": "not_in", "value": '["TR"]', "severity": "high"}
+    result = _evaluate_rule(rule, df)
+
+    offenders = result["top_offenders"]
+    assert len(offenders) >= 3
+    # ipA has 3 requests → should be first
+    assert offenders[0]["client_ip"] == "ipA"
+    assert offenders[0]["request_count"] == 3
+    assert offenders[0]["country"] == "DE"
+    # Should have top_paths
+    assert len(offenders[0]["top_paths"]) > 0
+
+
+def test_session_duration_calculation():
+    """Session duration per IP calculated correctly."""
+    # IP1: 14 hours span (flagged), IP2: 2 hours span (not flagged)
+    df = pd.DataFrame({
+        "client_ip": ["ip1", "ip1", "ip1", "ip2", "ip2"],
+        "req_time_sec": [1711000000, 1711025200, 1711050400, 1711000000, 1711007200],  # ip1: ~14h, ip2: 2h
+        "bytes": [1000, 2000, 3000, 4000, 5000],
+        "country": ["TR", "TR", "TR", "DE", "DE"],
+    })
+    rule = {"id": "r3", "name": "Long Session", "field": "session_duration_hours", "operator": "gt", "value": "12", "severity": "medium"}
+    result = _evaluate_rule(rule, df)
+
+    # ip1 has ~14h session → flagged, ip2 has 2h → not flagged
+    assert result["affected_rows"] == 3  # ip1's 3 rows
+    offenders = result["top_offenders"]
+    assert len(offenders) == 1  # only ip1
+    assert offenders[0]["client_ip"] == "ip1"
+    assert offenders[0]["session_hours"] > 12

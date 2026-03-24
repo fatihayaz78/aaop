@@ -8,6 +8,16 @@
 
 ---
 
+## [S16-P10] — 2026-03-24
+### Fixed
+- S3 Select MethodNotAllowed → replaced with streaming get_object
+- Cancel endpoint 500 (boolean response type)
+- Anomaly evaluation richer response (breakdown, top_offenders, timeline)
+### Changed
+- No disk writes during fetch — pure in-memory streaming
+
+---
+
 ## [S16-P9] — 2026-03-24
 ### Fixed
 - Summary metrics: Total GB, Cache Hit ratio, Countries calculation

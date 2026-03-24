@@ -136,6 +136,7 @@ export default function LogAnalyzer() {
   const [newRule, setNewRule] = useState({ name: "", field: "country", operator: "not_in", value: "", severity: "medium", description: "" });
   const [anomalyResults, setAnomalyResults] = useState<Record<string, unknown>[]>([]);
   const [anomalyLoading, setAnomalyLoading] = useState(false);
+  const [expandedRuleIdx, setExpandedRuleIdx] = useState<number | null>(null);
 
   /* ── Log Structure state ── */
   const [structStartDate, setStructStartDate] = useState("");
@@ -472,12 +473,13 @@ export default function LogAnalyzer() {
   /* ── Shared ── */
   const jobProgress = fetchJob?.progress ?? (
     fetchJob?.status === "completed" ? 100 :
+    fetchJob?.status === "streaming" ? 60 :
     fetchJob?.status === "parsing" ? 70 :
     fetchJob?.status === "downloading" ? 40 :
     fetchJob?.status === "queued" ? 10 :
     fetchJob?.status === "cancelled" ? 0 : 0
   );
-  const isJobRunning = fetchJob?.status === "queued" || fetchJob?.status === "downloading" || fetchJob?.status === "parsing";
+  const isJobRunning = fetchJob?.status === "queued" || fetchJob?.status === "downloading" || fetchJob?.status === "parsing" || fetchJob?.status === "streaming";
 
   const cancelJob = async () => {
     const jid = fetchJob?.jobId || fetchJob?.job_id;
@@ -1139,8 +1141,11 @@ export default function LogAnalyzer() {
                 const lastJob = fetchJob?.jobId || fetchJob?.job_id;
                 if (!lastJob) return;
                 setAnomalyLoading(true);
+                setExpandedRuleIdx(null);
                 try {
-                  setAnomalyResults(await apiPost<Record<string, unknown>[]>(`/log-analyzer/anomaly-rules/evaluate?job_id=${lastJob}`, {}));
+                  const res = await apiPost<Record<string, unknown>[]>(`/log-analyzer/anomaly-rules/evaluate?job_id=${lastJob}`, {});
+                  setAnomalyResults(res);
+                  if (res.length > 0) setExpandedRuleIdx(0);
                 } catch { /* */ }
                 setAnomalyLoading(false);
               }} disabled={anomalyLoading || !fetchJob?.jobId}
@@ -1151,44 +1156,120 @@ export default function LogAnalyzer() {
             </div>
 
             {anomalyResults.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {["Rule", "Severity", "Affected Rows", "% of Total", "Sample Values"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {anomalyResults.map((r, i) => (
-                      <tr key={i} style={{
-                        borderBottom: "1px solid var(--border)",
-                        backgroundColor: r.severity === "high" && Number(r.affected_rows) > 0 ? "rgba(239,68,68,0.05)" :
-                                        r.severity === "medium" && Number(r.affected_rows) > 0 ? "rgba(234,179,8,0.05)" : "transparent",
-                      }}>
-                        <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{String(r.rule_name ?? r.error ?? "—")}</td>
-                        <td className="px-4 py-2">
-                          <span className="text-xs px-2 py-0.5 rounded" style={{
-                            backgroundColor: r.severity === "high" ? "var(--risk-high-bg)" : r.severity === "medium" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)",
-                            color: r.severity === "high" ? "var(--risk-high)" : r.severity === "medium" ? "var(--risk-medium)" : "var(--risk-low)",
-                          }}>{String(r.severity ?? "—")}</span>
-                        </td>
-                        <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{Number(r.affected_rows ?? 0).toLocaleString()}</td>
-                        <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{String(r.pct_of_total ?? 0)}%</td>
-                        <td className="px-4 py-2">
-                          <div className="flex flex-wrap gap-1">
-                            {(r.sample_values as string[] ?? []).slice(0, 5).map((v: string, j: number) => (
-                              <span key={j} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
-                                {String(v).slice(0, 20)}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {anomalyResults.map((r, i) => {
+                  const isExpanded = expandedRuleIdx === i;
+                  const sevColor = r.severity === "high" ? "var(--risk-high)" : r.severity === "medium" ? "var(--risk-medium)" : "var(--risk-low)";
+                  const sevBg = r.severity === "high" ? "var(--risk-high-bg)" : r.severity === "medium" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)";
+                  const breakdown = (r.breakdown as Record<string, unknown>[] | undefined) ?? [];
+                  const offenders = (r.top_offenders as Record<string, unknown>[] | undefined) ?? [];
+                  const timeline = (r.timeline as { hour: number; count: number }[] | undefined) ?? [];
+                  return (
+                    <div key={i} className="rounded border" style={{ borderColor: "var(--border)", backgroundColor: Number(r.affected_rows) > 0 && r.severity === "high" ? "rgba(239,68,68,0.03)" : Number(r.affected_rows) > 0 && r.severity === "medium" ? "rgba(234,179,8,0.03)" : "transparent" }}>
+                      {/* Header row */}
+                      <button onClick={() => setExpandedRuleIdx(isExpanded ? null : i)}
+                        className="w-full flex items-center justify-between px-4 py-3 text-left">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{String(r.rule_name ?? "—")}</span>
+                          <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: sevBg, color: sevColor }}>{String(r.severity)}</span>
+                          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{Number(r.affected_rows ?? 0).toLocaleString()} rows ({String(r.pct_of_total ?? 0)}%)</span>
+                        </div>
+                        <span className="text-xs" style={{ color: "var(--text-muted)", transform: isExpanded ? "rotate(180deg)" : "none" }}>&#9660;</span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: "var(--border)" }}>
+                          {/* Breakdown table */}
+                          {breakdown.length > 0 && (
+                            <div className="mt-3">
+                              <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Breakdown</h4>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                                      {Object.keys(breakdown[0]).map((k) => (
+                                        <th key={k} className="text-left px-3 py-1 font-medium" style={{ color: "var(--text-muted)" }}>{k.replace(/_/g, " ")}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {breakdown.map((row, j) => (
+                                      <tr key={j} style={{ borderBottom: "1px solid var(--border)" }}>
+                                        {Object.values(row).map((v, k) => (
+                                          <td key={k} className="px-3 py-1" style={{ color: "var(--text-secondary)" }}>{typeof v === "number" ? v.toLocaleString() : String(v)}</td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Top offenders table */}
+                          {offenders.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Top Offenders</h4>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                                      <th className="text-left px-3 py-1 font-medium" style={{ color: "var(--text-muted)" }}>#</th>
+                                      {Object.keys(offenders[0]).filter((k) => k !== "top_paths" && k !== "countries").map((k) => (
+                                        <th key={k} className="text-left px-3 py-1 font-medium" style={{ color: "var(--text-muted)" }}>{k.replace(/_/g, " ")}</th>
+                                      ))}
+                                      <th className="text-left px-3 py-1 font-medium" style={{ color: "var(--text-muted)" }}>Details</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {offenders.map((off, j) => (
+                                      <tr key={j} style={{
+                                        borderBottom: "1px solid var(--border)",
+                                        backgroundColor: r.severity === "high" ? "rgba(239,68,68,0.04)" : "transparent",
+                                      }}>
+                                        <td className="px-3 py-1" style={{ color: "var(--text-muted)" }}>{j + 1}</td>
+                                        {Object.entries(off).filter(([k]) => k !== "top_paths" && k !== "countries").map(([k, v], l) => (
+                                          <td key={l} className={`px-3 py-1 ${k === "client_ip" ? "font-mono" : ""}`}
+                                            style={{ color: "var(--text-secondary)" }}>
+                                            {typeof v === "number" ? v.toLocaleString() : String(v ?? "—")}
+                                          </td>
+                                        ))}
+                                        <td className="px-3 py-1">
+                                          <div className="flex flex-wrap gap-1">
+                                            {((off.top_paths ?? off.countries ?? []) as string[]).map((p: string, m: number) => (
+                                              <span key={m} className="text-xs px-1 py-0.5 rounded font-mono" style={{ backgroundColor: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                                                {String(p).slice(0, 40)}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Timeline sparkline */}
+                          {timeline.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Hourly Timeline</h4>
+                              <RechartsWrapper
+                                data={timeline}
+                                xKey="hour"
+                                yKey="count"
+                                title=""
+                                height={150}
+                                type="line"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
