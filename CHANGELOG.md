@@ -8,6 +8,16 @@
 
 ---
 
+## [S16-P7] — 2026-03-24
+### Added
+- GET /log-analyzer/akamai/analysis/{job_id} — 10 chart analyses
+- 10 Recharts charts in Log Analyzer tab after fetch completes
+- 6 summary metric cards (Total Rows, Total GB, Avg Latency, Error Rate, Cache Hit, Countries)
+- Analysis Results tab loads from DuckDB fetch_job_history
+- pyarrow dependency for parquet cache support
+
+---
+
 ## [S16-P6] — 2026-03-24
 ### Fixed
 - S3 recursive listing bug (Delimiter="/" fix)

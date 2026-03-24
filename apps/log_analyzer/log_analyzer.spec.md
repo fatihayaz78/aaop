@@ -246,3 +246,16 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Frontend: Force refresh checkbox, progress cache hit info
 - 8 yeni test (test_fetch_cache.py)
 - Tests: 69 passed, 0 failed
+
+### S16-P7 — COMPLETE
+- GET /log-analyzer/akamai/analysis/{job_id} endpoint eklendi
+- 10 analiz: error_rate_by_status, cache_hit_ratio, bandwidth_by_hour,
+  top_error_paths, latency_percentiles, geo_distribution,
+  content_type_breakdown, cache_status_breakdown, error_rate_trend,
+  bytes_vs_client_bytes
+- Summary: total_rows, total_gb, avg_latency, error_rate_pct, cache_hit_pct, countries
+- Frontend: 10 Recharts grafik (3 kolon grid), 6 summary metrik kartı
+- Analysis Results tab: DuckDB fetch_job_history'den tamamlanan job'lar
+- pyarrow dependency eklendi
+- 4 yeni test (test_chart_analysis.py)
+- Tests: 73 passed, 0 failed

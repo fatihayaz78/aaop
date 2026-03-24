@@ -975,9 +975,10 @@ async def _run_fetch_job(
             job["message"] = f"Day {date_str}: {len(day_entries):,} rows from {len(day_keys)} files"
             logger.info("fetch_day_complete", job_id=job_id, date=date_str, rows=len(day_entries), files=len(day_keys))
 
-        # Done
+        # Done — store parquet paths in job for analysis endpoint
         job["status"] = "completed"
         job["progress"] = 100
+        job["parquet_paths"] = parquet_paths
         job["message"] = f"Completed: {total_rows:,} rows from {total_files} files ({cache_hits} cached, {cache_misses} fetched)"
 
         # Save to DuckDB history
@@ -1060,6 +1061,169 @@ async def list_fetch_jobs(
         return rows
     except Exception:
         return []
+
+
+# ── Analysis endpoint ──
+
+
+def _run_analysis(df: Any) -> dict[str, Any]:
+    """Run 10 aggregation analyses on a pandas DataFrame of parsed logs."""
+    import pandas as pd
+
+    if df is None or df.empty:
+        return {"summary": {}, "charts": {}}
+
+    total_rows = len(df)
+    total_bytes = int(df["bytes"].sum()) if "bytes" in df.columns else 0
+    total_gb = round(total_bytes / (1024**3), 2)
+
+    # Error rate
+    error_count = int((df["status_code"] >= 400).sum()) if "status_code" in df.columns else 0
+    error_rate_pct = round(error_count / total_rows * 100, 2) if total_rows else 0
+
+    # Cache hit ratio
+    if "cache_hit" in df.columns:
+        cache_total = df["cache_hit"].notna().sum()
+        cache_hits = int((df["cache_hit"] == 1).sum())
+        cache_hit_pct = round(cache_hits / cache_total * 100, 2) if cache_total else 0
+    else:
+        cache_hit_pct = 0
+
+    # Avg latency
+    avg_latency = round(float(df["transfer_time_ms"].mean()), 1) if "transfer_time_ms" in df.columns and df["transfer_time_ms"].notna().any() else 0
+
+    # Unique countries
+    unique_countries = int(df["country"].nunique()) if "country" in df.columns else 0
+
+    summary = {
+        "total_rows": total_rows,
+        "total_gb": total_gb,
+        "avg_latency_ms": avg_latency,
+        "error_rate_pct": error_rate_pct,
+        "cache_hit_pct": cache_hit_pct,
+        "unique_countries": unique_countries,
+    }
+
+    charts: dict[str, list[dict]] = {}
+
+    # 1. Error rate by status code
+    if "status_code" in df.columns:
+        sc = df["status_code"].dropna().astype(int).value_counts().sort_index().head(20)
+        charts["status_code_distribution"] = [{"status": int(k), "count": int(v)} for k, v in sc.items()]
+
+    # 2. Cache hit ratio (pie-like)
+    if "cache_hit" in df.columns:
+        ch = df["cache_hit"].dropna().astype(int).value_counts()
+        charts["cache_hit_ratio"] = [{"label": "Hit" if int(k) == 1 else "Miss", "count": int(v)} for k, v in ch.items()]
+
+    # 3. Bandwidth by hour
+    if "req_time_sec" in df.columns and "bytes" in df.columns:
+        df_bw = df[df["req_time_sec"].notna()].copy()
+        df_bw["hour"] = pd.to_datetime(df_bw["req_time_sec"], unit="s", utc=True).dt.hour
+        bw = df_bw.groupby("hour")["bytes"].sum().reset_index()
+        charts["bandwidth_by_hour"] = [{"hour": int(r["hour"]), "bytes": int(r["bytes"])} for _, r in bw.iterrows()]
+
+    # 4. Top error paths
+    if "status_code" in df.columns and "req_path" in df.columns:
+        errors = df[df["status_code"] >= 400]
+        top_err = errors["req_path"].value_counts().head(10)
+        charts["top_error_paths"] = [{"path": str(k)[:60], "count": int(v)} for k, v in top_err.items()]
+
+    # 5. Latency percentiles
+    if "transfer_time_ms" in df.columns:
+        vals = df["transfer_time_ms"].dropna()
+        if len(vals) > 0:
+            charts["latency_percentiles"] = [
+                {"percentile": "p50", "ms": round(float(vals.quantile(0.5)), 1)},
+                {"percentile": "p75", "ms": round(float(vals.quantile(0.75)), 1)},
+                {"percentile": "p95", "ms": round(float(vals.quantile(0.95)), 1)},
+                {"percentile": "p99", "ms": round(float(vals.quantile(0.99)), 1)},
+            ]
+
+    # 6. Geographic distribution
+    if "country" in df.columns:
+        geo = df["country"].dropna().value_counts().head(15)
+        charts["geo_distribution"] = [{"country": str(k), "count": int(v)} for k, v in geo.items()]
+
+    # 7. Content type breakdown
+    if "content_type" in df.columns:
+        ct = df["content_type"].dropna().value_counts().head(10)
+        charts["content_type_breakdown"] = [{"type": str(k)[:40], "count": int(v)} for k, v in ct.items()]
+
+    # 8. Cache status breakdown
+    if "cache_status" in df.columns:
+        cs = df["cache_status"].dropna().astype(int).value_counts().sort_index()
+        charts["cache_status_breakdown"] = [{"status": int(k), "count": int(v)} for k, v in cs.items()]
+
+    # 9. Error rate trend (hourly)
+    if "req_time_sec" in df.columns and "status_code" in df.columns:
+        df_hr = df[df["req_time_sec"].notna()].copy()
+        df_hr["hour"] = pd.to_datetime(df_hr["req_time_sec"], unit="s", utc=True).dt.hour
+        hourly = df_hr.groupby("hour").agg(
+            total=("status_code", "count"),
+            errors=("status_code", lambda x: (x >= 400).sum()),
+        ).reset_index()
+        hourly["error_rate"] = (hourly["errors"] / hourly["total"] * 100).round(2)
+        charts["error_rate_trend"] = [{"hour": int(r["hour"]), "error_rate": float(r["error_rate"])} for _, r in hourly.iterrows()]
+
+    # 10. Bytes vs client_bytes (hourly)
+    if "req_time_sec" in df.columns and "bytes" in df.columns and "client_bytes" in df.columns:
+        df_bc = df[df["req_time_sec"].notna()].copy()
+        df_bc["hour"] = pd.to_datetime(df_bc["req_time_sec"], unit="s", utc=True).dt.hour
+        bc = df_bc.groupby("hour").agg(
+            bytes=("bytes", "sum"),
+            client_bytes=("client_bytes", "sum"),
+        ).reset_index()
+        charts["bytes_vs_client"] = [{"hour": int(r["hour"]), "bytes": int(r["bytes"]), "client_bytes": int(r["client_bytes"])} for _, r in bc.iterrows()]
+
+    return {"summary": summary, "charts": charts}
+
+
+@router.get("/akamai/analysis/{job_id}")
+async def get_analysis(
+    job_id: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> dict[str, Any]:
+    """Load parsed data for a job and return 10 chart analyses + summary."""
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    # Get parquet paths from in-memory job or DuckDB history
+    parquet_paths: list[str] = []
+    job = _fetch_jobs.get(job_id)
+    if job and job.get("parquet_paths"):
+        parquet_paths = job["parquet_paths"]
+    else:
+        _ensure_duckdb_schema(duck)
+        try:
+            row = duck.fetch_one("SELECT parquet_paths FROM fetch_job_history WHERE job_id = ?", [job_id])
+            if row and row.get("parquet_paths"):
+                parquet_paths = json.loads(row["parquet_paths"])
+        except Exception:
+            pass
+
+    if not parquet_paths:
+        return {"error": "No data found for this job. Run fetch first.", "summary": {}, "charts": {}}
+
+    # Load all parquet files into a single DataFrame
+    dfs = []
+    for p in parquet_paths:
+        if Path(p).exists():
+            try:
+                dfs.append(pd.read_parquet(p))
+            except Exception as exc:
+                logger.warning("analysis_parquet_read_error", path=p, error=str(exc))
+
+    if not dfs:
+        return {"error": "Parquet files not found. Re-fetch logs.", "summary": {}, "charts": {}}
+
+    df = pd.concat(dfs, ignore_index=True)
+    logger.info("analysis_data_loaded", job_id=job_id, rows=len(df), columns=list(df.columns)[:10])
+
+    return _run_analysis(df)
 
 
 # ── BigQuery export endpoints ──

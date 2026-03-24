@@ -125,6 +125,7 @@ export default function LogAnalyzer() {
   /* ── Results state ── */
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [expandedResult, setExpandedResult] = useState<AnalysisResult | null>(null);
+  const [jobHistory, setJobHistory] = useState<Record<string, unknown>[]>([]);
 
   /* ── App Settings state ── */
   const [appSettings, setAppSettings] = useState<AppSettings>({ language: "en", default_date_range: "7d", log_cache_retention: "7", auto_fetch_schedule: "disabled", cp_code: "" });
@@ -208,7 +209,17 @@ export default function LogAnalyzer() {
         } catch { /* */ }
       })();
     }
+    if (tab === "results") {
+      (async () => {
+        try { setJobHistory(await apiGet<Record<string, unknown>[]>("/log-analyzer/akamai/jobs?tenant_id=s_sport_plus")); } catch { /* */ }
+      })();
+    }
   }, [tab, loadSettings, loadBqHistory, loadBqRecentJobs]);
+
+  const viewJobCharts = (jobId: string) => {
+    setTab("analyzer");
+    loadCharts(jobId);
+  };
 
   /* ── Projects ── */
   const createProject = async () => {
@@ -278,15 +289,16 @@ export default function LogAnalyzer() {
     }, 2000);
   };
 
+  /* ── Analysis state ── */
+  const [analysisSummary, setAnalysisSummary] = useState<Record<string, number>>({});
+
   const loadCharts = async (jobId: string) => {
-    const data: Record<string, Record<string, unknown>[]> = {};
-    for (const ct of CHART_TYPES) {
-      try {
-        const cd = await apiGet<{ data: Record<string, unknown>[] }>(`/log-analyzer/akamai/charts?job_id=${jobId}&chart_type=${ct}`);
-        data[ct] = cd.data;
-      } catch { data[ct] = []; }
-    }
-    setChartsData(data);
+    try {
+      const res = await apiGet<{ summary: Record<string, number>; charts: Record<string, Record<string, unknown>[]>; error?: string }>(`/log-analyzer/akamai/analysis/${jobId}`);
+      if (res.error) return;
+      setAnalysisSummary(res.summary ?? {});
+      setChartsData(res.charts ?? {});
+    } catch { /* backend offline */ }
   };
 
   const downloadReport = async () => {
@@ -713,54 +725,80 @@ export default function LogAnalyzer() {
             </div>
           )}
 
-          {/* 21 Charts grid with collapsible summary tables */}
+          {/* Analysis summary + charts */}
           {Object.keys(chartsData).length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {CHART_TYPES.map((ct) => (
-                <div key={ct} className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-                  <RechartsWrapper
-                    data={chartsData[ct] ?? []}
-                    xKey="time"
-                    yKey="value"
-                    title={ct.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    height={180}
-                    type={BAR_CHARTS.has(ct) ? "bar" : "line"}
-                  />
-                  {/* Collapsible summary table */}
-                  <details className="mt-2">
-                    <summary className="text-xs cursor-pointer select-none" style={{ color: "var(--text-muted)" }}>Summary Table</summary>
-                    <div className="mt-1 max-h-40 overflow-y-auto">
-                      <table className="w-full text-xs" style={{ color: "var(--text-secondary)" }}>
-                        <thead>
-                          <tr>
-                            {(chartsData[ct]?.[0] ? Object.keys(chartsData[ct][0]) : ["time", "value"]).map((k) => (
-                              <th key={k} className="text-left px-1 py-0.5 font-medium border-b" style={{ borderColor: "var(--border)" }}>{k}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(chartsData[ct] ?? []).slice(0, 10).map((row, i) => (
-                            <tr key={i}>
-                              {Object.values(row).map((v, j) => (
-                                <td key={j} className="px-1 py-0.5 border-b" style={{ borderColor: "var(--border)" }}>{String(v ?? "")}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {(chartsData[ct]?.length ?? 0) > 10 && (
-                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Showing 10 of {chartsData[ct].length} rows</p>
-                      )}
-                    </div>
-                  </details>
+            <div className="space-y-4">
+              {/* 6 Summary metric cards */}
+              {analysisSummary && Object.keys(analysisSummary).length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <MetricCard title="Total Rows" value={(analysisSummary.total_rows ?? 0).toLocaleString()} />
+                  <MetricCard title="Total GB" value={analysisSummary.total_gb ?? 0} unit="GB" />
+                  <MetricCard title="Avg Latency" value={analysisSummary.avg_latency_ms ?? 0} unit="ms" />
+                  <MetricCard title="Error Rate" value={`${analysisSummary.error_rate_pct ?? 0}%`} />
+                  <MetricCard title="Cache Hit" value={`${analysisSummary.cache_hit_pct ?? 0}%`} />
+                  <MetricCard title="Countries" value={analysisSummary.unique_countries ?? 0} />
                 </div>
-              ))}
+              )}
+
+              {/* 10 Charts grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {([
+                  { key: "status_code_distribution", title: "Status Code Distribution", x: "status", y: "count", type: "bar" as const },
+                  { key: "cache_hit_ratio", title: "Cache Hit Ratio", x: "label", y: "count", type: "bar" as const },
+                  { key: "bandwidth_by_hour", title: "Bandwidth by Hour", x: "hour", y: "bytes", type: "line" as const },
+                  { key: "top_error_paths", title: "Top Error Paths", x: "path", y: "count", type: "bar" as const },
+                  { key: "latency_percentiles", title: "Latency Percentiles", x: "percentile", y: "ms", type: "bar" as const },
+                  { key: "geo_distribution", title: "Geographic Distribution", x: "country", y: "count", type: "bar" as const },
+                  { key: "content_type_breakdown", title: "Content Type Breakdown", x: "type", y: "count", type: "bar" as const },
+                  { key: "cache_status_breakdown", title: "Cache Status Breakdown", x: "status", y: "count", type: "bar" as const },
+                  { key: "error_rate_trend", title: "Error Rate Trend (Hourly)", x: "hour", y: "error_rate", type: "line" as const },
+                  { key: "bytes_vs_client", title: "Bytes vs Client Bytes", x: "hour", y: "bytes", type: "line" as const },
+                ] as const).map((chart) => {
+                  const data = chartsData[chart.key] ?? [];
+                  if (!data.length) return null;
+                  return (
+                    <div key={chart.key} className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                      <RechartsWrapper
+                        data={data as Record<string, unknown>[]}
+                        xKey={chart.x}
+                        yKey={chart.y}
+                        title={chart.title}
+                        height={180}
+                        type={chart.type}
+                      />
+                      <details className="mt-2">
+                        <summary className="text-xs cursor-pointer select-none" style={{ color: "var(--text-muted)" }}>Data Table</summary>
+                        <div className="mt-1 max-h-40 overflow-y-auto">
+                          <table className="w-full text-xs" style={{ color: "var(--text-secondary)" }}>
+                            <thead>
+                              <tr>
+                                {data[0] && Object.keys(data[0]).map((k) => (
+                                  <th key={k} className="text-left px-1 py-0.5 font-medium border-b" style={{ borderColor: "var(--border)" }}>{k}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {data.slice(0, 10).map((row, i) => (
+                                <tr key={i}>
+                                  {Object.values(row).map((v, j) => (
+                                    <td key={j} className="px-1 py-0.5 border-b" style={{ borderColor: "var(--border)" }}>{String(v ?? "")}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {Object.keys(chartsData).length === 0 && !fetchJob && (
             <div className="rounded-lg border p-8 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Configure and fetch logs to see 21 analysis charts.</p>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Fetch logs to see analysis charts.</p>
             </div>
           )}
         </div>
@@ -945,52 +983,53 @@ export default function LogAnalyzer() {
       {tab === "results" && (
         <div>
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <LogTable
-              columns={[
-                { key: "analysisId", label: "Analysis ID" },
-                { key: "projectId", label: "Project" },
-                { key: "jobId", label: "Job ID" },
-                { key: "errorRate", label: "Error Rate", render: (v) => <span>{((v as number) * 100).toFixed(2)}%</span> },
-                { key: "anomalies", label: "Anomalies", render: (v) => <span>{(v as unknown[])?.length ?? 0}</span> },
-                { key: "createdAt", label: "Analyzed At" },
-              ]}
-              data={results as unknown as Record<string, unknown>[]}
-              onRowClick={(row) => setExpandedResult(row as unknown as AnalysisResult)}
-            />
-          </div>
-
-          {expandedResult && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }} onClick={() => setExpandedResult(null)}>
-              <div className="w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-lg border p-6"
-                style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between mb-4">
-                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Analysis Detail</h3>
-                  <button onClick={() => setExpandedResult(null)} style={{ color: "var(--text-muted)" }}>✕</button>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <MetricCard title="Error Rate" value={`${(expandedResult.errorRate * 100).toFixed(2)}%`} />
-                  <MetricCard title="Cache Hit" value={`${(expandedResult.cacheHitRate * 100).toFixed(1)}%`} />
-                  <MetricCard title="Avg TTFB" value={expandedResult.avgTtfbMs} unit="ms" />
-                  <MetricCard title="Total Requests" value={expandedResult.totalRequests ?? "—"} />
-                </div>
-                {expandedResult.agentSummary && (
-                  <div className="p-3 rounded text-sm mb-3" style={{ backgroundColor: "var(--background-hover)", color: "var(--text-secondary)" }}>
-                    {expandedResult.agentSummary}
-                  </div>
-                )}
-                {expandedResult.anomalies.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold mb-2" style={{ color: "var(--text-muted)" }}>Anomalies</h4>
-                    {expandedResult.anomalies.map((a, i) => (
-                      <div key={i} className="text-sm py-1" style={{ color: "var(--text-secondary)" }}>
-                        • [{a.severity}] {a.type}: {a.description ?? ""}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Fetch Job History</h3>
             </div>
-          )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {["Job ID", "Date Range", "Files", "Rows", "Cache", "Status", "Completed", ""].map((h) => (
+                      <th key={h} className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobHistory.map((j) => (
+                    <tr key={String(j.job_id)} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td className="px-4 py-2 font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{String(j.job_id).slice(0, 8)}...</td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{String(j.start_date ?? "")} — {String(j.end_date ?? "")}</td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-secondary)" }}>{Number(j.total_files ?? 0).toLocaleString()}</td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-primary)" }}>{Number(j.total_rows ?? 0).toLocaleString()}</td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{Number(j.cache_hits ?? 0)} hit / {Number(j.cache_misses ?? 0)} miss</td>
+                      <td className="px-4 py-2">
+                        <span className="text-xs px-2 py-0.5 rounded" style={{
+                          backgroundColor: j.status === "completed" ? "var(--risk-low-bg)" : "var(--risk-high-bg)",
+                          color: j.status === "completed" ? "var(--risk-low)" : "var(--risk-high)",
+                        }}>{String(j.status)}</span>
+                      </td>
+                      <td className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{String(j.completed_at ?? "—").slice(0, 19)}</td>
+                      <td className="px-4 py-2">
+                        {j.status === "completed" && (
+                          <button onClick={() => viewJobCharts(String(j.job_id))}
+                            className="text-xs px-2 py-1 rounded border"
+                            style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>
+                            View Charts
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {jobHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>No fetch jobs yet. Go to Log Analyzer tab to fetch logs.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
