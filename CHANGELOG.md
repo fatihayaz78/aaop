@@ -8,6 +8,24 @@
 
 ---
 
+## [S17-P1] — 2026-03-25
+### Added
+- apps/ops_center/seed.py — idempotent mock data seed (50 incidents, 50 agent decisions)
+  - P0×5, P1×15, P2×20, P3×10 — OTT/CDN realistic titles, summary_tr, detail_en
+  - Called from backend/main.py lifespan startup (non-blocking)
+- GET /ops/dashboard — KPI stats + severity breakdown + 24h trend
+- GET /ops/incidents — paginated list, severity/status filter
+- GET /ops/incidents/{id} — full incident record (404-safe)
+- PATCH /ops/incidents/{id}/status — status transition with validation
+- GET /ops/incidents/{id}/rca — RCA result from agent_decisions
+- GET /ops/decisions — paginated agent decision log
+- POST /ops/chat — Captain logAR for Ops Center (Sonnet, bilingual, incident context)
+### Test
+- pytest ops_center: 32 passed, 0 failures (regression clean)
+- pytest full suite: 508 passed, 0 failures
+
+---
+
 ## [S16-P19] — 2026-03-25
 ### Fixed
 - Project selection auto-fills dates and fetch mode

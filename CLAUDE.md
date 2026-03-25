@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S16 next
-**Önceki:** S15 complete — Log Analyzer full enhancement (22-field parser, BQ export, settings UI)
-**Son commit:** S15 kapanış — 451 tests, 0 failures
+**Aktif Sprint:** S17 — Ops Center UI
+**Önceki:** S16 complete — Log Analyzer full UI (streaming, 13 charts, agent chat, scheduled tasks, 508 tests)
+**Son commit:** S17-P1 — Ops Center backend endpoints + mock seed
 
 ---
 

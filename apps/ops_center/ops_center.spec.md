@@ -134,3 +134,11 @@ Output: TR özet (NOC) + EN teknik (DevOps)
 ### Deviations
 - P3 routed to Haiku (spec said Sonnet) — deliberate optimization for cost,
   P3 incidents are low priority batch processing
+
+---
+## Sprint Progress — S17
+### P1 Complete — 2026-03-25
+- seed.py: 50 incidents + 50 agent_decisions (idempotent)
+- 7 new endpoints: dashboard, incidents CRUD, rca, decisions, chat
+- Tests: 32 passed (regression clean), full suite 508 passed
+- Next: P2 — Frontend Dashboard + Incidents tabs
