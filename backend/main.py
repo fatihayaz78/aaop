@@ -51,6 +51,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if _duckdb and _sqlite:
             from apps.admin_governance.seed import seed_admin_governance_mock_data
             await seed_admin_governance_mock_data(_sqlite, _duckdb)
+        if _duckdb:
+            from apps.ai_lab.seed import seed_ai_lab_mock_data
+            seed_ai_lab_mock_data(_duckdb)
+        from apps.devops_assistant.seed import seed_devops_assistant_mock_data
+        seed_devops_assistant_mock_data()
     except Exception as exc:
         logger.warning("seed_startup_error", error=str(exc))
     logger.info("startup_complete")
