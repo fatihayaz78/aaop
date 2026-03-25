@@ -9,7 +9,7 @@ import { AccordionItem } from "@/components/ui/Accordion";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
-type Tab = "projects" | "analyzer" | "structure" | "anomaly" | "settings" | "results" | "scheduled";
+type Tab = "projects" | "analyzer" | "structure" | "intelligence" | "settings";
 
 /* ── Revised 21 chart names (match backend) ── */
 const CHART_TYPES = [
@@ -123,6 +123,8 @@ export default function LogAnalyzer() {
   const [akamaiConfig, setAkamaiConfig] = useState({ s3_bucket: "ssport-datastream", s3_prefix: "logs/", schedule_cron: "0 */6 * * *" });
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [startTime, setStartTime] = useState("00:00");
+  const [endTime, setEndTime] = useState("23:59");
   const [fetchJob, setFetchJob] = useState<FetchJob | null>(null);
   const [chartsData, setChartsData] = useState<Record<string, Record<string, unknown>[]>>({});
 
@@ -259,23 +261,15 @@ export default function LogAnalyzer() {
         } catch { /* */ }
       })();
     }
-    if (tab === "scheduled") {
-      (async () => {
-        try { setScheduledTasks(await apiGet<Record<string, unknown>[]>("/log-analyzer/scheduled-tasks?tenant_id=s_sport_plus")); } catch { /* */ }
-      })();
-    }
-    if (tab === "anomaly") {
-      (async () => {
-        try { setAnomalyRules(await apiGet<Record<string, unknown>[]>("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus")); } catch { /* */ }
-      })();
-    }
-    if (tab === "results") {
+    if (tab === "intelligence") {
       (async () => {
         try {
           let url = "/log-analyzer/akamai/jobs?tenant_id=s_sport_plus&deduplicate=true";
           if (resultFilterStart) url += `&filter_start=${resultFilterStart}`;
           if (resultFilterEnd) url += `&filter_end=${resultFilterEnd}`;
           setJobHistory(await apiGet<Record<string, unknown>[]>(url));
+          setScheduledTasks(await apiGet<Record<string, unknown>[]>("/log-analyzer/scheduled-tasks?tenant_id=s_sport_plus"));
+          setAnomalyRules(await apiGet<Record<string, unknown>[]>("/log-analyzer/anomaly-rules?tenant_id=s_sport_plus"));
         } catch { /* */ }
       })();
     }
@@ -313,7 +307,12 @@ export default function LogAnalyzer() {
   };
 
   const openProjectInAnalyzer = (p: LogProject) => {
-    setSelectedProjectId(getProjectId(p));
+    const pid = getProjectId(p);
+    setSelectedProjectId(pid);
+    // Auto-fill from project config
+    const pa = p as any;
+    if (pa.fetch_mode) setFetchMode(pa.fetch_mode === "full" ? "full" : "sampled");
+    if (pa.default_date_range) applyDateRange(pa.default_date_range.replace("_", "").replace("last_", "last"));
     setTab("analyzer");
   };
 
@@ -328,18 +327,31 @@ export default function LogAnalyzer() {
   const applyDateRange = (range: string) => {
     setDateRange(range);
     if (range === "custom") return;
-    const now = new Date();
-    const end = now.toISOString().split("T")[0];
-    let start = end;
-    if (range === "last24h" || range === "last1d") {
-      const d = new Date(now); d.setDate(d.getDate() - 1); start = d.toISOString().split("T")[0];
+    // Turkish local time (UTC+3)
+    const now = new Date(Date.now() + 3 * 3600 * 1000);
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+    const today = fmt(now);
+    let start = today;
+    if (range === "last24h") {
+      const d = new Date(now.getTime() - 24 * 3600 * 1000);
+      start = fmt(d);
+      setStartTime(d.toISOString().split("T")[1].slice(0, 5));
+      setEndTime(now.toISOString().split("T")[1].slice(0, 5));
+    } else if (range === "last1d") {
+      const d = new Date(now); d.setUTCDate(d.getUTCDate() - 1);
+      start = fmt(d);
+      setStartTime("00:00"); setEndTime("23:59");
     } else if (range === "last1w") {
-      const d = new Date(now); d.setDate(d.getDate() - 7); start = d.toISOString().split("T")[0];
+      const d = new Date(now); d.setUTCDate(d.getUTCDate() - 7);
+      start = fmt(d);
+      setStartTime("00:00"); setEndTime("23:59");
     } else if (range === "last1m") {
-      const d = new Date(now); d.setMonth(d.getMonth() - 1); start = d.toISOString().split("T")[0];
+      const d = new Date(now); d.setUTCMonth(d.getUTCMonth() - 1);
+      start = fmt(d);
+      setStartTime("00:00"); setEndTime("23:59");
     }
     setStartDate(start);
-    setEndDate(end);
+    setEndDate(today);
   };
 
   /* ── Akamai ── */
@@ -662,10 +674,8 @@ export default function LogAnalyzer() {
     { key: "projects", label: "Projects" },
     { key: "analyzer", label: "Log Analyzer" },
     { key: "structure", label: "Log Structure" },
-    { key: "anomaly", label: "Anomaly Rules" },
+    { key: "intelligence", label: "Intelligence & Tasks" },
     { key: "settings", label: "Settings" },
-    { key: "results", label: "Analysis Results" },
-    { key: "scheduled", label: "Scheduled Tasks" },
   ];
 
   /* ── Password field helper ── */
@@ -777,7 +787,7 @@ export default function LogAnalyzer() {
 
                   <div className="flex gap-2">
                     <button onClick={() => openProjectInAnalyzer(p)} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>Open in Log Analyzer</button>
-                    <button onClick={() => { setSelectedProjectId(pid); setTab("scheduled"); }} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Schedule</button>
+                    <button onClick={() => { setSelectedProjectId(pid); setTab("intelligence"); }} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Schedule</button>
                     <button onClick={() => deleteProject(pid)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--risk-high)" }}>Delete</button>
                   </div>
                 </div>
@@ -928,15 +938,25 @@ export default function LogAnalyzer() {
               </div>
               <div>
                 <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Start Date</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
-                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                <div className="flex gap-1">
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                    className="flex-1 text-sm px-2 py-1.5 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+                    className="w-20 text-sm px-2 py-1.5 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                </div>
               </div>
               <div>
                 <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>End Date</label>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full text-sm px-3 py-1.5 rounded border outline-none"
-                  style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                <div className="flex gap-1">
+                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                    className="flex-1 text-sm px-2 py-1.5 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
+                    className="w-20 text-sm px-2 py-1.5 rounded border outline-none"
+                    style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                </div>
               </div>
               <div className="flex flex-col items-start gap-2 justify-end">
                 <button onClick={fetchLogsForRange} disabled={!startDate || !endDate || isJobRunning}
@@ -1341,9 +1361,12 @@ export default function LogAnalyzer() {
         </div>
       )}
 
-      {/* ══════════ Tab: Anomaly Rules ══════════ */}
-      {tab === "anomaly" && (
-        <div className="space-y-6">
+      {/* ══════════ Tab: Intelligence & Tasks ══════════ */}
+      {tab === "intelligence" && (
+        <div className="space-y-4">
+          {/* Section 1: Anomaly Rules */}
+          <AccordionItem title="Anomaly Rules">
+        <div className="space-y-6 pt-4">
           {/* Section 1: Rules list */}
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
             <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
@@ -1672,11 +1695,11 @@ export default function LogAnalyzer() {
             )}
           </div>
         </div>
-      )}
+          </AccordionItem>
 
-      {/* ══════════ Tab 4: Analysis Results ══════════ */}
-      {tab === "results" && (
-        <div>
+          {/* Section 2: Analysis Results */}
+          <AccordionItem title="Analysis Results" defaultOpen={true}>
+          <div className="pt-4">
           {/* Date filter */}
           <div className="flex gap-3 mb-4 items-end">
             <div>
@@ -1756,12 +1779,12 @@ export default function LogAnalyzer() {
               </table>
             </div>
           </div>
-        </div>
-      )}
+          </div>
+          </AccordionItem>
 
-      {/* ══════════ Tab: Scheduled Tasks ══════════ */}
-      {tab === "scheduled" && (
-        <div className="space-y-4">
+          {/* Section 3: Scheduled Tasks */}
+          <AccordionItem title="Scheduled Tasks">
+          <div className="pt-4">
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
             <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Scheduled Tasks</h3>
@@ -1910,6 +1933,8 @@ export default function LogAnalyzer() {
               </table>
             </div>
           </div>
+          </div>
+          </AccordionItem>
         </div>
       )}
 

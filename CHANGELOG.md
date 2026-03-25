@@ -8,6 +8,16 @@
 
 ---
 
+## [S16-P19] — 2026-03-25
+### Fixed
+- Project selection auto-fills dates and fetch mode
+- Date range combobox calculates relative to current time (UTC+3)
+### Added
+- Start/End time inputs (hour:minute) in Log Analyzer tab
+- "Intelligence & Tasks" tab (merged Analysis Results + Scheduled Tasks + Anomaly Rules)
+
+---
+
 ## [S16-P18] — 2026-03-25
 ### Fixed
 - Project delete (undefined id bug)

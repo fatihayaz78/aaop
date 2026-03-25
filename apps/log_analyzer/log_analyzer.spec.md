@@ -8,11 +8,11 @@ Temel özellik: İstenen kadar log kaynağı eklenebilir (sub-module mimarisi)
 ## 2. TABS
 | Tab | Açıklama | Veri |
 |---|---|---|
-| Projects | Log projeleri CRUD, yeni proje oluşturma | SQLite: log_projects |
-| Log Analyzer | Proje seçici + Akamai DataStream 2 sub-section, S3 fetch | S3 + DuckDB |
-| Log Structure | S3 log örnekleme, field analizi, kategori mapping | S3 + SQLite: field_category_mappings |
-| Settings | 3 accordion: Log Analyzer Settings / AWS Settings / GCP Settings | SQLite: settings |
-| Analysis Results | Geçmiş analiz sonuçları tablosu | DuckDB: cdn_analysis |
+| Projects | Log projeleri CRUD, proje kartları | SQLite: log_projects |
+| Log Analyzer | Proje seçici, tarih+saat aralığı, S3 fetch, 13 grafik, AI chat | S3 + DuckDB |
+| Log Structure | S3 log örnekleme, field analizi, kategori mapping | S3 + SQLite |
+| Intelligence & Tasks | 3 accordion: Analysis Results / Scheduled Tasks / Anomaly Rules | DuckDB + SQLite |
+| Settings | 3 accordion: Log Analyzer / AWS / GCP | SQLite: settings |
 
 ## 3. AGENT MİMARİSİ
 ```python
@@ -354,4 +354,12 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - BUG FIX: Projects delete (camelCase/snake_case id mismatch → getProjectId helper)
 - BUG FIX: DOCX report download endpoint eklendi (POST /akamai/report → FileResponse)
 - BUG FIX: Analysis Results — View Charts, date filter, deduplication (ROW_NUMBER)
+- Tests: 99 passed, 0 failed
+
+### S16-P19 — COMPLETE
+- FIX: Project seçimi → default_date_range + fetch_mode auto-fill
+- FIX: Date range combobox UTC+3 relative-to-now hesaplama
+- FIX: Start/End time inputs (HH:MM) eklendi, UTC'ye çevriliyor
+- FEATURE: 3 tab merge → "Intelligence & Tasks" (3 accordion)
+- Tab listesi: Projects | Log Analyzer | Log Structure | Intelligence & Tasks | Settings
 - Tests: 99 passed, 0 failed
