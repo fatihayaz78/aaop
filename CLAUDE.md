@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S21 next — Admin & Governance
-**Önceki:** S20 complete — Growth & Retention + Capacity & Cost (605 tests)
-**Son commit:** S20 complete
+**Aktif Sprint:** S22 next — AI Lab + Knowledge Base + DevOps Assistant
+**Önceki:** S21 complete — Admin & Governance (6 tabs, 54 tests, 623 platform)
+**Son commit:** S21 complete
 
 ---
 

@@ -8,6 +8,22 @@
 
 ---
 
+## [S21] — 2026-03-25
+### Added
+- apps/admin_governance/seed.py — 3 tenants, module configs, 50 audit entries, 200 token usage rows
+- GET /admin/dashboard — tenant stats, audit summary, token usage, compliance score
+- GET/POST /admin/tenants — tenant list and create
+- GET/PATCH /admin/tenants/{id}/modules — per-tenant module config
+- GET /admin/audit — paginated audit log, tenant/action/status filter
+- GET /admin/compliance — checks, violations, overall score
+- GET /admin/usage — cost by model/app, daily trend, token breakdown
+- Frontend: 6 tabs (Dashboard, Tenants, Module Config, Audit Log, Compliance, Usage Stats)
+### Test
+- admin_governance suite: 54 passed, 0 failures
+- Full platform: 623 passed, 0 failures
+
+---
+
 ## [S20] — 2026-03-25
 ### Added
 - apps/growth_retention/seed.py — 100 retention scores (DuckDB)
