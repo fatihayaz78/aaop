@@ -8,6 +8,18 @@
 
 ---
 
+## [S24-Fix1] — 2026-03-25
+### Fixed
+- Log Analyzer: invalid JSX removed (lines 1108-1110 in log-analyzer/page.tsx)
+  - {/* comment */} inside && conditional caused runtime crash after analysis load
+  - All 13 charts were crashing with "Something went wrong" error boundary
+  - Fix: removed 3 lines, build now clean
+### Test
+- npm build: 0 errors
+- Full platform: 659 passed, 0 failures
+
+---
+
 ## [S23-Fix2] — 2026-03-25
 ### Fixed
 - Log Analyzer: removed ALL hashing/anonymization from client_ip and user_agent
