@@ -349,3 +349,9 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Settings: API key status indicator (green/red)
 - 7 yeni test (test_chat.py)
 - Tests: 99 passed, 0 failed
+
+### S16-P18 — COMPLETE
+- BUG FIX: Projects delete (camelCase/snake_case id mismatch → getProjectId helper)
+- BUG FIX: DOCX report download endpoint eklendi (POST /akamai/report → FileResponse)
+- BUG FIX: Analysis Results — View Charts, date filter, deduplication (ROW_NUMBER)
+- Tests: 99 passed, 0 failed

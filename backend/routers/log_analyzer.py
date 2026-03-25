@@ -1290,17 +1290,136 @@ async def cancel_fetch_job(
 async def list_fetch_jobs(
     ctx: TenantContext = Depends(get_tenant_context),
     duck: DuckDBClient = Depends(get_duckdb),
+    filter_start: str | None = None,
+    filter_end: str | None = None,
+    deduplicate: bool = True,
 ) -> list[dict[str, Any]]:
-    """List fetch job history from DuckDB."""
+    """List fetch job history from DuckDB, optionally deduplicated and date-filtered."""
     _ensure_duckdb_schema(duck)
     try:
-        rows = duck.fetch_all(
-            "SELECT * FROM fetch_job_history WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 20",
-            [ctx.tenant_id],
-        )
-        return rows
+        if deduplicate:
+            # Keep only the most recent job per (start_date, end_date) combo
+            sql = """SELECT * FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY start_date, end_date ORDER BY completed_at DESC
+                ) as rn FROM fetch_job_history WHERE tenant_id = ?
+            ) WHERE rn = 1"""
+        else:
+            sql = "SELECT * FROM fetch_job_history WHERE tenant_id = ?"
+
+        params: list[Any] = [ctx.tenant_id]
+
+        rows = duck.fetch_all(sql, params)
+
+        # Apply date filter in Python (DuckDB subquery makes WHERE tricky)
+        if filter_start:
+            rows = [r for r in rows if r.get("start_date", "") >= filter_start]
+        if filter_end:
+            rows = [r for r in rows if r.get("end_date", "") <= filter_end]
+
+        # Sort and limit
+        rows.sort(key=lambda r: r.get("completed_at", ""), reverse=True)
+        return rows[:30]
     except Exception:
         return []
+
+
+# ── DOCX Report ──
+
+
+@router.post("/akamai/report")
+async def generate_report(
+    ctx: TenantContext = Depends(get_tenant_context),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> Any:
+    """Generate and return a DOCX report for the latest analysis."""
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+    from fastapi.responses import FileResponse
+
+    _ensure_duckdb_schema(duck)
+
+    # Find latest job
+    job_row = None
+    try:
+        job_row = duck.fetch_one(
+            "SELECT * FROM fetch_job_history WHERE tenant_id = ? ORDER BY completed_at DESC LIMIT 1",
+            [ctx.tenant_id],
+        )
+    except Exception:
+        pass
+
+    parquet_paths: list[str] = []
+    if job_row and job_row.get("parquet_paths"):
+        parquet_paths = json.loads(job_row["parquet_paths"])
+
+    # Also check in-memory jobs
+    if not parquet_paths:
+        for j in _fetch_jobs.values():
+            if j.get("tenant_id") == ctx.tenant_id and j.get("parquet_paths"):
+                parquet_paths = j["parquet_paths"]
+                job_row = j
+                break
+
+    if not parquet_paths:
+        return {"error": "No analysis data. Fetch logs first."}
+
+    # Load data
+    dfs = []
+    for p in parquet_paths:
+        if Path(p).exists():
+            try:
+                dfs.append(pd.read_parquet(p))
+            except Exception:
+                pass
+    if not dfs:
+        return {"error": "Parquet files not found. Re-fetch logs."}
+
+    df = pd.concat(dfs, ignore_index=True)
+    for col in ("bytes", "status_code", "cache_hit", "transfer_time_ms"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Build metrics
+    total = len(df)
+    error_count = int((df["status_code"] >= 400).sum()) if "status_code" in df.columns else 0
+    cache_valid = df["cache_hit"].dropna() if "cache_hit" in df.columns else pd.Series(dtype=float)
+    cache_hits_n = int((cache_valid == 1).sum()) if len(cache_valid) else 0
+    ttfb = df["transfer_time_ms"].dropna() if "transfer_time_ms" in df.columns else pd.Series(dtype=float)
+
+    from apps.log_analyzer.sub_modules.akamai.schemas import AkamaiMetrics
+    metrics = AkamaiMetrics(
+        total_requests=total,
+        error_rate=error_count / total if total else 0,
+        cache_hit_rate=cache_hits_n / len(cache_valid) if len(cache_valid) else 0,
+        avg_ttfb_ms=float(ttfb.mean()) if len(ttfb) else 0,
+        p99_ttfb_ms=float(ttfb.quantile(0.99)) if len(ttfb) else 0,
+        total_bytes=int(df["bytes"].sum()) if "bytes" in df.columns else 0,
+    )
+
+    from apps.log_analyzer.config import LogAnalyzerConfig
+    from apps.log_analyzer.sub_modules.akamai.reporter import AkamaiReporter
+
+    config = LogAnalyzerConfig(
+        docx_reports_dir="data/reports",
+        logs_cache_dir="data/logs",
+    )
+    reporter = AkamaiReporter(config)
+    report_path = reporter.generate(
+        tenant_id=ctx.tenant_id,
+        metrics=metrics,
+        anomalies=[],
+        agent_summary=f"Analysis of {total:,} rows. Date range: {job_row.get('start_date', '?')} to {job_row.get('end_date', '?')}.",
+    )
+
+    logger.info("report_generated", path=report_path, tenant_id=ctx.tenant_id)
+    return FileResponse(
+        report_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=Path(report_path).name,
+    )
 
 
 # ── Analysis endpoint ──

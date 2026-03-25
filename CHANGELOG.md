@@ -8,6 +8,14 @@
 
 ---
 
+## [S16-P18] — 2026-03-25
+### Fixed
+- Project delete (undefined id bug)
+- DOCX report download endpoint
+- Analysis Results: date filter, deduplication, View Charts
+
+---
+
 ## [S16-P17] — 2026-03-24
 ### Added
 - Captain logAR AI Chat panel in Log Analyzer tab

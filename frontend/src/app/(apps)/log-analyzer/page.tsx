@@ -130,6 +130,8 @@ export default function LogAnalyzer() {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [expandedResult, setExpandedResult] = useState<AnalysisResult | null>(null);
   const [jobHistory, setJobHistory] = useState<Record<string, unknown>[]>([]);
+  const [resultFilterStart, setResultFilterStart] = useState("");
+  const [resultFilterEnd, setResultFilterEnd] = useState("");
 
   /* ── App Settings state ── */
   const [appSettings, setAppSettings] = useState<AppSettings>({ language: "en", default_date_range: "7d", log_cache_retention: "7", auto_fetch_schedule: "disabled", cp_code: "" });
@@ -269,7 +271,12 @@ export default function LogAnalyzer() {
     }
     if (tab === "results") {
       (async () => {
-        try { setJobHistory(await apiGet<Record<string, unknown>[]>("/log-analyzer/akamai/jobs?tenant_id=s_sport_plus")); } catch { /* */ }
+        try {
+          let url = "/log-analyzer/akamai/jobs?tenant_id=s_sport_plus&deduplicate=true";
+          if (resultFilterStart) url += `&filter_start=${resultFilterStart}`;
+          if (resultFilterEnd) url += `&filter_end=${resultFilterEnd}`;
+          setJobHistory(await apiGet<Record<string, unknown>[]>(url));
+        } catch { /* */ }
       })();
     }
   }, [tab, loadSettings, loadBqHistory, loadBqRecentJobs]);
@@ -298,16 +305,19 @@ export default function LogAnalyzer() {
     const summaries: Record<string, Record<string, unknown>> = {};
     for (const p of projs.slice(0, 10)) {
       try {
-        summaries[p.projectId] = await apiGet(`/log-analyzer/projects/${p.projectId}/summary`);
+        const pid = (p as any).id || p.projectId;
+        summaries[pid] = await apiGet(`/log-analyzer/projects/${pid}/summary`);
       } catch { /* */ }
     }
     setProjectSummaries(summaries);
   };
 
   const openProjectInAnalyzer = (p: LogProject) => {
-    setSelectedProjectId(p.projectId);
+    setSelectedProjectId(getProjectId(p));
     setTab("analyzer");
   };
+
+  const getProjectId = (p: LogProject): string => (p as any).id || p.projectId || "";
 
   const deleteProject = async (id: string) => {
     if (!confirm("Delete this project?")) return;
@@ -414,7 +424,22 @@ export default function LogAnalyzer() {
   };
 
   const downloadReport = async () => {
-    try { await apiPost("/log-analyzer/akamai/report", { tenant_id: "s_sport_plus" }); } catch { /* error */ }
+    try {
+      const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const res = await fetch(`${BASE_URL}/log-analyzer/akamai/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Tenant-ID": "s_sport_plus" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "akamai_report.docx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* error */ }
   };
 
   /* ── Chat ── */
@@ -702,12 +727,13 @@ export default function LogAnalyzer() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects.map((p) => {
-              const summary = projectSummaries[p.projectId] as Record<string, unknown> | undefined;
+              const pid = getProjectId(p);
+              const summary = projectSummaries[pid] as Record<string, unknown> | undefined;
               const lastJob = summary?.last_job as Record<string, unknown> | null | undefined;
               const schedCount = Number(summary?.scheduled_tasks_count ?? 0);
               const anomalyCount = Number(summary?.last_anomaly_count ?? 0);
               return (
-                <div key={p.projectId} className="rounded-lg border p-4"
+                <div key={pid} className="rounded-lg border p-4"
                   style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
                   <div className="flex items-center justify-between mb-1">
                     <h4 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
@@ -751,8 +777,8 @@ export default function LogAnalyzer() {
 
                   <div className="flex gap-2">
                     <button onClick={() => openProjectInAnalyzer(p)} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>Open in Log Analyzer</button>
-                    <button onClick={() => { setSelectedProjectId(p.projectId); setTab("scheduled"); }} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Schedule</button>
-                    <button onClick={() => deleteProject(p.projectId)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--risk-high)" }}>Delete</button>
+                    <button onClick={() => { setSelectedProjectId(pid); setTab("scheduled"); }} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Schedule</button>
+                    <button onClick={() => deleteProject(pid)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--risk-high)" }}>Delete</button>
                   </div>
                 </div>
               );
@@ -851,7 +877,7 @@ export default function LogAnalyzer() {
                 style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
                 <option value="">Select a project...</option>
                 {projects.map((p) => (
-                  <option key={p.projectId} value={p.projectId}>{p.name} ({p.subModule})</option>
+                  <option key={getProjectId(p)} value={getProjectId(p)}>{p.name} ({(p as any).sub_module || p.subModule})</option>
                 ))}
               </select>
             )}
@@ -1651,6 +1677,33 @@ export default function LogAnalyzer() {
       {/* ══════════ Tab 4: Analysis Results ══════════ */}
       {tab === "results" && (
         <div>
+          {/* Date filter */}
+          <div className="flex gap-3 mb-4 items-end">
+            <div>
+              <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Filter Start</label>
+              <input type="date" value={resultFilterStart} onChange={(e) => setResultFilterStart(e.target.value)}
+                className="text-sm px-3 py-1.5 rounded border outline-none"
+                style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+            </div>
+            <div>
+              <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Filter End</label>
+              <input type="date" value={resultFilterEnd} onChange={(e) => setResultFilterEnd(e.target.value)}
+                className="text-sm px-3 py-1.5 rounded border outline-none"
+                style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+            </div>
+            <button onClick={async () => {
+              let url = "/log-analyzer/akamai/jobs?tenant_id=s_sport_plus&deduplicate=true";
+              if (resultFilterStart) url += `&filter_start=${resultFilterStart}`;
+              if (resultFilterEnd) url += `&filter_end=${resultFilterEnd}`;
+              try { setJobHistory(await apiGet(url)); } catch { /* */ }
+            }} className="px-3 py-1.5 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+              Filter
+            </button>
+            {(resultFilterStart || resultFilterEnd) && (
+              <button onClick={() => { setResultFilterStart(""); setResultFilterEnd(""); }} className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
+            )}
+          </div>
+
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
             <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Fetch Job History</h3>
