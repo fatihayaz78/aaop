@@ -169,7 +169,7 @@ def test_foreign_country_breakdown():
     df = pd.DataFrame({
         "country": ["TR", "DE", "DE", "US", "TR", "FR"],
         "bytes": [1000, 2000, 3000, 4000, 5000, 6000],
-        "client_ip": ["ip1", "ip2", "ip3", "ip4", "ip5", "ip6"],
+        "client_ip_hash": ["ip1", "ip2", "ip3", "ip4", "ip5", "ip6"],
         "req_time_sec": [1711000000, 1711001000, 1711002000, 1711003000, 1711004000, 1711005000],
         "req_path": ["/a", "/b", "/c", "/d", "/e", "/f"],
     })
@@ -195,7 +195,7 @@ def test_top_offenders_foreign():
     df = pd.DataFrame({
         "country": ["DE", "DE", "DE", "US", "US", "FR"],
         "bytes": [1000, 2000, 3000, 4000, 5000, 6000],
-        "client_ip": ["ipA", "ipA", "ipA", "ipB", "ipB", "ipC"],
+        "client_ip_hash": ["ipA", "ipA", "ipA", "ipB", "ipB", "ipC"],
         "req_time_sec": [1711000000, 1711001000, 1711002000, 1711003000, 1711004000, 1711005000],
         "req_path": ["/live/a", "/live/b", "/api/c", "/live/d", "/api/e", "/other"],
     })
@@ -205,7 +205,7 @@ def test_top_offenders_foreign():
     offenders = result["top_offenders"]
     assert len(offenders) >= 3
     # ipA has 3 requests → should be first
-    assert offenders[0]["client_ip"] == "ipA"
+    assert offenders[0]["client_ip_hash"] == "ipA"
     assert offenders[0]["request_count"] == 3
     assert offenders[0]["country"] == "DE"
     # Should have top_paths
@@ -216,7 +216,7 @@ def test_session_duration_calculation():
     """Session duration per IP calculated correctly."""
     # IP1: 14 hours span (flagged), IP2: 2 hours span (not flagged)
     df = pd.DataFrame({
-        "client_ip": ["ip1", "ip1", "ip1", "ip2", "ip2"],
+        "client_ip_hash": ["ip1", "ip1", "ip1", "ip2", "ip2"],
         "req_time_sec": [1711000000, 1711025200, 1711050400, 1711000000, 1711007200],  # ip1: ~14h, ip2: 2h
         "bytes": [1000, 2000, 3000, 4000, 5000],
         "country": ["TR", "TR", "TR", "DE", "DE"],
@@ -228,5 +228,5 @@ def test_session_duration_calculation():
     assert result["affected_rows"] == 3  # ip1's 3 rows
     offenders = result["top_offenders"]
     assert len(offenders) == 1  # only ip1
-    assert offenders[0]["client_ip"] == "ip1"
+    assert offenders[0]["client_ip_hash"] == "ip1"
     assert offenders[0]["session_hours"] > 12

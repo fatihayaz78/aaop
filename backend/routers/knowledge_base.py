@@ -50,7 +50,7 @@ async def list_documents(collection: str = "incidents", limit: int = 20,
     ctx: TenantContext = Depends(get_tenant_context)) -> dict[str, Any]:
     from apps.knowledge_base.seed import get_all_docs
     docs = get_all_docs().get(collection, [])
-    items = [{"id": d["id"], "title": d["title"], "content_preview": d["content"][:100], "collection": collection} for d in docs[:limit]]
+    items = [{"id": d["id"], "title": d["title"], "content": d["content"], "content_preview": d["content"][:150], "collection": collection} for d in docs[:limit]]
     return {"items": items, "total": len(docs)}
 
 @router.post("/documents")

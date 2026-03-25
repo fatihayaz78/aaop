@@ -63,7 +63,7 @@ class AkamaiAnalyzer:
         p99_ttfb = ttfb_values[int(len(ttfb_values) * 0.99)] if ttfb_values else 0.0
 
         # FIX 6: Unique client IPs (already hashed by parser)
-        unique_ips = len(set(e.client_ip for e in logs if e.client_ip and e.client_ip != "-"))
+        unique_ips = len(set(e.client_ip_hash for e in logs if e.client_ip_hash and e.client_ip_hash != "-"))
 
         # FIX 8c: Bandwidth savings (cache efficiency)
         savings_pct = 0.0

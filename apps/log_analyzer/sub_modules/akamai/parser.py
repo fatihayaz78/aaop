@@ -16,8 +16,8 @@ logger = structlog.get_logger(__name__)
 # DS2 TSV field order (22 fields, tab-separated)
 TSV_FIELD_ORDER = [
     "version", "cp_code", "req_time_sec", "bytes", "client_bytes",
-    "content_type", "response_body_size", "user_agent", "hostname",
-    "req_path", "status_code", "client_ip", "req_range", "cache_status",
+    "content_type", "response_body_size", "user_agent_hash", "hostname",
+    "req_path", "status_code", "client_ip_hash", "req_range", "cache_status",
     "dns_lookup_time_ms", "transfer_time_ms", "turn_around_time_ms",
     "error_code", "cache_hit", "edge_ip", "country", "city",
 ]
@@ -27,12 +27,12 @@ CSV_FIELD_MAP: dict[str, str] = {
     "reqTimeSec": "req_time_sec",
     "CP": "cp_code",
     "Bytes": "bytes",
-    "cliIP": "client_ip",
+    "cliIP": "client_ip_hash",
     "statusCode": "status_code",
     "proto": "_proto",
     "reqHost": "hostname",
     "reqPath": "req_path",
-    "UA": "user_agent",
+    "UA": "user_agent_hash",
     "referer": "_referer",
     "tlsVersion": "_tls_version",
     "tlsOH": "_tls_oh",
@@ -57,7 +57,7 @@ CSV_FIELD_MAP: dict[str, str] = {
 }
 
 # PII fields that need hashing
-_PII_FIELDS = {"cliIP", "UA", "client_ip", "user_agent"}
+_PII_FIELDS = {"cliIP", "UA", "client_ip_hash", "user_agent_hash"}
 
 _INT_FIELDS = {
     "bytes", "status_code", "response_body_size", "dns_lookup_time_ms",
@@ -127,10 +127,10 @@ def parse_tsv(content: str) -> list[AkamaiLogEntry]:
             fields.extend([""] * (22 - len(fields)))
         raw = dict(zip(TSV_FIELD_ORDER, fields[:22], strict=False))
         try:
-            if raw.get("client_ip"):
-                raw["client_ip"] = _hash_value(raw["client_ip"])
-            if raw.get("user_agent"):
-                raw["user_agent"] = _hash_value(raw["user_agent"])
+            if raw.get("client_ip_hash"):
+                raw["client_ip_hash"] = _hash_value(raw["client_ip_hash"])
+            if raw.get("user_agent_hash"):
+                raw["user_agent_hash"] = _hash_value(raw["user_agent_hash"])
             entry_data: dict[str, object] = {}
             for k, v in raw.items():
                 v = v.strip()

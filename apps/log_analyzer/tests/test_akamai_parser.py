@@ -31,13 +31,13 @@ def test_parse_csv_fields(normal_csv: str):
 def test_parse_csv_pii_scrubbed(normal_csv: str):
     entries = parse_csv(normal_csv)
     # client_ip should be hashed, not raw
-    assert entries[0].client_ip is not None
-    assert entries[0].client_ip != "203.0.113.1"
-    assert len(entries[0].client_ip) == 16  # SHA256 truncated
+    assert entries[0].client_ip_hash is not None
+    assert entries[0].client_ip_hash != "203.0.113.1"
+    assert len(entries[0].client_ip_hash) == 16  # SHA256 truncated
 
     # user_agent should be hashed
-    assert entries[0].user_agent is not None
-    assert entries[0].user_agent != "Mozilla/5.0"
+    assert entries[0].user_agent_hash is not None
+    assert entries[0].user_agent_hash != "Mozilla/5.0"
 
 
 def test_parse_csv_numeric_coercion(normal_csv: str):
@@ -63,7 +63,7 @@ def test_parse_json():
     entries = parse_json(json.dumps(data))
     assert len(entries) == 1
     assert entries[0].status_code == 200
-    assert entries[0].client_ip != "10.0.0.1"  # PII scrubbed
+    assert entries[0].client_ip_hash != "10.0.0.1"  # PII scrubbed
 
 
 def test_parse_json_ndjson():
