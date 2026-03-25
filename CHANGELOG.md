@@ -8,6 +8,28 @@
 
 ---
 
+## [S23] — 2026-03-25
+### Fixed (Log Analyzer — Critical Metric Corrections)
+- Bandwidth: now uses bytes field (idx 3) — was using responseBodySize (idx 6)
+- Cache Hit Rate: now uses cacheHit binary flag (idx 18) — was using cacheStatus==1
+- Error Rate: ERR_CLIENT_ABORT excluded (user behavior, not platform error)
+- Transfer Time: now uses transferTimeMSec (idx 15)
+- Removed fake "HTTPS %" metric (proto field not in DS2 22-field stream)
+- Renamed "Unique Subscribers" → "Unique Client IPs"
+- Added abort_rate, access_denied_rate, segment_type_distribution, bandwidth_savings_pct
+### Security (PII Fix — Critical)
+- client_ip and userAgent: SHA256 hashed at parse time, never stored raw
+### Added
+- docs/openapi.json — complete OpenAPI spec (101 paths, 116 operations)
+- docs/SWAGGER_GUIDE.md — API reference guide
+- GET /openapi-spec endpoint
+- Knowledge Base: "akamai_ds2" collection (8 docs), "platform" expanded
+- GET /knowledge/collections endpoint
+### Test
+- Full platform: 659 passed, 0 failures
+
+---
+
 ## [S22] — 2026-03-25
 ### Added
 - apps/ai_lab/seed.py — 10 experiments + 8 model registry entries (DuckDB)
