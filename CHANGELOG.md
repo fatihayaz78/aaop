@@ -8,6 +8,21 @@
 
 ---
 
+## [S17-P3] — 2026-03-25
+### Added
+- apps/ops_center/tests/test_router.py — 19 router tests
+  - Dashboard: shape, empty DB zeros, 24-slot trend
+  - Incidents: list, severity filter, status filter, pagination, detail found/not found
+  - Status patch: valid, invalid 422, not found 404
+  - RCA: found (rca_available=True), not found (rca_available=False)
+  - Decisions: list items, default limit 100
+  - Chat: response key, incident context, tenant header required
+### Test
+- ops_center suite: 51 passed, 0 failures (19 router + 14 agent + 10 tools + 8 schemas)
+- Full platform suite: 527 passed, 0 failures
+
+---
+
 ## [S17-P2] — 2026-03-25
 ### Added
 - Ops Center frontend (ops-center/page.tsx) — 4 tabs implemented

@@ -150,3 +150,9 @@ Output: TR özet (NOC) + EN teknik (DevOps)
 - Captain logAR chat panel wired (POST /ops/chat)
 - Known issues: minor UI bugs → deferred fix sprint
 - Next: P3 — Router tests (target 52+ tests, 0 failures)
+
+### P3 Complete — 2026-03-25
+- test_router.py: 19 tests (dashboard, incidents, RCA, decisions, chat)
+- ops_center total: 51 tests, 0 failures
+- Full platform: 527 passed, 0 failures
+- S17 COMPLETE

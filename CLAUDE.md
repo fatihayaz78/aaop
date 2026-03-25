@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S17 — Ops Center
-**Önceki:** S16 complete — Log Analyzer full UI (508 tests, 0 failures)
-**Son commit:** S17-P2 — Ops Center frontend 4 tabs complete
+**Aktif Sprint:** S17 complete → S18 next — Alert Center
+**Önceki:** S17 complete — Ops Center full (backend + frontend + tests, 51 tests)
+**Son commit:** S17-P3 — Ops Center router tests (527 total, 0 failures)
 
 ---
 
