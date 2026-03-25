@@ -24,8 +24,8 @@ class AkamaiLogEntry(BaseModel):
     content_type: str | None = None           # field 05
     req_path: str | None = None               # field 09
     # Client
-    user_agent_hash: str | None = None         # field 07 — SHA256 hashed at parse time
-    client_ip_hash: str | None = None         # field 11 — SHA256 hashed at parse time
+    user_agent: str | None = None              # field 07 — raw from DS2 log
+    client_ip: str | None = None              # field 11 — raw from DS2 log
     req_range: str | None = None              # field 12
     # Network
     hostname: str | None = None               # field 08

@@ -65,7 +65,7 @@ def test_infer_field_types_from_entry():
             "cp_code": "12345",
             "req_time_sec": 1711000000.123,
             "bytes": 50000,
-            "client_ip_hash": "a1b2c3d4e5f6a7b8",
+            "client_ip": "a1b2c3d4e5f6a7b8",
             "status_code": 200,
             "cache_hit": 1,
             "country": "TR",
@@ -77,7 +77,7 @@ def test_infer_field_types_from_entry():
             "cp_code": "12345",
             "req_time_sec": 1711003600.456,
             "bytes": 60000,
-            "client_ip_hash": "1234567890abcdef",
+            "client_ip": "1234567890abcdef",
             "status_code": 404,
             "cache_hit": 0,
             "country": "DE",
@@ -89,7 +89,7 @@ def test_infer_field_types_from_entry():
             "cp_code": "12345",
             "req_time_sec": 1711007200.789,
             "bytes": 70000,
-            "client_ip_hash": "fedcba9876543210",
+            "client_ip": "fedcba9876543210",
             "status_code": 301,
             "cache_hit": 1,
             "country": "US",
@@ -105,7 +105,7 @@ def test_infer_field_types_from_entry():
     assert field_map["cp_code"]["inferred_type"] == "integer"  # DS2 fallback override
     assert field_map["req_time_sec"]["inferred_type"] == "timestamp"
     assert field_map["bytes"]["inferred_type"] == "integer"
-    assert field_map["client_ip_hash"]["inferred_type"] == "ip_hash"
+    assert field_map["client_ip"]["inferred_type"] == "ip_hash"
     assert field_map["status_code"]["inferred_type"] == "integer"
     assert field_map["country"]["inferred_type"] == "string"
     assert field_map["content_type"]["inferred_type"] == "string"
@@ -336,8 +336,8 @@ def test_ds2_field_descriptions():
     """All 22 DS2 fields have descriptions."""
     expected_fields = {
         "version", "cp_code", "req_time_sec", "bytes", "client_bytes",
-        "content_type", "response_body_size", "user_agent_hash", "hostname",
-        "req_path", "status_code", "client_ip_hash", "req_range", "cache_status",
+        "content_type", "response_body_size", "user_agent", "hostname",
+        "req_path", "status_code", "client_ip", "req_range", "cache_status",
         "dns_lookup_time_ms", "transfer_time_ms", "turn_around_time_ms",
         "error_code", "cache_hit", "edge_ip", "country", "city",
     }
@@ -367,7 +367,7 @@ def test_auto_suggest_categories():
     assert DS2_DEFAULT_CATEGORIES["req_time_sec"] == "timing"
     assert DS2_DEFAULT_CATEGORIES["bytes"] == "traffic"
     assert DS2_DEFAULT_CATEGORIES["content_type"] == "content"
-    assert DS2_DEFAULT_CATEGORIES["client_ip_hash"] == "client"
+    assert DS2_DEFAULT_CATEGORIES["client_ip"] == "client"
     assert DS2_DEFAULT_CATEGORIES["hostname"] == "network"
     assert DS2_DEFAULT_CATEGORIES["status_code"] == "response"
     assert DS2_DEFAULT_CATEGORIES["cache_hit"] == "cache"

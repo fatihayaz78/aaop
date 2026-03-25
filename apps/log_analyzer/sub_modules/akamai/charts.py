@@ -300,8 +300,8 @@ def _chart_top_urls(logs: list[AkamaiLogEntry]) -> tuple[go.Figure, list[dict]]:
 def _chart_top_client_ips(logs: list[AkamaiLogEntry]) -> tuple[go.Figure, list[dict]]:
     counter: Counter[str] = Counter()
     for e in logs:
-        if e.client_ip_hash:
-            counter[e.client_ip_hash] += 1
+        if e.client_ip:
+            counter[e.client_ip] += 1
     top = counter.most_common(20)
     ips = [ip for ip, _ in top]
     counts = [n for _, n in top]

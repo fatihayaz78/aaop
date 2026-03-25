@@ -1,9 +1,8 @@
-"""Akamai DataStream 2 log parser — TSV (22 fields) and CSV/JSON with PII scrubbing."""
+"""Akamai DataStream 2 log parser — TSV (22 fields) and CSV/JSON. Raw values stored as-is."""
 
 from __future__ import annotations
 
 import csv
-import hashlib
 import io
 import json
 
@@ -16,8 +15,8 @@ logger = structlog.get_logger(__name__)
 # DS2 TSV field order (22 fields, tab-separated)
 TSV_FIELD_ORDER = [
     "version", "cp_code", "req_time_sec", "bytes", "client_bytes",
-    "content_type", "response_body_size", "user_agent_hash", "hostname",
-    "req_path", "status_code", "client_ip_hash", "req_range", "cache_status",
+    "content_type", "response_body_size", "user_agent", "hostname",
+    "req_path", "status_code", "client_ip", "req_range", "cache_status",
     "dns_lookup_time_ms", "transfer_time_ms", "turn_around_time_ms",
     "error_code", "cache_hit", "edge_ip", "country", "city",
 ]
@@ -27,12 +26,12 @@ CSV_FIELD_MAP: dict[str, str] = {
     "reqTimeSec": "req_time_sec",
     "CP": "cp_code",
     "Bytes": "bytes",
-    "cliIP": "client_ip_hash",
+    "cliIP": "client_ip",
     "statusCode": "status_code",
     "proto": "_proto",
     "reqHost": "hostname",
     "reqPath": "req_path",
-    "UA": "user_agent_hash",
+    "UA": "user_agent",
     "referer": "_referer",
     "tlsVersion": "_tls_version",
     "tlsOH": "_tls_oh",
@@ -56,20 +55,12 @@ CSV_FIELD_MAP: dict[str, str] = {
     "cacheHit": "cache_hit",
 }
 
-# PII fields that need hashing
-_PII_FIELDS = {"cliIP", "UA", "client_ip_hash", "user_agent_hash"}
-
 _INT_FIELDS = {
     "bytes", "status_code", "response_body_size", "dns_lookup_time_ms",
     "transfer_time_ms", "turn_around_time_ms", "cache_status", "cache_hit",
     "version", "client_bytes", "_headers_cnt", "_headers_size",
 }
 _FLOAT_FIELDS = {"req_time_sec"}
-
-
-def _hash_value(value: str) -> str:
-    """SHA256 hash for PII scrubbing."""
-    return hashlib.sha256(value.encode()).hexdigest()[:16]
 
 
 def _coerce_int(val: str) -> int | None:
@@ -87,7 +78,7 @@ def _coerce_float(val: str) -> float | None:
 
 
 def _build_entry(raw: dict[str, str]) -> AkamaiLogEntry:
-    """Convert a raw row dict into an AkamaiLogEntry with PII scrubbing."""
+    """Convert a raw row dict into an AkamaiLogEntry. Raw values stored as-is."""
     mapped: dict[str, object] = {}
     for csv_key, field_name in CSV_FIELD_MAP.items():
         val = raw.get(csv_key, "").strip()
@@ -100,10 +91,7 @@ def _build_entry(raw: dict[str, str]) -> AkamaiLogEntry:
                 mapped["cache_status"] = 1 if val.upper() == "HIT" else 0
             continue
 
-        # PII scrub
-        if csv_key in _PII_FIELDS:
-            mapped[field_name] = _hash_value(val)
-        elif field_name in _INT_FIELDS:
+        if field_name in _INT_FIELDS:
             mapped[field_name] = _coerce_int(val)
         elif field_name in _FLOAT_FIELDS:
             mapped[field_name] = _coerce_float(val)
@@ -127,10 +115,6 @@ def parse_tsv(content: str) -> list[AkamaiLogEntry]:
             fields.extend([""] * (22 - len(fields)))
         raw = dict(zip(TSV_FIELD_ORDER, fields[:22], strict=False))
         try:
-            if raw.get("client_ip_hash"):
-                raw["client_ip_hash"] = _hash_value(raw["client_ip_hash"])
-            if raw.get("user_agent_hash"):
-                raw["user_agent_hash"] = _hash_value(raw["user_agent_hash"])
             entry_data: dict[str, object] = {}
             for k, v in raw.items():
                 v = v.strip()

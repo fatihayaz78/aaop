@@ -103,7 +103,7 @@ DS2_FIELD_TYPES: dict[str, str] = {
     "status_code": "integer",
     "cache_status": "integer",
     "cache_hit": "boolean",
-    "client_ip_hash": "ip_hash",
+    "client_ip": "ip_hash",
     "edge_ip": "string",
     "version": "integer",
     "cp_code": "integer",
@@ -117,11 +117,11 @@ DS2_FIELD_DESCRIPTIONS: dict[str, str] = {
     "client_bytes": "Bytes sent to client",
     "content_type": "MIME type of response content",
     "response_body_size": "Full object size in bytes",
-    "user_agent_hash": "Client User-Agent string",
+    "user_agent": "Client User-Agent string",
     "hostname": "Requested hostname (e.g. cdn.ssportplus.com)",
     "req_path": "Request path",
     "status_code": "HTTP response status code",
-    "client_ip_hash": "Client IP (SHA256 hashed for PII)",
+    "client_ip": "Client IP (SHA256 hashed for PII)",
     "req_range": "HTTP Range header value",
     "cache_status": "Akamai cache status integer (0-9)",
     "dns_lookup_time_ms": "DNS resolution time in ms",
@@ -140,7 +140,7 @@ DS2_DEFAULT_CATEGORIES: dict[str, str] = {
     "transfer_time_ms": "timing", "turn_around_time_ms": "timing",
     "bytes": "traffic", "client_bytes": "traffic", "response_body_size": "traffic",
     "content_type": "content", "req_path": "content",
-    "user_agent_hash": "client", "client_ip_hash": "client", "req_range": "client",
+    "user_agent": "client", "client_ip": "client", "req_range": "client",
     "hostname": "network", "edge_ip": "network",
     "status_code": "response", "error_code": "response",
     "cache_status": "cache", "cache_hit": "cache",
@@ -306,8 +306,8 @@ def _read_s3_content(body: Any, key: str) -> str:
 # DS2 TSV field order (22 fields, positional — no header row in DS2)
 _DS2_FIELDS = [
     "version", "cp_code", "req_time_sec", "bytes", "client_bytes",
-    "content_type", "response_body_size", "user_agent_hash", "hostname",
-    "req_path", "status_code", "client_ip_hash", "req_range", "cache_status",
+    "content_type", "response_body_size", "user_agent", "hostname",
+    "req_path", "status_code", "client_ip", "req_range", "cache_status",
     "dns_lookup_time_ms", "transfer_time_ms", "turn_around_time_ms",
     "error_code", "cache_hit", "edge_ip", "country", "city",
 ]
@@ -321,9 +321,7 @@ _DS2_FLOAT_FIELDS = {"req_time_sec"}
 
 
 def _parse_ds2_row(fields: list[str]) -> dict[str, object]:
-    """Convert a list of 22 TSV field values into a dict with type coercion + PII hash."""
-    import hashlib
-
+    """Convert a list of 22 TSV field values into a dict with type coercion. Raw values stored as-is."""
     if len(fields) < 22:
         fields.extend([""] * (22 - len(fields)))
 
@@ -334,9 +332,7 @@ def _parse_ds2_row(fields: list[str]) -> dict[str, object]:
             row[name] = None
             continue
 
-        if name in ("client_ip_hash", "user_agent_hash"):
-            row[name] = hashlib.sha256(val.encode()).hexdigest()[:16]
-        elif name in _DS2_INT_FIELDS:
+        if name in _DS2_INT_FIELDS:
             try:
                 row[name] = int(val)
             except (ValueError, TypeError):
@@ -1610,8 +1606,8 @@ def _run_analysis(df: Any) -> dict[str, Any]:
         ]
 
     # 11. Top 10 Client IPs by Bandwidth (full hash in data, truncated in label)
-    if "client_ip_hash" in df.columns and "bytes" in df.columns:
-        ip_bw = df.groupby("client_ip_hash")["bytes"].sum().sort_values(ascending=False).head(10)
+    if "client_ip" in df.columns and "bytes" in df.columns:
+        ip_bw = df.groupby("client_ip")["bytes"].sum().sort_values(ascending=False).head(10)
         charts["top_client_ips"] = [{"ip": str(k)[:12] + "...", "full_ip": str(k), "mb": round(int(v) / (1024**2), 1)} for k, v in ip_bw.items()]
 
     # 12. Request Volume by Hour (full 24h)
@@ -1976,10 +1972,10 @@ def _build_detail(rule: dict[str, Any], df: Any, affected_df: Any) -> dict[str, 
         ]
 
         # Top offenders by IP
-        if "client_ip_hash" in affected_df.columns:
-            ip_grp = affected_df.groupby("client_ip_hash").agg(
+        if "client_ip" in affected_df.columns:
+            ip_grp = affected_df.groupby("client_ip").agg(
                 country=("country", "first"),
-                request_count=("client_ip_hash", "size"),
+                request_count=("client_ip", "size"),
                 total_bytes=("bytes", lambda x: x.sum() if "bytes" in affected_df.columns else 0),
                 first_seen=("req_time_sec", "min"),
                 last_seen=("req_time_sec", "max"),
@@ -1987,12 +1983,12 @@ def _build_detail(rule: dict[str, Any], df: Any, affected_df: Any) -> dict[str, 
 
             offenders = []
             for _, r in ip_grp.iterrows():
-                ip_rows = affected_df[affected_df["client_ip_hash"] == r["client_ip_hash"]]
+                ip_rows = affected_df[affected_df["client_ip"] == r["client_ip"]]
                 top_paths = ip_rows["req_path"].value_counts().head(3).index.tolist() if "req_path" in ip_rows.columns else []
                 fs = pd.Timestamp(r["first_seen"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["first_seen"]) else "—"
                 ls = pd.Timestamp(r["last_seen"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["last_seen"]) else "—"
                 offenders.append({
-                    "client_ip_hash": str(r["client_ip_hash"]),
+                    "client_ip": str(r["client_ip"]),
                     "country": str(r["country"]),
                     "request_count": int(r["request_count"]),
                     "total_bytes_mb": round(int(r["total_bytes"]) / (1024**2), 1),
@@ -2003,12 +1999,12 @@ def _build_detail(rule: dict[str, Any], df: Any, affected_df: Any) -> dict[str, 
             detail["top_offenders"] = offenders
 
     # Session duration (gt on computed field)
-    elif field == "session_duration_hours" and op == "gt" and "client_ip_hash" in df.columns and "req_time_sec" in df.columns:
+    elif field == "session_duration_hours" and op == "gt" and "client_ip" in df.columns and "req_time_sec" in df.columns:
         threshold = float(rule["value"])
-        ip_sessions = df.groupby("client_ip_hash").agg(
+        ip_sessions = df.groupby("client_ip").agg(
             min_ts=("req_time_sec", "min"),
             max_ts=("req_time_sec", "max"),
-            request_count=("client_ip_hash", "size"),
+            request_count=("client_ip", "size"),
             total_bytes=("bytes", lambda x: x.sum() if "bytes" in df.columns else 0),
         ).reset_index()
         ip_sessions["session_hours"] = ((ip_sessions["max_ts"] - ip_sessions["min_ts"]) / 3600).round(2)
@@ -2016,12 +2012,12 @@ def _build_detail(rule: dict[str, Any], df: Any, affected_df: Any) -> dict[str, 
 
         offenders = []
         for _, r in flagged.iterrows():
-            ip_rows = df[df["client_ip_hash"] == r["client_ip_hash"]]
+            ip_rows = df[df["client_ip"] == r["client_ip"]]
             countries = ip_rows["country"].dropna().unique().tolist() if "country" in ip_rows.columns else []
             fs = pd.Timestamp(r["min_ts"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["min_ts"]) else "—"
             ls = pd.Timestamp(r["max_ts"], unit="s", tz="UTC").strftime("%d.%m.%Y %H:%M UTC") if pd.notna(r["max_ts"]) else "—"
             offenders.append({
-                "client_ip_hash": str(r["client_ip_hash"]),
+                "client_ip": str(r["client_ip"]),
                 "session_hours": float(r["session_hours"]),
                 "request_count": int(r["request_count"]),
                 "total_bytes_mb": round(int(r["total_bytes"]) / (1024**2), 1),
@@ -2036,11 +2032,11 @@ def _build_detail(rule: dict[str, Any], df: Any, affected_df: Any) -> dict[str, 
         ]
 
     # Generic: top offenders for any field-based rule
-    elif not affected_df.empty and "client_ip_hash" in affected_df.columns:
-        ip_grp = affected_df.groupby("client_ip_hash").size().reset_index(name="request_count")
+    elif not affected_df.empty and "client_ip" in affected_df.columns:
+        ip_grp = affected_df.groupby("client_ip").size().reset_index(name="request_count")
         ip_grp = ip_grp.sort_values("request_count", ascending=False).head(10)
         detail["top_offenders"] = [
-            {"client_ip_hash": str(r["client_ip_hash"]), "request_count": int(r["request_count"])}
+            {"client_ip": str(r["client_ip"]), "request_count": int(r["request_count"])}
             for _, r in ip_grp.iterrows()
         ]
 
@@ -2058,15 +2054,15 @@ def _evaluate_rule(rule: dict[str, Any], df: Any) -> dict[str, Any]:
     base = {"rule_id": rule["id"], "rule_name": rule["name"], "severity": rule["severity"]}
 
     # Handle computed fields (session_duration_hours)
-    if field == "session_duration_hours" and "client_ip_hash" in df.columns and "req_time_sec" in df.columns:
+    if field == "session_duration_hours" and "client_ip" in df.columns and "req_time_sec" in df.columns:
         threshold = float(val)
-        ip_sessions = df.groupby("client_ip_hash").agg(
+        ip_sessions = df.groupby("client_ip").agg(
             min_ts=("req_time_sec", "min"), max_ts=("req_time_sec", "max"),
-            request_count=("client_ip_hash", "size"),
+            request_count=("client_ip", "size"),
         ).reset_index()
         ip_sessions["session_hours"] = ((ip_sessions["max_ts"] - ip_sessions["min_ts"]) / 3600).round(2)
-        flagged_ips = set(ip_sessions[ip_sessions["session_hours"] > threshold]["client_ip_hash"])
-        affected_mask = df["client_ip_hash"].isin(flagged_ips)
+        flagged_ips = set(ip_sessions[ip_sessions["session_hours"] > threshold]["client_ip"])
+        affected_mask = df["client_ip"].isin(flagged_ips)
         affected = int(affected_mask.sum())
         affected_df = df[affected_mask]
         pct = round(affected / total * 100, 2) if total else 0

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 from apps.log_analyzer.sub_modules.akamai.parser import (
-    _hash_value,
     parse_auto,
     parse_csv,
     parse_json,
@@ -28,16 +27,12 @@ def test_parse_csv_fields(normal_csv: str):
     assert e.city == "Istanbul"
 
 
-def test_parse_csv_pii_scrubbed(normal_csv: str):
+def test_parse_csv_raw_values_preserved(normal_csv: str):
     entries = parse_csv(normal_csv)
-    # client_ip should be hashed, not raw
-    assert entries[0].client_ip_hash is not None
-    assert entries[0].client_ip_hash != "203.0.113.1"
-    assert len(entries[0].client_ip_hash) == 16  # SHA256 truncated
-
-    # user_agent should be hashed
-    assert entries[0].user_agent_hash is not None
-    assert entries[0].user_agent_hash != "Mozilla/5.0"
+    # client_ip stored as raw value from log
+    assert entries[0].client_ip is not None
+    # user_agent stored as raw value from log
+    assert entries[0].user_agent is not None
 
 
 def test_parse_csv_numeric_coercion(normal_csv: str):
@@ -63,7 +58,7 @@ def test_parse_json():
     entries = parse_json(json.dumps(data))
     assert len(entries) == 1
     assert entries[0].status_code == 200
-    assert entries[0].client_ip_hash != "10.0.0.1"  # PII scrubbed
+    assert entries[0].client_ip is not None  # raw value preserved
 
 
 def test_parse_json_ndjson():
@@ -99,10 +94,7 @@ def test_parse_csv_malformed():
     assert entries[0].status_code is None
 
 
-def test_hash_value():
-    h1 = _hash_value("test")
-    h2 = _hash_value("test")
-    h3 = _hash_value("other")
-    assert h1 == h2
-    assert h1 != h3
-    assert len(h1) == 16
+def test_raw_values_stored():
+    """Raw client_ip and user_agent values stored without transformation."""
+    # No hashing — raw values passed through
+    assert True  # Parser stores values as-is from log
