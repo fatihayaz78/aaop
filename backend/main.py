@@ -30,6 +30,20 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("startup_begin")
     await init_clients()
+    # Seed mock data (non-blocking, idempotent)
+    try:
+        from backend.dependencies import _duckdb, _sqlite
+        if _duckdb:
+            from apps.ops_center.seed import seed_ops_center_mock_data
+            seed_ops_center_mock_data(_duckdb)
+        if _duckdb and _sqlite:
+            from apps.viewer_experience.seed import seed_viewer_experience_mock_data
+            await seed_viewer_experience_mock_data(_sqlite, _duckdb)
+        if _duckdb:
+            from apps.live_intelligence.seed import seed_live_intelligence_mock_data
+            seed_live_intelligence_mock_data(_duckdb)
+    except Exception as exc:
+        logger.warning("seed_startup_error", error=str(exc))
     logger.info("startup_complete")
     yield
     logger.info("shutdown_begin")

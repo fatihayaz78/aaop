@@ -8,6 +8,31 @@
 
 ---
 
+## [S19] — 2026-03-25
+### Added
+- apps/viewer_experience/seed.py — 20 complaints (SQLite) + 200 QoE sessions (DuckDB)
+- GET /viewer/dashboard — avg score, distribution, device breakdown, 24h trend
+- GET /viewer/qoe/metrics — paginated, device/content_type filter
+- GET /viewer/qoe/anomalies — sessions below 2.5 threshold
+- GET /viewer/complaints — paginated, status/priority/category filter
+- POST /viewer/complaints — submit new complaint
+- GET /viewer/trends — by device, by region, by category
+- Frontend: 6 tabs (QoE Dashboard, Live Sessions, Anomaly Feed, Complaints, Trends, Segments)
+- apps/live_intelligence/seed.py — 15 live events (DuckDB)
+- GET /live/dashboard — live now, upcoming, pre-scale, DRM summary
+- GET /live/events — paginated, status filter
+- GET /live/events/{id} — detail
+- GET /live/drm/status — Widevine, FairPlay, PlayReady health
+- GET /live/sportradar — mock SportRadar fixture
+- GET /live/epg — 4-channel EPG schedule
+- Frontend: 6 tabs (Dashboard, Event Calendar, Live Monitor, Pre-Scale, DRM Status, EPG)
+### Test
+- viewer_experience suite: 52 passed, 0 failures
+- live_intelligence suite: 51 passed, 0 failures
+- Full platform: 575 passed, 0 failures
+
+---
+
 ## [S18] — 2026-03-25
 ### Added
 - apps/alert_center/seed.py — 5 rules, 3 channels, 2 suppression windows, 100 alert history

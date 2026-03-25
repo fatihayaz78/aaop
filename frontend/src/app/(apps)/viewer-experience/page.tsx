@@ -2,61 +2,114 @@
 
 import { useState, useEffect, useCallback } from "react";
 import MetricCard from "@/components/ui/MetricCard";
-import SeverityBadge from "@/components/ui/SeverityBadge";
 import LogTable from "@/components/ui/LogTable";
 import RechartsWrapper from "@/components/charts/RechartsWrapper";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
-import { apiGet } from "@/lib/api";
-import type { SeverityLevel } from "@/types";
+import { apiGet, apiPost } from "@/lib/api";
+import type { ViewerDashboard, QoEMetric, Complaint } from "@/types/viewer_experience";
 
-type Tab = "dashboard" | "sessions" | "anomalies" | "complaints" | "trends";
+type Tab = "dashboard" | "sessions" | "anomalies" | "complaints" | "trends" | "segments";
 
-function qoeColor(score: number): string {
-  if (score < 2.5) return "var(--risk-high)";
-  if (score < 3.5) return "var(--risk-medium)";
-  return "var(--risk-low)";
-}
+const scoreColor = (s: number) => s >= 4 ? "var(--risk-low)" : s >= 3 ? "var(--risk-medium)" : "var(--risk-high)";
+const sentimentEmoji: Record<string, string> = { negative: "\uD83D\uDE1E", neutral: "\uD83D\uDE10", positive: "\uD83D\uDE0A", pending: "\u2753" };
 
 export default function ViewerExperience() {
   const [tab, setTab] = useState<Tab>("dashboard");
-  const [anomalies, setAnomalies] = useState<Record<string, unknown>[]>([]);
-  const [complaints, setComplaints] = useState<Record<string, unknown>[]>([]);
-  const [selectedComplaint, setSelectedComplaint] = useState<Record<string, unknown> | null>(null);
-  const [selectedSession, setSelectedSession] = useState<Record<string, unknown> | null>(null);
+  const [dash, setDash] = useState<ViewerDashboard | null>(null);
+  const [sessions, setSessions] = useState<QoEMetric[]>([]);
+  const [anomalies, setAnomalies] = useState<QoEMetric[]>([]);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [trends, setTrends] = useState<Record<string, unknown>>({});
+  const [deviceFilter, setDeviceFilter] = useState("");
+  const [contentFilter, setContentFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
   const [catFilter, setCatFilter] = useState("");
-  const [priFilter, setPriFilter] = useState("");
+  const [showComplaintForm, setShowComplaintForm] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newCat, setNewCat] = useState("buffering");
+  const [newContent, setNewContent] = useState("");
 
-  const loadData = useCallback(async () => {
-    try {
-      const [c] = await Promise.all([
-        apiGet<Record<string, unknown>[]>("/viewer/complaints?tenant_id=bein_sports&limit=50"),
-      ]);
-      setComplaints(c);
-    } catch { /* backend offline */ }
+  const loadDashboard = useCallback(async () => {
+    try { setDash(await apiGet<ViewerDashboard>("/viewer/dashboard")); } catch { /* */ }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const loadSessions = useCallback(async () => {
+    try {
+      let url = "/viewer/qoe/metrics?limit=50";
+      if (deviceFilter) url += `&device=${deviceFilter}`;
+      if (contentFilter) url += `&content_type=${contentFilter}`;
+      const res = await apiGet<{ items: QoEMetric[] }>(url);
+      setSessions(res.items ?? []);
+    } catch { /* */ }
+  }, [deviceFilter, contentFilter]);
 
-  const filteredComplaints = complaints.filter((c) => {
-    if (catFilter && c.category !== catFilter) return false;
-    if (priFilter && c.priority !== priFilter) return false;
-    return true;
-  });
+  const loadAnomalies = useCallback(async () => {
+    try { const res = await apiGet<{ items: QoEMetric[] }>("/viewer/qoe/anomalies"); setAnomalies(res.items ?? []); } catch { /* */ }
+  }, []);
+
+  const loadComplaints = useCallback(async () => {
+    try {
+      let url = "/viewer/complaints?limit=50";
+      if (statusFilter) url += `&status=${statusFilter}`;
+      if (priorityFilter) url += `&priority=${priorityFilter}`;
+      if (catFilter) url += `&category=${catFilter}`;
+      const res = await apiGet<{ items: Complaint[] }>(url);
+      setComplaints(res.items ?? []);
+    } catch { /* */ }
+  }, [statusFilter, priorityFilter, catFilter]);
+
+  const loadTrends = useCallback(async () => {
+    try { setTrends(await apiGet("/viewer/trends")); } catch { /* */ }
+  }, []);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => {
+    if (tab === "sessions") loadSessions();
+    if (tab === "anomalies") loadAnomalies();
+    if (tab === "complaints") loadComplaints();
+    if (tab === "trends") loadTrends();
+  }, [tab, loadSessions, loadAnomalies, loadComplaints, loadTrends]);
+
+  // Poll dashboard 30s
+  useEffect(() => {
+    if (tab !== "dashboard") return;
+    const i = setInterval(loadDashboard, 30000);
+    return () => clearInterval(i);
+  }, [tab, loadDashboard]);
+
+  // Poll anomalies 60s
+  useEffect(() => {
+    if (tab !== "anomalies") return;
+    const i = setInterval(loadAnomalies, 60000);
+    return () => clearInterval(i);
+  }, [tab, loadAnomalies]);
+
+  const submitComplaint = async () => {
+    if (!newTitle) return;
+    await apiPost("/viewer/complaints", { title: newTitle, category: newCat, content: newContent });
+    setNewTitle(""); setNewContent(""); setShowComplaintForm(false);
+    loadComplaints();
+  };
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: "dashboard", label: "QoE Dashboard" },
-    { key: "sessions", label: "Live Sessions" },
-    { key: "anomalies", label: "Anomaly Feed" },
-    { key: "complaints", label: "Complaints" },
-    { key: "trends", label: "Trends" },
+    { key: "dashboard", label: "QoE Dashboard" }, { key: "sessions", label: "Live Sessions" },
+    { key: "anomalies", label: "Anomaly Feed" }, { key: "complaints", label: "Complaints" },
+    { key: "trends", label: "Trends" }, { key: "segments", label: "Segments" },
   ];
 
-  const sentimentIcon = (s: unknown) => s === "positive" ? "😊" : s === "negative" ? "😠" : "😐";
+  const distData = dash ? [
+    { label: "Excellent", count: dash.score_distribution.excellent, fill: "#22c55e" },
+    { label: "Good", count: dash.score_distribution.good, fill: "#3b82f6" },
+    { label: "Fair", count: dash.score_distribution.fair, fill: "#eab308" },
+    { label: "Poor", count: dash.score_distribution.poor, fill: "#ef4444" },
+  ] : [];
+
+  const devData = dash ? Object.entries(dash.device_breakdown).map(([k, v]) => ({ device: k, count: v })) : [];
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>Viewer Experience</h2>
-
       <div className="flex gap-1 mb-6 border-b" style={{ borderColor: "var(--border)" }}>
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
@@ -67,140 +120,169 @@ export default function ViewerExperience() {
         ))}
       </div>
 
-      {tab === "dashboard" && (
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <MetricCard title="Avg QoE Score" value="—" unit="/5.0" trend="flat" />
-            <MetricCard title="Sessions Today" value="0" trend="flat" />
-            <MetricCard title="Anomalies Active" value="0" trend="flat" />
-            <MetricCard title="Buffering Rate" value="—" unit="%" trend="flat" />
+      {/* ═══ QoE Dashboard ═══ */}
+      {tab === "dashboard" && dash && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard title="Avg QoE Score" value={dash.avg_qoe_score.toFixed(2)} />
+            <MetricCard title="Below Threshold" value={dash.sessions_below_threshold} />
+            <MetricCard title="Active Complaints" value={dash.active_complaints} />
+            <MetricCard title="Sessions 24h" value={dash.total_sessions_24h} />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <RechartsWrapper data={[]} xKey="time" yKey="score" title="QoE Score Trend (24h)" color="var(--risk-low)" />
+          {/* QoE Gauge */}
+          <div className="flex justify-center">
+            <div className="relative w-40 h-40">
+              <svg viewBox="0 0 100 100" className="w-full h-full">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="var(--border)" strokeWidth="8" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke={scoreColor(dash.avg_qoe_score)}
+                  strokeWidth="8" strokeDasharray={`${(dash.avg_qoe_score / 5) * 264} 264`}
+                  strokeLinecap="round" transform="rotate(-90 50 50)" />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold" style={{ color: scoreColor(dash.avg_qoe_score) }}>{dash.avg_qoe_score.toFixed(1)}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>/ 5.0</span>
+              </div>
             </div>
-            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <RechartsWrapper data={[]} xKey="bucket" yKey="count" title="Startup Time Distribution" type="bar" color="var(--brand-primary)" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={distData} xKey="label" yKey="count" title="Score Distribution" height={180} type="bar" />
+            </div>
+            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={devData} xKey="device" yKey="count" title="Device Breakdown" height={180} type="bar" />
+            </div>
+            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={dash.qoe_trend_24h} xKey="hour" yKey="avg_score" title="QoE Trend 24h" height={180} type="line" />
             </div>
           </div>
         </div>
       )}
 
+      {/* ═══ Live Sessions ═══ */}
       {tab === "sessions" && (
         <div>
           <div className="flex gap-3 mb-4">
-            <select className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="ended">Ended</option>
+            <select value={deviceFilter} onChange={(e) => { setDeviceFilter(e.target.value); }}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              <option value="">All Devices</option>
+              {["mobile", "desktop", "smarttv", "tablet"].map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
+            <select value={contentFilter} onChange={(e) => { setContentFilter(e.target.value); }}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              <option value="">All Content</option>
+              <option value="live">Live</option><option value="vod">VOD</option>
+            </select>
+            <button onClick={loadSessions} className="px-3 py-1.5 rounded text-sm border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Refresh</button>
           </div>
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <LogTable
-              columns={[
-                { key: "sessionId", label: "Session" },
-                { key: "userIdHash", label: "User Hash" },
-                { key: "bitrateAvg", label: "Bitrate" },
-                { key: "bufferingRatio", label: "Buffer %" },
-                { key: "qualityScore", label: "QoE", render: (v) => (
-                  <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: `${qoeColor(v as number)}20`, color: qoeColor(v as number) }}>
-                    {(v as number)?.toFixed(1) ?? "—"}
-                  </span>
-                )},
-                { key: "status", label: "Status" },
-              ]}
-              data={[]}
-              onRowClick={(row) => setSelectedSession(row)}
-            />
+            <LogTable columns={[
+              { key: "session_id", label: "Session", render: (v) => <span className="font-mono text-xs">{String(v).slice(0, 12)}...</span> },
+              { key: "quality_score", label: "QoE", render: (v) => <span style={{ color: scoreColor(Number(v)) }}>{Number(v).toFixed(2)}</span> },
+              { key: "device_type", label: "Device" }, { key: "region", label: "Region" },
+              { key: "buffering_ratio", label: "Buffer %", render: (v) => <span>{(Number(v) * 100).toFixed(1)}%</span> },
+              { key: "startup_time_ms", label: "Startup", render: (v) => <span>{Number(v)}ms</span> },
+            ]} data={sessions as unknown as Record<string, unknown>[]} />
           </div>
-          {selectedSession && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedSession(null)}>
-              <div className="w-full max-w-lg rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between mb-4">
-                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Session Detail</h3>
-                  <button onClick={() => setSelectedSession(null)} style={{ color: "var(--text-muted)" }}>✕</button>
+        </div>
+      )}
+
+      {/* ═══ Anomaly Feed ═══ */}
+      {tab === "anomalies" && (
+        <div>
+          {anomalies.length === 0 ? (
+            <div className="rounded-lg border p-12 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <div className="text-3xl mb-2" style={{ color: "var(--risk-low)" }}>&#10003;</div>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No QoE anomalies in the last 24h</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {anomalies.map((a, i) => (
+                <div key={i} className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--risk-high)" }}>
+                  <div className="text-2xl font-bold mb-2" style={{ color: "var(--risk-high)" }}>{Number((a as any).quality_score ?? a.qoe_score).toFixed(2)}</div>
+                  <p className="text-xs font-mono mb-1" style={{ color: "var(--text-muted)" }}>{a.session_id?.slice(0, 16)}</p>
+                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{a.device_type} | {a.region}</p>
                 </div>
-                <pre className="text-xs p-3 rounded overflow-auto max-h-64" style={{ backgroundColor: "var(--background)", color: "var(--text-secondary)" }}>
-                  {JSON.stringify(selectedSession, null, 2)}
-                </pre>
-              </div>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {tab === "anomalies" && (
-        <div>
-          <div className="flex justify-between mb-4">
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{anomalies.length} anomalies</p>
-            <button onClick={() => setAnomalies([])} className="text-xs px-3 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Clear</button>
-          </div>
-          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            {anomalies.length === 0 ? (
-              <div className="p-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>Listening for QoE anomalies... No anomalies yet.</div>
-            ) : (
-              <LogTable columns={[
-                { key: "timestamp", label: "Time" },
-                { key: "sessionId", label: "Session" },
-                { key: "anomalyType", label: "Type" },
-                { key: "qoeScore", label: "QoE" },
-                { key: "severity", label: "Severity", render: (v) => <SeverityBadge severity={v as SeverityLevel} /> },
-              ]} data={anomalies.slice(0, 50)} />
-            )}
-          </div>
-        </div>
-      )}
-
+      {/* ═══ Complaints ═══ */}
       {tab === "complaints" && (
         <div>
           <div className="flex gap-3 mb-4 flex-wrap">
-            <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              <option value="">All Status</option><option value="open">Open</option><option value="resolved">Resolved</option>
+            </select>
+            <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              <option value="">All Priority</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option>
+            </select>
+            <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
               <option value="">All Categories</option>
-              {["buffering", "quality", "audio", "playback", "other"].map((c) => <option key={c} value={c}>{c}</option>)}
+              {["buffering", "playback_error", "audio_sync", "login_issue", "content_quality", "subtitle"].map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select value={priFilter} onChange={(e) => setPriFilter(e.target.value)} className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
-              <option value="">All Priorities</option>
-              {["P0", "P1", "P2", "P3"].map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <button onClick={() => setShowComplaintForm(!showComplaintForm)} className="px-3 py-1.5 rounded text-sm font-medium"
+              style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Submit Complaint</button>
           </div>
-          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <LogTable
-              columns={[
-                { key: "id", label: "ID" },
-                { key: "source", label: "Source" },
-                { key: "category", label: "Category", render: (v) => <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>{String(v)}</span> },
-                { key: "sentiment", label: "Sentiment", render: (v) => <span>{sentimentIcon(v)}</span> },
-                { key: "priority", label: "Priority", render: (v) => <SeverityBadge severity={v as SeverityLevel} /> },
-                { key: "status", label: "Status" },
-                { key: "createdAt", label: "Created" },
-              ]}
-              data={filteredComplaints}
-              onRowClick={(row) => setSelectedComplaint(row)}
-            />
-          </div>
-          {selectedComplaint && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedComplaint(null)}>
-              <div className="w-full max-w-lg rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between mb-4">
-                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Complaint Detail</h3>
-                  <button onClick={() => setSelectedComplaint(null)} style={{ color: "var(--text-muted)" }}>✕</button>
-                </div>
-                <pre className="text-xs p-3 rounded overflow-auto max-h-64" style={{ backgroundColor: "var(--background)", color: "var(--text-secondary)" }}>
-                  {JSON.stringify(selectedComplaint, null, 2)}
-                </pre>
-              </div>
+          {showComplaintForm && (
+            <div className="rounded-lg border p-4 mb-4 space-y-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <input type="text" placeholder="Title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded border outline-none" style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              <select value={newCat} onChange={(e) => setNewCat(e.target.value)}
+                className="text-sm px-3 py-2 rounded border" style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                {["buffering", "playback_error", "audio_sync", "login_issue", "content_quality", "subtitle"].map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <textarea placeholder="Details..." value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={3}
+                className="w-full text-sm px-3 py-2 rounded border outline-none resize-y" style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+              <button onClick={submitComplaint} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Submit</button>
             </div>
           )}
+          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <LogTable columns={[
+              { key: "priority", label: "Priority", render: (v) => <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: v === "P1" ? "var(--risk-high-bg)" : v === "P2" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)", color: v === "P1" ? "var(--risk-high)" : v === "P2" ? "var(--risk-medium)" : "var(--risk-low)" }}>{String(v)}</span> },
+              { key: "title", label: "Title" },
+              { key: "category", label: "Category" },
+              { key: "sentiment", label: "Mood", render: (v) => <span>{sentimentEmoji[String(v)] || "?"}</span> },
+              { key: "status", label: "Status" },
+              { key: "created_at", label: "Time", render: (v) => <span className="text-xs">{String(v).slice(0, 16)}</span> },
+            ]} data={complaints as unknown as Record<string, unknown>[]} />
+          </div>
         </div>
       )}
 
+      {/* ═══ Trends ═══ */}
       {tab === "trends" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <RechartsWrapper data={[]} xKey="date" yKey="count" title="Complaint Volume by Category (30d)" color="var(--brand-accent)" />
+            <RechartsWrapper data={(trends as any).qoe_by_device ?? []} xKey="device" yKey="avg_score" title="QoE by Device" height={200} type="bar" />
           </div>
           <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <RechartsWrapper data={[]} xKey="date" yKey="events" title="QoE Degradation Events" color="var(--risk-high)" />
+            <RechartsWrapper data={(trends as any).qoe_by_region ?? []} xKey="region" yKey="avg_score" title="QoE by Region" height={200} type="bar" />
+          </div>
+          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <RechartsWrapper data={(trends as any).complaint_categories ?? []} xKey="category" yKey="count" title="Complaint Categories" height={200} type="bar" />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Segments ═══ */}
+      {tab === "segments" && (
+        <div>
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>Segment analysis coming soon — requires 30 days of data</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[{ name: "Power Users", desc: "High engagement, QoE >4.0", count: "~12K", color: "var(--risk-low)" },
+              { name: "At-Risk", desc: "QoE declining, buffering >5%", count: "~3.2K", color: "var(--risk-high)" },
+              { name: "New Viewers", desc: "First session <7 days ago", count: "~8.5K", color: "var(--brand-primary)" }].map((s) => (
+              <div key={s.name} className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                <h4 className="text-sm font-semibold" style={{ color: s.color }}>{s.name}</h4>
+                <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>{s.desc}</p>
+                <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>{s.count}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
