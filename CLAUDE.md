@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S23 complete → S24 next — Fix Sprint (UI bugs)
-**Önceki:** S23 complete — Log Analyzer metric fixes + PII + Swagger + KB expansion
-**Son commit:** S23 complete
+**Aktif Sprint:** S24 next — UI Fix Sprint (browser testing all 11 apps)
+**Önceki:** S23 complete — Log Analyzer metrics + Swagger + KB expansion + fixes
+**Son commit:** S23-Fix — KB clickable cards + raw client_ip/user_agent restored (659 tests)
 
 ---
 

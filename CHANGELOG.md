@@ -8,6 +8,21 @@
 
 ---
 
+## [S23-Fix] — 2026-03-25
+### Fixed
+- Knowledge Base: document cards now clickable → Dialog with full content
+- Knowledge Base: search results clickable with score bar (green/amber/red)
+- Knowledge Base: akamai_ds2 added to search filter dropdown
+- Knowledge Base: Index Status tab now shows dynamic counts (not hardcoded)
+- Log Analyzer: removed PII hashing — client_ip and user_agent stored as raw values from DS2 logs
+  (hashing was never requested, reverted completely)
+### Test
+- log_analyzer: 99 passed, 0 failures
+- knowledge_base: 36 passed, 0 failures
+- Full platform: 659 passed, 0 failures
+
+---
+
 ## [S23] — 2026-03-25
 ### Fixed (Log Analyzer — Critical Metric Corrections)
 - Bandwidth: now uses bytes field (idx 3) — was using responseBodySize (idx 6)

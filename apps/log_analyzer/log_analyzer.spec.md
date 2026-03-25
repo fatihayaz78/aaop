@@ -374,3 +374,8 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Swagger: docs/openapi.json (101 paths, 116 operations)
 - Knowledge Base: akamai_ds2 collection (8 docs) + platform collection expanded
 - Status: ✅ Complete
+
+### S23-Fix — 2026-03-25
+- Removed PII hashing: client_ip and user_agent stored as raw values (as received from DS2)
+- KB: clickable document cards (Dialog with full content)
+- KB: dynamic index counts, akamai_ds2 in search filter dropdown
