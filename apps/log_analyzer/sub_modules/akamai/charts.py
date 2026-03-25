@@ -307,7 +307,7 @@ def _chart_top_client_ips(logs: list[AkamaiLogEntry]) -> tuple[go.Figure, list[d
     counts = [n for _, n in top]
     fig = go.Figure(go.Bar(x=counts, y=ips, orientation="h", marker_color=ACCENT))
     _apply_layout(fig, "Top 20 Client IPs (hashed)")
-    summary = [{"client_ip_hash": ip, "requests": n} for ip, n in top[:5]]
+    summary = [{"client_ip": ip, "requests": n} for ip, n in top[:5]]
     return fig, summary
 
 

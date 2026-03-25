@@ -103,7 +103,7 @@ DS2_FIELD_TYPES: dict[str, str] = {
     "status_code": "integer",
     "cache_status": "integer",
     "cache_hit": "boolean",
-    "client_ip": "ip_hash",
+    "client_ip": "string",
     "edge_ip": "string",
     "version": "integer",
     "cp_code": "integer",
@@ -121,7 +121,7 @@ DS2_FIELD_DESCRIPTIONS: dict[str, str] = {
     "hostname": "Requested hostname (e.g. cdn.ssportplus.com)",
     "req_path": "Request path",
     "status_code": "HTTP response status code",
-    "client_ip": "Client IP (SHA256 hashed for PII)",
+    "client_ip": "Client IP address",
     "req_range": "HTTP Range header value",
     "cache_status": "Akamai cache status integer (0-9)",
     "dns_lookup_time_ms": "DNS resolution time in ms",
@@ -176,9 +176,9 @@ def _infer_type(values: list[object]) -> str:
     # Check strings for patterns
     str_vals = [str(v) for v in sample]
 
-    # ip_hash: 16-char hex strings (from SHA256 truncation)
-    if all(len(s) == 16 and all(c in "0123456789abcdef" for c in s) for s in str_vals):
-        return "ip_hash"
+    # IP-like strings (dotted notation)
+    if all("." in s and all(p.isdigit() for p in s.split(".") if p) for s in str_vals):
+        return "ip_address"
 
     # timestamp: looks like unix epoch float
     try:

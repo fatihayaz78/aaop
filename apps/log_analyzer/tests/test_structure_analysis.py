@@ -41,9 +41,9 @@ def test_infer_type_timestamp():
     assert _infer_type([1711000000.123, 1711003600.456, 1711007200.789]) == "timestamp"
 
 
-def test_infer_type_ip_hash():
-    # SHA256 truncated to 16 hex chars
-    assert _infer_type(["a1b2c3d4e5f6a7b8", "1234567890abcdef", "fedcba9876543210"]) == "ip_hash"
+def test_infer_type_ip_address():
+    # IP addresses
+    assert _infer_type(["192.168.1.1", "10.0.0.1", "172.16.0.1"]) == "ip_address"
 
 
 def test_infer_type_boolean_from_int():
@@ -65,7 +65,7 @@ def test_infer_field_types_from_entry():
             "cp_code": "12345",
             "req_time_sec": 1711000000.123,
             "bytes": 50000,
-            "client_ip": "a1b2c3d4e5f6a7b8",
+            "client_ip": "203.0.113.1",
             "status_code": 200,
             "cache_hit": 1,
             "country": "TR",
@@ -77,7 +77,7 @@ def test_infer_field_types_from_entry():
             "cp_code": "12345",
             "req_time_sec": 1711003600.456,
             "bytes": 60000,
-            "client_ip": "1234567890abcdef",
+            "client_ip": "198.51.100.2",
             "status_code": 404,
             "cache_hit": 0,
             "country": "DE",
@@ -89,7 +89,7 @@ def test_infer_field_types_from_entry():
             "cp_code": "12345",
             "req_time_sec": 1711007200.789,
             "bytes": 70000,
-            "client_ip": "fedcba9876543210",
+            "client_ip": "192.0.2.3",
             "status_code": 301,
             "cache_hit": 1,
             "country": "US",
@@ -105,7 +105,7 @@ def test_infer_field_types_from_entry():
     assert field_map["cp_code"]["inferred_type"] == "integer"  # DS2 fallback override
     assert field_map["req_time_sec"]["inferred_type"] == "timestamp"
     assert field_map["bytes"]["inferred_type"] == "integer"
-    assert field_map["client_ip"]["inferred_type"] == "ip_hash"
+    assert field_map["client_ip"]["inferred_type"] == "ip_address"  # raw IP detected as IP address
     assert field_map["status_code"]["inferred_type"] == "integer"
     assert field_map["country"]["inferred_type"] == "string"
     assert field_map["content_type"]["inferred_type"] == "string"

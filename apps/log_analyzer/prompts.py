@@ -20,7 +20,7 @@ Always:
 - Use Turkish for executive summaries when tenant locale is TR
 
 Never:
-- Expose raw IP addresses (PII scrubbed to SHA256 hashes)
+- Share log data outside the platform without authorization
 - Make infrastructure changes without HIGH risk approval
 - Skip anomaly detection even if metrics look normal
 """

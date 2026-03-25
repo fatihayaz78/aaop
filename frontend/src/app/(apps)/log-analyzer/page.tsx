@@ -100,7 +100,7 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   integer: { bg: "rgba(34,197,94,0.15)", color: "#22c55e" },
   float: { bg: "rgba(234,179,8,0.15)", color: "#eab308" },
   string: { bg: "rgba(156,163,175,0.15)", color: "#9ca3af" },
-  ip_hash: { bg: "rgba(239,68,68,0.15)", color: "#ef4444" },
+  ip_address: { bg: "rgba(239,68,68,0.15)", color: "#ef4444" },
   boolean: { bg: "rgba(168,85,247,0.15)", color: "#a855f7" },
 };
 
@@ -1075,7 +1075,7 @@ export default function LogAnalyzer() {
                   { key: "cache_status_breakdown", title: "Cache Status Breakdown", desc: "Akamai cache status codes across all requests", x: "status", y: "count", type: "bar" as const },
                   { key: "error_rate_trend", title: "Error Rate Trend (%)", desc: "Hourly percentage of error responses (4xx/5xx)", x: "hour", y: "error_rate", type: "line" as const },
                   { key: "bytes_vs_client", title: "Server vs Client (MB)", desc: "Hourly comparison of total bytes vs bytes delivered to client", x: "hour", y: "server_mb", type: "line" as const },
-                  { key: "top_client_ips", title: "Top 10 Client IPs (MB)", desc: "Top 10 anonymized client IPs by bandwidth consumed (MB)", x: "ip", y: "mb", type: "bar" as const },
+                  { key: "top_client_ips", title: "Top 10 Client IPs (MB)", desc: "Top 10 client IPs by bandwidth consumed (MB)", x: "ip", y: "mb", type: "bar" as const },
                   { key: "request_volume_by_hour", title: "Request Volume by Hour", desc: "Number of requests per UTC hour", x: "hour", y: "requests", type: "bar" as const },
                   { key: "anomaly_timeline", title: "Anomaly Timeline (Latency)", desc: "Hourly average transfer latency with anomaly detection (z-score)", x: "hour", y: "avg_ms", type: "line" as const },
                 ] as const).map((chart) => {
@@ -1106,7 +1106,7 @@ export default function LogAnalyzer() {
                         type={chart.type}
                       />
                       {chart.key === "top_client_ips" && (
-                        <p className="text-xs mt-1 italic" style={{ color: "var(--text-muted)" }}>Client IPs are anonymized (SHA256)</p>
+                        {/* Client IPs shown as raw values from DS2 logs */}
                       )}
                       <details className="mt-2">
                         <summary className="text-xs cursor-pointer select-none" style={{ color: "var(--text-muted)" }}>Data Table</summary>

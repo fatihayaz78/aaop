@@ -42,7 +42,7 @@ class AkamaiLogEntry(BaseModel):
 
 
 # ── Backward-compat aliases for old field names used in tests ──
-# These allow existing tests using .cli_ip_hash, .proto, .ua_hash etc. to keep working
+# These allow existing tests using .cli_ip, .proto, .ua etc. to keep working
 # by mapping to new fields in the parse layer.
 
 
