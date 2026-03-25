@@ -17,9 +17,9 @@ def test_dashboard_returns_expected_shape(client):
     for k in ("total_documents", "collections", "recent_searches", "last_indexed"):
         assert k in data
 
-def test_dashboard_collections_has_3_keys(client):
+def test_dashboard_collections_has_4_keys(client):
     data = client.get("/knowledge/dashboard").json()
-    assert len(data["collections"]) == 3
+    assert len(data["collections"]) == 4  # incidents, runbooks, platform, akamai_ds2
 
 def test_search_returns_results(client):
     data = client.get("/knowledge/search?q=CDN+failure").json()

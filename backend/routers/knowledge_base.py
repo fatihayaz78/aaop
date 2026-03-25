@@ -62,3 +62,12 @@ async def create_document(payload: DocumentCreate, ctx: TenantContext = Depends(
 @router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, ctx: TenantContext = Depends(get_tenant_context)) -> dict[str, Any]:
     return {"approval_required": True, "message": "Document deletion requires admin approval. Contact platform team."}
+
+@router.get("/collections")
+async def list_collections(ctx: TenantContext = Depends(get_tenant_context)) -> dict[str, Any]:
+    from apps.knowledge_base.seed import get_all_docs
+    docs = get_all_docs()
+    return {
+        "collections": list(docs.keys()),
+        "counts": {k: len(v) for k, v in docs.items()},
+    }

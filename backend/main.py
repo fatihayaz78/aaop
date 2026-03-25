@@ -140,3 +140,9 @@ async def health_detailed() -> dict[str, str]:
 
     overall = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
     return {"status": overall, "version": "1.0.0", **checks}
+
+
+@app.get("/openapi-spec")
+async def openapi_spec() -> dict:
+    """Return the full OpenAPI specification for download."""
+    return app.openapi()

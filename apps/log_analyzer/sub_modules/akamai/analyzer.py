@@ -16,6 +16,14 @@ from apps.log_analyzer.sub_modules.akamai.schemas import (
 
 logger = structlog.get_logger(__name__)
 
+# FIX 3: Error code categorization
+SYSTEM_ERRORS = {
+    "ERR_FIRST_BYTE_TIMEOUT", "ERR_ZERO_SIZE_OBJECT",
+    "ERR_HTTP2_WIN_UPDATE_TIMEOUT", "ERR_DNS_FAIL", "ERR_CONNECT_FAIL",
+}
+CLIENT_ABORTS = {"ERR_CLIENT_ABORT"}
+ACCESS_DENIED = {"ERR_ACCESS_DENIED"}
+
 
 class AkamaiAnalyzer:
     def __init__(self, config: LogAnalyzerConfig) -> None:
@@ -27,16 +35,40 @@ class AkamaiAnalyzer:
             return AkamaiMetrics()
 
         total = len(logs)
-        error_count = sum(1 for e in logs if e.status_code and e.status_code >= 400)
-        # cache_hit is 0/1 int indicator; fallback to cache_status == 1 for old CSV data
-        cache_hits = sum(1 for e in logs if e.cache_hit == 1 or (e.cache_hit is None and e.cache_status == 1))
-        cacheable_count = sum(1 for e in logs if e.cache_hit is not None or e.cache_status is not None)
-        total_bytes = sum(e.bytes or 0 for e in logs)
 
-        # TTFB: use transfer_time_ms directly
+        # FIX 3: Error categorization (system errors, aborts, access denied)
+        system_error_count = 0
+        client_abort_count = 0
+        access_denied_count = 0
+        for e in logs:
+            ec = e.error_code or ""
+            if ec in SYSTEM_ERRORS:
+                system_error_count += 1
+            elif ec in CLIENT_ABORTS:
+                client_abort_count += 1
+            elif ec in ACCESS_DENIED:
+                access_denied_count += 1
+
+        # FIX 2: Cache hit uses cache_hit field (binary 0/1), NOT cache_status
+        cache_hits = sum(1 for e in logs if e.cache_hit == 1)
+        cache_total = sum(1 for e in logs if e.cache_hit is not None)
+
+        # FIX 1: Bandwidth uses bytes field (actual transferred), NOT response_body_size
+        total_bytes = sum(e.bytes or 0 for e in logs)
+        total_response_body = sum(e.response_body_size or 0 for e in logs)
+
+        # FIX 4: Transfer time from transfer_time_ms (field 15, milliseconds)
         ttfb_values = sorted([e.transfer_time_ms for e in logs if e.transfer_time_ms is not None])
         avg_ttfb = sum(ttfb_values) / len(ttfb_values) if ttfb_values else 0.0
         p99_ttfb = ttfb_values[int(len(ttfb_values) * 0.99)] if ttfb_values else 0.0
+
+        # FIX 6: Unique client IPs (already hashed by parser)
+        unique_ips = len(set(e.client_ip for e in logs if e.client_ip and e.client_ip != "-"))
+
+        # FIX 8c: Bandwidth savings (cache efficiency)
+        savings_pct = 0.0
+        if total_response_body > 0:
+            savings_pct = round((total_response_body - total_bytes) / total_response_body * 100, 2)
 
         # Status breakdown
         status_counter: Counter[int] = Counter()
@@ -47,14 +79,14 @@ class AkamaiAnalyzer:
         # Error codes
         error_paths: Counter[str] = Counter()
         for e in logs:
-            if e.status_code and e.status_code >= 400 and e.error_code:
+            if e.error_code:
                 error_paths[e.error_code] += 1
         top_errors = [
             {"code": code, "count": cnt, "pct": round(cnt / total * 100, 2)}
             for code, cnt in error_paths.most_common(20)
         ]
 
-        # Edge breakdown (from edge_ip field)
+        # Edge breakdown
         edge_counter: Counter[str] = Counter()
         edge_errors: Counter[str] = Counter()
         for e in logs:
@@ -74,11 +106,35 @@ class AkamaiAnalyzer:
                 geo_counter[e.country] += 1
         geo_breakdown = [{"country": c, "requests": cnt} for c, cnt in geo_counter.most_common(20)]
 
-        # Content type breakdown (from content_type field)
+        # Content type breakdown
         content_counter: Counter[str] = Counter()
         for e in logs:
             if e.content_type:
                 content_counter[e.content_type] += 1
+
+        # FIX 8a: Segment type distribution (from req_path)
+        segment_counter: Counter[str] = Counter()
+        for e in logs:
+            path = (e.req_path or "").lower()
+            if ".m4s" in path:
+                segment_counter["video_segment"] += 1
+            elif ".m3u8" in path:
+                segment_counter["hls_manifest"] += 1
+            elif ".mpd" in path:
+                segment_counter["dash_manifest"] += 1
+            else:
+                segment_counter["asset"] += 1
+
+        # FIX 8b: Token error breakdown (from error_code)
+        token_errors: Counter[str] = Counter()
+        for e in logs:
+            ec = e.error_code or ""
+            if "ACCESS_DENIED" in ec and "SHORT_TOKEN" in ec:
+                token_errors["token_invalid"] += 1
+            elif "ACCESS_DENIED" in ec and "geo" in ec.lower():
+                token_errors["geo_blocked"] += 1
+            elif ec == "ERR_FIRST_BYTE_TIMEOUT":
+                token_errors["origin_timeout"] += 1
 
         # City breakdown
         city_counter: Counter[str] = Counter()
@@ -97,16 +153,22 @@ class AkamaiAnalyzer:
 
         return AkamaiMetrics(
             total_requests=total,
-            error_rate=round(error_count / total, 4) if total else 0.0,
-            cache_hit_rate=round(cache_hits / cacheable_count, 4) if cacheable_count else 0.0,
+            error_rate=round(system_error_count / total, 4) if total else 0.0,
+            abort_rate=round(client_abort_count / total, 4) if total else 0.0,
+            access_denied_rate=round(access_denied_count / total, 4) if total else 0.0,
+            cache_hit_rate=round(cache_hits / cache_total, 4) if cache_total else 0.0,
             avg_ttfb_ms=round(avg_ttfb, 2),
             p99_ttfb_ms=round(p99_ttfb, 2),
             total_bytes=total_bytes,
+            unique_client_ips=unique_ips,
+            bandwidth_savings_pct=savings_pct,
             top_errors=top_errors,
             edge_breakdown=edge_breakdown,
             geo_breakdown=geo_breakdown,
             status_breakdown=dict(status_counter),
             content_type_breakdown=dict(content_counter),
+            segment_type_breakdown=dict(segment_counter),
+            token_error_breakdown=dict(token_errors),
             city_breakdown=city_breakdown,
             peak_hours=peak_hours,
         )

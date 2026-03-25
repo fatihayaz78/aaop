@@ -55,16 +55,23 @@ class AkamaiConfig(BaseModel):
 
 class AkamaiMetrics(BaseModel):
     total_requests: int = 0
-    error_rate: float = 0.0
-    cache_hit_rate: float = 0.0
+    error_rate: float = 0.0           # system errors only (not client aborts)
+    abort_rate: float = 0.0           # client abort rate
+    access_denied_rate: float = 0.0   # security denials
+    cache_hit_rate: float = 0.0       # from cache_hit field (binary 0/1)
     avg_ttfb_ms: float = 0.0
     p99_ttfb_ms: float = 0.0
-    total_bytes: int = 0
+    total_bytes: int = 0              # from bytes field (actual transferred)
+    unique_client_ips: int = 0
+    bandwidth_savings_pct: float = 0.0
+    # proto field not in current DS2 stream config
     top_errors: list[dict] = []
     edge_breakdown: list[dict] = []
     geo_breakdown: list[dict] = []
     status_breakdown: dict = {}
     content_type_breakdown: dict = {}
+    segment_type_breakdown: dict = {}
+    token_error_breakdown: dict = {}
     city_breakdown: list[dict] = []
     peak_hours: list[dict] = []
 
