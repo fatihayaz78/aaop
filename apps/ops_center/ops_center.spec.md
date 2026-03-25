@@ -142,3 +142,11 @@ Output: TR özet (NOC) + EN teknik (DevOps)
 - 7 new endpoints: dashboard, incidents CRUD, rca, decisions, chat
 - Tests: 32 passed (regression clean), full suite 508 passed
 - Next: P2 — Frontend Dashboard + Incidents tabs
+
+### P2 Complete — 2026-03-25
+- Frontend: 4 tabs implemented (Dashboard, Incidents, RCA Explorer, Decision Log)
+- Field mapping fixed (snake_case → camelCase)
+- Severity badges, status dots, MTTR formatter applied
+- Captain logAR chat panel wired (POST /ops/chat)
+- Known issues: minor UI bugs → deferred fix sprint
+- Next: P3 — Router tests (target 52+ tests, 0 failures)

@@ -8,6 +8,27 @@
 
 ---
 
+## [S17-P2] — 2026-03-25
+### Added
+- Ops Center frontend (ops-center/page.tsx) — 4 tabs implemented
+  - Dashboard: 4 KPI cards (Total/Open/MTTR/P0), Severity BarChart, 24h AreaChart, recent incidents mini-table
+  - Incidents: filter bar (severity/status/search), table with badges, detail Sheet (TR+EN cards, status update)
+  - RCA Explorer: P0/P1 selector, root causes, correlation timeline, recommended actions
+  - Decision Log: risk filter, date range, agent decisions table
+  - Captain logAR chat panel (ops context, bilingual)
+### Fixed
+- tenant_id: bein_sports → s_sport_plus
+- Field mapping: snake_case backend → camelCase frontend (open_incidents, mttr_p50_seconds, etc.)
+- KPI cards: correct field references, MTTR "Xm Ys" format
+- Severity badge colors: P0=red-950, P1=orange-950, P2=yellow-950, P3=blue-950
+- Status dots: open=red, investigating=amber, resolved=green
+- Incident detail panel: summaryTr + detailEn cards, affected services tags
+- /ops/decisions endpoint (was calling /ops/health by mistake)
+### Known Issues
+- Minor UI bugs deferred to fix sprint
+
+---
+
 ## [S17-P1] — 2026-03-25
 ### Added
 - apps/ops_center/seed.py — idempotent mock data seed (50 incidents, 50 agent decisions)

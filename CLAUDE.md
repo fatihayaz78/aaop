@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S17 — Ops Center UI
-**Önceki:** S16 complete — Log Analyzer full UI (streaming, 13 charts, agent chat, scheduled tasks, 508 tests)
-**Son commit:** S17-P1 — Ops Center backend endpoints + mock seed
+**Aktif Sprint:** S17 — Ops Center
+**Önceki:** S16 complete — Log Analyzer full UI (508 tests, 0 failures)
+**Son commit:** S17-P2 — Ops Center frontend 4 tabs complete
 
 ---
 
