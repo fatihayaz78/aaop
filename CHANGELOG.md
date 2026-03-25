@@ -8,6 +8,19 @@
 
 ---
 
+## [S23-Fix2] — 2026-03-25
+### Fixed
+- Log Analyzer: removed ALL hashing/anonymization from client_ip and user_agent
+- Raw Akamai DS2 log values stored and displayed exactly as received
+- Removed "Client IPs are anonymized (SHA256)" labels from charts and UI
+- Removed ip_hash type inference — now correctly detected as ip_address
+- Reverted all field names and test data to use real IP addresses
+### Test
+- log_analyzer: 99 passed, 0 failures
+- Full platform: 659 passed, 0 failures
+
+---
+
 ## [S23-Fix] — 2026-03-25
 ### Fixed
 - Knowledge Base: document cards now clickable → Dialog with full content

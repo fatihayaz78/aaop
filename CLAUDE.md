@@ -75,8 +75,8 @@ curl http://localhost:8000/health
 ## 5. AKTİF SPRINT
 
 **Aktif Sprint:** S24 next — UI Fix Sprint (browser testing all 11 apps)
-**Önceki:** S23 complete — Log Analyzer metrics + Swagger + KB expansion + fixes
-**Son commit:** S23-Fix — KB clickable cards + raw client_ip/user_agent restored (659 tests)
+**Önceki:** S23 complete — metrics fix + Swagger + KB + raw log values (no hashing)
+**Son commit:** S23-Fix2 — all hashing removed from Log Analyzer (659 tests)
 
 ---
 
