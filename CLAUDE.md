@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S17 complete → S18 next — Alert Center
-**Önceki:** S17 complete — Ops Center full (backend + frontend + tests, 51 tests)
-**Son commit:** S17-P3 — Ops Center router tests (527 total, 0 failures)
+**Aktif Sprint:** S18 complete → S19 next — Viewer Experience + Live Intelligence
+**Önceki:** S18 complete — Alert Center (6 tabs, WebSocket, 47 tests)
+**Son commit:** S18 complete
 
 ---
 

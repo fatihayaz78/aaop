@@ -8,6 +8,23 @@
 
 ---
 
+## [S18] — 2026-03-25
+### Added
+- apps/alert_center/seed.py — 5 rules, 3 channels, 2 suppression windows, 100 alert history
+- GET /alerts/dashboard — 24h stats, severity/channel breakdown, trend
+- GET /alerts/list — paginated, severity/channel/event_type filter
+- GET/POST/PATCH/DELETE /alerts/rules — full CRUD
+- GET /alerts/channels — masked config
+- GET/POST /alerts/suppression — maintenance windows
+- GET /alerts/analytics — MTTA, top events, channel performance, 7d volume
+- Frontend: 6 tabs (Dashboard, Live Feed, Alert List, Rules, Suppression, Analytics)
+- WebSocket Live Feed: real-time stream, reconnect logic, dedup/storm badges
+### Test
+- alert_center suite: 47 passed, 0 failures
+- Full platform suite: 545 passed, 0 failures
+
+---
+
 ## [S17-P3] — 2026-03-25
 ### Added
 - apps/ops_center/tests/test_router.py — 19 router tests
