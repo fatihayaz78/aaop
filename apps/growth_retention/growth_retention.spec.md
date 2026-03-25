@@ -113,3 +113,12 @@ Senaryolar: CHURN_RISK (risk>0.7 → event) | NL query (→ doğru SQL → doğr
 
 ### Deviations
 - None. All spec constraints met.
+
+---
+## Sprint Completion — S20
+- Date: Mart 2026
+- seed.py: 100 retention scores
+- 5 endpoints (dashboard, retention, churn-risk, segments, query)
+- Frontend: 5 tabs incl. AI Query
+- Tests: 51 passed, 0 failures
+- Status: ✅ Complete

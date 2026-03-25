@@ -2,47 +2,47 @@
 
 import { useState, useEffect, useCallback } from "react";
 import MetricCard from "@/components/ui/MetricCard";
-import RiskBadge from "@/components/ui/RiskBadge";
 import LogTable from "@/components/ui/LogTable";
 import RechartsWrapper from "@/components/charts/RechartsWrapper";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet } from "@/lib/api";
+import type { CapacityDashboard } from "@/types/capacity_cost";
 
-type Tab = "forecast" | "usage" | "jobs" | "cost" | "thresholds";
-type Horizon = "7d" | "14d" | "30d";
+type Tab = "dashboard" | "forecast" | "usage" | "jobs" | "cost";
 
-function usagePctColor(pct: number): string {
-  if (pct >= 90) return "var(--risk-high)";
-  if (pct >= 70) return "var(--risk-medium)";
-  return "var(--risk-low)";
-}
+const utilColor = (v: number) => v > 90 ? "var(--risk-high)" : v > 70 ? "var(--risk-medium)" : "var(--risk-low)";
+const utilBg = (v: number) => v > 90 ? "var(--risk-high-bg)" : v > 70 ? "var(--risk-medium-bg)" : "var(--risk-low-bg)";
+const fmtUsd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 export default function CapacityCost() {
-  const [tab, setTab] = useState<Tab>("forecast");
-  const [horizon, setHorizon] = useState<Horizon>("7d");
-  const [selectedJob, setSelectedJob] = useState<Record<string, unknown> | null>(null);
+  const [tab, setTab] = useState<Tab>("dashboard");
+  const [dash, setDash] = useState<CapacityDashboard | null>(null);
+  const [forecast, setForecast] = useState<Record<string, unknown>[]>([]);
+  const [usage, setUsage] = useState<Record<string, unknown>[]>([]);
+  const [jobs, setJobs] = useState<Record<string, unknown>[]>([]);
+  const [cost, setCost] = useState<Record<string, unknown> | null>(null);
+  const [svcFilter, setSvcFilter] = useState("");
 
-  // Auto-refresh usage every 30s
+  const loadDash = useCallback(async () => {
+    try { setDash(await apiGet<CapacityDashboard>("/capacity/dashboard")); } catch { /* */ }
+  }, []);
+
+  useEffect(() => { loadDash(); }, [loadDash]);
   useEffect(() => {
-    if (tab !== "usage") return;
-    const iv = setInterval(() => { /* refresh */ }, 30000);
-    return () => clearInterval(iv);
-  }, [tab]);
+    if (tab === "dashboard") { const i = setInterval(loadDash, 30000); return () => clearInterval(i); }
+    if (tab === "forecast") { (async () => { try { const r = await apiGet<{ forecast: Record<string, unknown>[] }>("/capacity/forecast"); setForecast(r.forecast ?? []); } catch { /* */ } })(); }
+    if (tab === "usage") { (async () => { try { const r = await apiGet<{ items: Record<string, unknown>[] }>(`/capacity/usage?limit=100${svcFilter ? `&service=${svcFilter}` : ""}`); setUsage(r.items ?? []); } catch { /* */ } })(); }
+    if (tab === "jobs") { (async () => { try { setJobs(await apiGet("/capacity/jobs")); } catch { /* */ } })(); }
+    if (tab === "cost") { (async () => { try { setCost(await apiGet("/capacity/cost")); } catch { /* */ } })(); }
+  }, [tab, svcFilter, loadDash]);
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: "forecast", label: "Capacity Forecast" },
-    { key: "usage", label: "Current Usage" },
-    { key: "jobs", label: "Automation Jobs" },
-    { key: "cost", label: "Cost Analysis" },
-    { key: "thresholds", label: "Thresholds" },
+    { key: "dashboard", label: "Dashboard" }, { key: "forecast", label: "Forecast" },
+    { key: "usage", label: "Usage" }, { key: "jobs", label: "Automation Jobs" },
+    { key: "cost", label: "Cost" },
   ];
 
-  const RESOURCES = [
-    { name: "CPU", pct: 42 },
-    { name: "Memory", pct: 68 },
-    { name: "Bandwidth", pct: 35 },
-    { name: "Storage", pct: 55 },
-  ];
+  const filteredForecast = svcFilter ? forecast.filter((f) => f.service === svcFilter) : forecast;
 
   return (
     <div>
@@ -50,120 +50,147 @@ export default function CapacityCost() {
       <div className="flex gap-1 mb-6 border-b" style={{ borderColor: "var(--border)" }}>
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)} className="px-4 pb-2 text-sm font-medium border-b-2 transition-colors"
-            style={{ borderColor: tab === t.key ? "var(--brand-primary)" : "transparent", color: tab === t.key ? "var(--brand-primary)" : "var(--text-secondary)" }}>{t.label}</button>
+            style={{ borderColor: tab === t.key ? "var(--brand-primary)" : "transparent", color: tab === t.key ? "var(--brand-primary)" : "var(--text-secondary)" }}>
+            {t.label}
+          </button>
         ))}
       </div>
 
+      {tab === "dashboard" && dash && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard title="Warning Services" value={dash.services_at_warning} />
+            <MetricCard title="Critical Services" value={dash.services_at_critical} />
+            <MetricCard title="Avg Utilization" value={`${dash.avg_utilization}%`} />
+            <MetricCard title="Monthly Cost Est." value={fmtUsd(dash.cost_estimate_monthly)} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <h3 className="text-xs font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Utilization by Service</h3>
+              <div className="space-y-2">
+                {dash.utilization_by_service.map((s) => (
+                  <div key={s.service} className="flex items-center gap-3">
+                    <span className="text-xs w-32 truncate" style={{ color: "var(--text-secondary)" }}>{s.service}</span>
+                    <div className="flex-1 h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+                      <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(s.pct, 100)}%`, backgroundColor: utilColor(s.pct) }} />
+                    </div>
+                    <span className="text-xs w-12 text-right" style={{ color: utilColor(s.pct) }}>{s.pct.toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={dash.utilization_trend_24h} xKey="hour" yKey="avg_pct" title="Utilization Trend (24h)" height={200} type="line" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === "forecast" && (
         <div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <MetricCard title="Current CPU" value="42" unit="%" trend="flat" />
-            <MetricCard title="Current Memory" value="68" unit="%" trend="up" delta="+3% vs yesterday" />
-            <MetricCard title="Predicted Peak (24h)" value="78" unit="%" trend="up" delta="Growing" />
+          <div className="flex gap-3 mb-4">
+            <select value={svcFilter} onChange={(e) => setSvcFilter(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              <option value="">All Services</option>
+              {["cdn_bandwidth", "concurrent_streams", "origin_cpu"].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
-          <div className="flex gap-2 mb-4">
-            {(["7d", "14d", "30d"] as Horizon[]).map((h) => (
-              <button key={h} onClick={() => setHorizon(h)} className="px-3 py-1 rounded text-xs font-medium"
-                style={{ backgroundColor: horizon === h ? "var(--brand-glow)" : "var(--background-card)", color: horizon === h ? "var(--brand-primary)" : "var(--text-secondary)", border: "1px solid var(--border)" }}>{h}</button>
-            ))}
-          </div>
-          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <RechartsWrapper data={[]} xKey="date" yKey="pct" title={`Capacity Forecast (${horizon})`} color="var(--brand-primary)" />
+          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <LogTable columns={[
+              { key: "date", label: "Date" },
+              { key: "service", label: "Service" },
+              { key: "predicted_pct", label: "Predicted %", render: (v) => <span style={{ color: utilColor(Number(v)) }}>{Number(v).toFixed(1)}%</span> },
+              { key: "confidence", label: "Confidence", render: (v) => <span>{(Number(v) * 100).toFixed(0)}%</span> },
+              { key: "recommendation", label: "Recommendation", render: (v) => {
+                const r = String(v);
+                const c = r === "scale_up" ? "var(--risk-high)" : r === "monitor" ? "var(--risk-medium)" : "var(--risk-low)";
+                const bg = r === "scale_up" ? "var(--risk-high-bg)" : r === "monitor" ? "var(--risk-medium-bg)" : "var(--risk-low-bg)";
+                return <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: bg, color: c }}>{r}</span>;
+              }},
+            ]} data={filteredForecast as unknown as Record<string, unknown>[]} />
           </div>
         </div>
       )}
 
       {tab === "usage" && (
         <div>
-          <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Auto-refresh: 30s</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {RESOURCES.map((r) => (
-              <div key={r.name} className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{r.name}</span>
-                  <span className="text-sm font-bold" style={{ color: usagePctColor(r.pct) }}>{r.pct}%</span>
-                </div>
-                <div className="w-full h-3 rounded-full" style={{ backgroundColor: "var(--border)" }}>
-                  <div className="h-3 rounded-full transition-all" style={{ width: `${r.pct}%`, backgroundColor: usagePctColor(r.pct) }} />
-                </div>
-              </div>
-            ))}
+          <div className="flex gap-3 mb-4">
+            <select value={svcFilter} onChange={(e) => setSvcFilter(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              <option value="">All Services</option>
+              {["cdn_bandwidth", "origin_cpu", "origin_memory", "encoder_queue", "api_gateway", "cache_hit_rate", "concurrent_streams"].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
             <LogTable columns={[
-              { key: "service", label: "Service" }, { key: "cpu", label: "CPU %" }, { key: "memory", label: "Memory %" }, { key: "status", label: "Status" },
-            ]} data={[]} />
+              { key: "timestamp", label: "Time", render: (v) => <span className="text-xs">{String(v).slice(11, 16)}</span> },
+              { key: "service", label: "Service" },
+              { key: "metric_name", label: "Metric" },
+              { key: "current_value", label: "Value", render: (v) => <span>{Number(v).toFixed(1)}</span> },
+              { key: "capacity_limit", label: "Limit" },
+              { key: "utilization_pct", label: "Util %", render: (v) => <span style={{ color: utilColor(Number(v)) }}>{Number(v).toFixed(1)}%</span> },
+            ]} data={usage as unknown as Record<string, unknown>[]} />
           </div>
         </div>
       )}
 
       {tab === "jobs" && (
-        <div>
-          <div className="flex justify-between mb-4">
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Automation jobs</p>
-            <button onClick={() => confirm("Create automation job? HIGH risk action.")} className="px-4 py-1.5 rounded text-sm font-medium" style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)" }}>Create Job (Approval Required)</button>
+        <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <LogTable columns={[
+            { key: "name", label: "Name" },
+            { key: "job_type", label: "Type" },
+            { key: "status", label: "Status", render: (v) => {
+              const s = String(v);
+              const c = s === "active" ? "var(--risk-low)" : s === "paused" ? "var(--risk-medium)" : "var(--text-muted)";
+              const bg = s === "active" ? "var(--risk-low-bg)" : s === "paused" ? "var(--risk-medium-bg)" : "var(--background)";
+              return <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: bg, color: c }}>{s}</span>;
+            }},
+            { key: "schedule", label: "Schedule", render: (v) => <span className="text-xs font-mono">{String(v)}</span> },
+            { key: "last_run", label: "Last Run", render: (v) => <span className="text-xs">{String(v ?? "—").slice(0, 16)}</span> },
+          ]} data={jobs as unknown as Record<string, unknown>[]} />
+        </div>
+      )}
+
+      {tab === "cost" && cost && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg border p-4 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>Current Month</p>
+              <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{fmtUsd(Number(cost.current_month_usd))}</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>Projected</p>
+              <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{fmtUsd(Number(cost.projected_month_usd))}</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>vs Last Month</p>
+              <p className="text-2xl font-bold" style={{ color: Number(cost.vs_last_month_pct) > 0 ? "var(--risk-high)" : "var(--risk-low)" }}>
+                {Number(cost.vs_last_month_pct) > 0 ? "+" : ""}{Number(cost.vs_last_month_pct).toFixed(1)}%
+              </p>
+            </div>
           </div>
-          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <LogTable columns={[
-              { key: "jobId", label: "Job ID" },
-              { key: "type", label: "Type" },
-              { key: "status", label: "Status", render: (v) => {
-                const colors: Record<string, string> = { queued: "var(--text-muted)", running: "var(--brand-primary)", success: "var(--risk-low)", failed: "var(--risk-high)" };
-                return <span className="text-xs font-medium" style={{ color: colors[v as string] ?? "var(--text-muted)" }}>● {String(v)}</span>;
-              }},
-              { key: "createdAt", label: "Created" },
-              { key: "duration", label: "Duration" },
-            ]} data={[]} onRowClick={(row) => setSelectedJob(row)} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={(cost.breakdown as Record<string, unknown>[]) ?? []} xKey="service" yKey="cost_usd" title="Cost Breakdown" height={200} type="bar" />
+            </div>
+            <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <LogTable columns={[
+                { key: "service", label: "Service" },
+                { key: "cost_usd", label: "Cost", render: (v) => <span>{fmtUsd(Number(v))}</span> },
+                { key: "pct_of_total", label: "% of Total", render: (v) => <span>{Number(v).toFixed(1)}%</span> },
+              ]} data={(cost.breakdown as Record<string, unknown>[]) ?? []} />
+            </div>
           </div>
-          {selectedJob && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedJob(null)}>
-              <div className="w-full max-w-lg rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between mb-4">
-                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Job Detail</h3>
-                  <button onClick={() => setSelectedJob(null)} style={{ color: "var(--text-muted)" }}>✕</button>
+          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <h3 className="text-xs font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Optimization Tips</h3>
+            <div className="space-y-2">
+              {((cost.optimization_tips as string[]) ?? []).map((tip, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  <span style={{ color: "var(--risk-medium)" }}>&#128161;</span>
+                  <span>{tip}</span>
                 </div>
-                <pre className="text-xs p-3 rounded overflow-auto max-h-64" style={{ backgroundColor: "var(--background)", color: "var(--text-secondary)" }}>
-                  {JSON.stringify(selectedJob, null, 2)}
-                </pre>
-              </div>
+              ))}
             </div>
-          )}
-        </div>
-      )}
-
-      {tab === "cost" && (
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <MetricCard title="LLM Cost Today" value="—" unit="USD" trend="flat" />
-            <MetricCard title="LLM Cost 7d" value="—" unit="USD" trend="flat" />
-            <MetricCard title="Storage Cost" value="—" unit="USD" trend="flat" />
-            <MetricCard title="Est. Monthly" value="—" unit="USD" trend="flat" />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <RechartsWrapper data={[]} xKey="app" yKey="tokens" title="LLM Token Usage by App (7d)" type="bar" color="var(--brand-primary)" />
-            </div>
-            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <RechartsWrapper data={[]} xKey="category" yKey="cost" title="Cost Breakdown" type="bar" color="var(--brand-accent)" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tab === "thresholds" && (
-        <div>
-          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <LogTable columns={[
-              { key: "resource", label: "Resource" },
-              { key: "warn", label: "Warn %", render: (v) => <span className="text-sm font-mono" style={{ color: "var(--risk-medium)" }}>{String(v)}%</span> },
-              { key: "critical", label: "Critical %", render: (v) => <span className="text-sm font-mono" style={{ color: "var(--risk-high)" }}>{String(v)}%</span> },
-              { key: "action", label: "", render: () => <button className="text-xs px-2 py-0.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Edit</button> },
-            ]} data={[
-              { resource: "CPU", warn: 70, critical: 90 },
-              { resource: "Memory", warn: 70, critical: 90 },
-              { resource: "Bandwidth", warn: 70, critical: 90 },
-              { resource: "Storage", warn: 70, critical: 90 },
-            ]} />
           </div>
         </div>
       )}

@@ -8,6 +8,29 @@
 
 ---
 
+## [S20] — 2026-03-25
+### Added
+- apps/growth_retention/seed.py — 100 retention scores (DuckDB)
+- GET /growth/dashboard — churn stats, segment breakdown, 7d trend, top reasons
+- GET /growth/retention — paginated, segment filter, churn risk sorted
+- GET /growth/churn-risk — top 20 high-risk users
+- GET /growth/segments — 4 segment summaries with recommendations
+- POST /growth/query — NL to DuckDB SQL (Sonnet, SELECT-only guard)
+- Frontend: 5 tabs (Dashboard, Retention, Churn Risk, Segments, AI Query)
+- apps/capacity_cost/seed.py — 150 capacity metrics (DuckDB) + 10 automation jobs (SQLite)
+- GET /capacity/dashboard — warning/critical counts, utilization, cost estimate
+- GET /capacity/forecast — 7-day service forecast with recommendations
+- GET /capacity/usage — paginated metrics, service filter
+- GET /capacity/jobs — automation job list
+- GET /capacity/cost — cost breakdown, optimization tips
+- Frontend: 5 tabs (Dashboard, Forecast, Usage, Automation Jobs, Cost)
+### Test
+- growth_retention suite: 51 passed, 0 failures
+- capacity_cost suite: 47 passed, 0 failures
+- Full platform: 605 passed, 0 failures
+
+---
+
 ## [S19] — 2026-03-25
 ### Added
 - apps/viewer_experience/seed.py — 20 complaints (SQLite) + 200 QoE sessions (DuckDB)

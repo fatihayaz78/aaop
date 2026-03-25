@@ -1,46 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import MetricCard from "@/components/ui/MetricCard";
-import RiskBadge from "@/components/ui/RiskBadge";
 import LogTable from "@/components/ui/LogTable";
 import RechartsWrapper from "@/components/charts/RechartsWrapper";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
-import { apiPost } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
+import type { GrowthDashboard, RetentionScore } from "@/types/growth_retention";
 
-type Tab = "retention" | "churn" | "analyst" | "insights";
+type Tab = "dashboard" | "retention" | "churn" | "segments" | "query";
 
-function riskColor(score: number): string {
-  if (score > 0.7) return "var(--risk-high)";
-  if (score > 0.4) return "var(--risk-medium)";
-  return "var(--risk-low)";
-}
+const segColor: Record<string, string> = { power_user: "var(--risk-low)", regular: "var(--brand-primary)", at_risk: "var(--risk-medium)", churned: "var(--risk-high)" };
+const segBg: Record<string, string> = { power_user: "var(--risk-low-bg)", regular: "var(--brand-glow)", at_risk: "var(--risk-medium-bg)", churned: "var(--risk-high-bg)" };
+const churnColor = (v: number) => v > 0.7 ? "var(--risk-high)" : v > 0.3 ? "var(--risk-medium)" : "var(--risk-low)";
+const qoeColor = (v: number) => v >= 4 ? "var(--risk-low)" : v >= 3 ? "var(--risk-medium)" : "var(--risk-high)";
 
 export default function GrowthRetention() {
-  const [tab, setTab] = useState<Tab>("retention");
-  const [riskFilter, setRiskFilter] = useState("");
-  const [selectedSegment, setSelectedSegment] = useState<Record<string, unknown> | null>(null);
-  const [nlQuery, setNlQuery] = useState("");
-  const [queryResult, setQueryResult] = useState<{ sql: string; rows: Record<string, unknown>[]; interpretation: string } | null>(null);
-  const [queryHistory, setQueryHistory] = useState<string[]>([]);
+  const [tab, setTab] = useState<Tab>("dashboard");
+  const [dash, setDash] = useState<GrowthDashboard | null>(null);
+  const [retention, setRetention] = useState<RetentionScore[]>([]);
+  const [churnUsers, setChurnUsers] = useState<RetentionScore[]>([]);
+  const [segments, setSegments] = useState<Record<string, unknown>[]>([]);
+  const [segFilter, setSegFilter] = useState("");
+  const [queryInput, setQueryInput] = useState("");
+  const [queryResult, setQueryResult] = useState<Record<string, unknown> | null>(null);
   const [queryLoading, setQueryLoading] = useState(false);
 
-  const runQuery = async () => {
-    if (!nlQuery.trim()) return;
-    setQueryLoading(true);
-    try {
-      const result = await apiPost<{ generated_sql: string; rows: Record<string, unknown>[]; interpretation?: string }>("/growth/data-analyst/query", { tenant_id: "bein_sports", question: nlQuery });
-      setQueryResult({ sql: result.generated_sql, rows: result.rows, interpretation: result.interpretation ?? "" });
-      setQueryHistory((prev) => [nlQuery, ...prev.filter((q) => q !== nlQuery)].slice(0, 5));
-    } catch { setQueryResult({ sql: "-- Error", rows: [], interpretation: "Query failed" }); }
+  const loadDash = useCallback(async () => {
+    try { setDash(await apiGet<GrowthDashboard>("/growth/dashboard")); } catch { /* */ }
+  }, []);
+
+  useEffect(() => { loadDash(); }, [loadDash]);
+  useEffect(() => {
+    if (tab === "dashboard") { const i = setInterval(loadDash, 60000); return () => clearInterval(i); }
+    if (tab === "retention") { (async () => { try { const r = await apiGet<{ items: RetentionScore[] }>(`/growth/retention?limit=50${segFilter ? `&segment=${segFilter}` : ""}`); setRetention(r.items ?? []); } catch { /* */ } })(); }
+    if (tab === "churn") { (async () => { try { const r = await apiGet<{ items: RetentionScore[] }>("/growth/churn-risk"); setChurnUsers(r.items ?? []); } catch { /* */ } })(); }
+    if (tab === "segments") { (async () => { try { const r = await apiGet<{ segments: Record<string, unknown>[] }>("/growth/segments"); setSegments(r.segments ?? []); } catch { /* */ } })(); }
+  }, [tab, segFilter, loadDash]);
+
+  const submitQuery = async (q: string) => {
+    if (!q.trim()) return;
+    setQueryLoading(true); setQueryResult(null);
+    try { setQueryResult(await apiPost("/growth/query", { question: q })); } catch { setQueryResult({ error: "Query failed" }); }
     setQueryLoading(false);
   };
 
+  const segPieData = dash ? Object.entries(dash.segment_breakdown).map(([k, v]) => ({ segment: k, count: v })) : [];
+
   const TABS: { key: Tab; label: string }[] = [
-    { key: "retention", label: "Retention Dashboard" },
-    { key: "churn", label: "Churn Risk" },
-    { key: "analyst", label: "Data Analyst" },
-    { key: "insights", label: "Insights" },
+    { key: "dashboard", label: "Dashboard" }, { key: "retention", label: "Retention" },
+    { key: "churn", label: "Churn Risk" }, { key: "segments", label: "Segments" },
+    { key: "query", label: "AI Query" },
   ];
 
   return (
@@ -49,128 +59,137 @@ export default function GrowthRetention() {
       <div className="flex gap-1 mb-6 border-b" style={{ borderColor: "var(--border)" }}>
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)} className="px-4 pb-2 text-sm font-medium border-b-2 transition-colors"
-            style={{ borderColor: tab === t.key ? "var(--brand-primary)" : "transparent", color: tab === t.key ? "var(--brand-primary)" : "var(--text-secondary)" }}>{t.label}</button>
+            style={{ borderColor: tab === t.key ? "var(--brand-primary)" : "transparent", color: tab === t.key ? "var(--brand-primary)" : "var(--text-secondary)" }}>
+            {t.label}
+          </button>
         ))}
       </div>
 
+      {tab === "dashboard" && dash && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard title="Total Users" value={dash.total_users} />
+            <MetricCard title="At-Risk Users" value={dash.at_risk_users} />
+            <MetricCard title="Avg Churn Risk" value={`${(dash.avg_churn_risk * 100).toFixed(1)}%`} />
+            <MetricCard title="Avg QoE Score" value={dash.avg_qoe_score.toFixed(2)} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={segPieData} xKey="segment" yKey="count" title="Segment Breakdown" height={200} type="bar" />
+            </div>
+            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={dash.churn_trend_7d} xKey="date" yKey="at_risk_count" title="Churn Trend (7d)" height={200} type="line" />
+            </div>
+            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <RechartsWrapper data={dash.top_churn_reasons} xKey="reason" yKey="count" title="Top Churn Reasons" height={200} type="bar" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === "retention" && (
         <div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <MetricCard title="Retention Rate 30d" value="—" unit="%" trend="flat" />
-            <MetricCard title="Churn Rate" value="—" unit="%" trend="flat" />
-            <MetricCard title="At-Risk Subscribers" value="0" trend="flat" />
-            <MetricCard title="Avg LTV" value="—" unit="USD" trend="flat" />
+          <div className="flex gap-3 mb-4">
+            <select value={segFilter} onChange={(e) => setSegFilter(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              <option value="">All Segments</option>
+              {["power_user", "regular", "at_risk", "churned"].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <RechartsWrapper data={[]} xKey="month" yKey="rate" title="Monthly Retention Trend (12m)" color="var(--risk-low)" />
-            </div>
-            <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <RechartsWrapper data={[]} xKey="date" yKey="events" title="Churn Events Over Time" color="var(--risk-high)" />
-            </div>
+          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <LogTable columns={[
+              { key: "user_id_hash", label: "User", render: (v) => <span className="font-mono text-xs">{String(v).slice(0, 12)}...</span> },
+              { key: "churn_risk", label: "Churn Risk", render: (v) => {
+                const val = Number(v);
+                return (<div className="flex items-center gap-2"><div className="w-16 h-1.5 rounded-full" style={{ backgroundColor: "var(--border)" }}><div className="h-1.5 rounded-full" style={{ width: `${val * 100}%`, backgroundColor: churnColor(val) }} /></div><span className="text-xs" style={{ color: churnColor(val) }}>{(val * 100).toFixed(0)}%</span></div>);
+              }},
+              { key: "qoe_score", label: "QoE", render: (v) => <span style={{ color: qoeColor(Number(v)) }}>{Number(v).toFixed(2)}</span> },
+              { key: "segment", label: "Segment", render: (v) => <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: segBg[String(v)], color: segColor[String(v)] }}>{String(v)}</span> },
+              { key: "last_active", label: "Last Active", render: (v) => <span className="text-xs">{String(v).slice(0, 10)}</span> },
+            ]} data={retention as unknown as Record<string, unknown>[]} />
           </div>
         </div>
       )}
 
       {tab === "churn" && (
         <div>
-          <div className="flex gap-3 mb-4">
-            <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className="text-sm px-3 py-1.5 rounded border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
-              <option value="">All Risk Levels</option>
-              <option value="high">High (&gt;0.7)</option>
-              <option value="medium">Medium (0.4-0.7)</option>
-              <option value="low">Low (&lt;0.4)</option>
-            </select>
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>High Risk Users</h3>
+            <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)" }}>{churnUsers.length}</span>
           </div>
-          <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <LogTable columns={[
-              { key: "segmentName", label: "Segment" },
-              { key: "subscriberCount", label: "Subscribers" },
-              { key: "avgRiskScore", label: "Risk Score", render: (v) => {
-                const val = v as number;
-                return (
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
-                      <div className="h-2 rounded-full" style={{ width: `${val * 100}%`, backgroundColor: riskColor(val) }} />
-                    </div>
-                    <span className="text-xs" style={{ color: riskColor(val) }}>{val?.toFixed(2)}</span>
-                  </div>
-                );
-              }},
-              { key: "trend", label: "Trend" },
-              { key: "action", label: "Action", render: (_, row) => {
-                const risk = (row.avgRiskScore as number) ?? 0;
-                return risk > 0.7 ? (
-                  <button onClick={(e) => { e.stopPropagation(); confirm("Send retention campaign? HIGH risk action."); }}
-                    className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)" }}>Send Campaign</button>
-                ) : null;
-              }},
-            ]} data={[]} onRowClick={(row) => setSelectedSegment(row)} />
-          </div>
-          {selectedSegment && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }} onClick={() => setSelectedSegment(null)}>
-              <div className="w-full max-w-lg rounded-lg border p-6" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between mb-4">
-                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Segment Detail</h3>
-                  <button onClick={() => setSelectedSegment(null)} style={{ color: "var(--text-muted)" }}>✕</button>
+          {churnUsers.length === 0 ? (
+            <div className="rounded-lg border p-12 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No high-risk users detected</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {churnUsers.map((u) => (
+                <div key={u.id} className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--risk-high)" }}>
+                  <p className="text-xs font-mono mb-1" style={{ color: "var(--text-muted)" }}>{u.user_id_hash?.slice(0, 16)}</p>
+                  <p className="text-2xl font-bold" style={{ color: "var(--risk-high)" }}>{(u.churn_risk * 100).toFixed(0)}%</p>
+                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>QoE: {u.qoe_score?.toFixed(2)} | Last: {u.last_active?.slice(0, 10)}</p>
                 </div>
-                <pre className="text-xs p-3 rounded overflow-auto max-h-64" style={{ backgroundColor: "var(--background)", color: "var(--text-secondary)" }}>
-                  {JSON.stringify(selectedSegment, null, 2)}
-                </pre>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "segments" && (
+        <div className="space-y-4">
+          {segments.map((s) => (
+            <div key={String(s.name)} className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-sm font-semibold" style={{ color: segColor[String(s.name)] }}>{String(s.name)}</span>
+                <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--background)", color: "var(--text-secondary)" }}>{Number(s.count)} users</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>Churn: {((Number(s.avg_churn_risk) || 0) * 100).toFixed(0)}% | QoE: {Number(s.avg_qoe || 0).toFixed(2)}</span>
               </div>
+              <p className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{String(s.description || "")}</p>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>{String(s.recommended_action || "")}</span>
             </div>
-          )}
+          ))}
         </div>
       )}
 
-      {tab === "analyst" && (
-        <div>
-          <div className="mb-4">
-            <textarea value={nlQuery} onChange={(e) => setNlQuery(e.target.value)} placeholder='e.g. "Show me top 10 tenants by error rate this week"'
-              className="w-full text-sm px-4 py-3 rounded-lg border outline-none h-24 resize-none"
-              style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
-            <div className="flex items-center gap-3 mt-2">
-              <button onClick={runQuery} disabled={queryLoading} className="px-4 py-1.5 rounded text-sm font-medium disabled:opacity-50"
-                style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>{queryLoading ? "Running..." : "Run Query"}</button>
-              {queryHistory.length > 0 && (
-                <div className="flex gap-1 flex-wrap">
-                  {queryHistory.map((q, i) => (
-                    <button key={i} onClick={() => setNlQuery(q)} className="text-xs px-2 py-0.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>{q.slice(0, 30)}...</button>
-                  ))}
+      {tab === "query" && (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <input type="text" value={queryInput} onChange={(e) => setQueryInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitQuery(queryInput)} placeholder="Ask anything about your data..."
+              className="flex-1 text-sm px-3 py-2 rounded border outline-none" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+            <button onClick={() => submitQuery(queryInput)} disabled={queryLoading} className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
+              {queryLoading ? "Analyzing..." : "Ask"}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {["Show top 10 at-risk users", "Average QoE by segment", "Churn risk trend this week", "Compare power users vs at-risk"].map((q) => (
+              <button key={q} onClick={() => { setQueryInput(q); submitQuery(q); }} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}>{q}</button>
+            ))}
+          </div>
+          {queryResult && (() => {
+            const qr = queryResult as { error?: string; sql?: string; results?: Record<string, unknown>[]; row_count?: number };
+            return (
+            <div className="space-y-3">
+              {qr.error && <div className="rounded p-3 text-sm" style={{ backgroundColor: "var(--risk-high-bg)", color: "var(--risk-high)" }}>{qr.error}</div>}
+              {qr.sql && (
+                <details><summary className="text-xs cursor-pointer" style={{ color: "var(--text-muted)" }}>SQL Query</summary>
+                  <pre className="mt-1 text-xs p-2 rounded font-mono overflow-x-auto" style={{ backgroundColor: "var(--background)", color: "var(--text-secondary)" }}>{qr.sql}</pre>
+                </details>
+              )}
+              {Array.isArray(qr.results) && qr.results.length > 0 && (
+                <div className="rounded-lg border overflow-x-auto" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                  <table className="w-full text-sm"><thead><tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {Object.keys(qr.results[0]).map((k) => <th key={k} className="text-left px-3 py-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{k}</th>)}
+                  </tr></thead><tbody>
+                    {qr.results.slice(0, 20).map((row, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>{Object.values(row).map((v, j) => <td key={j} className="px-3 py-1 text-xs" style={{ color: "var(--text-secondary)" }}>{String(v ?? "")}</td>)}</tr>
+                    ))}
+                  </tbody></table>
+                  <p className="text-xs p-2" style={{ color: "var(--text-muted)" }}>{qr.row_count ?? 0} rows</p>
                 </div>
               )}
             </div>
-          </div>
-          {queryResult && (
-            <div className="space-y-4">
-              <details className="rounded-lg border p-3" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-                <summary className="text-xs cursor-pointer" style={{ color: "var(--text-muted)" }}>Generated SQL</summary>
-                <pre className="text-xs mt-2 p-2 rounded font-mono overflow-x-auto" style={{ backgroundColor: "var(--background)", color: "var(--brand-primary)" }}>{queryResult.sql}</pre>
-              </details>
-              {queryResult.rows.length > 0 && (
-                <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-                  <LogTable columns={Object.keys(queryResult.rows[0]).map((k) => ({ key: k, label: k }))} data={queryResult.rows} />
-                </div>
-              )}
-              {queryResult.interpretation && (
-                <div className="rounded-lg border p-4 text-sm" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-                  {queryResult.interpretation}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "insights" && (
-        <div>
-          <div className="flex justify-between mb-4">
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>AI-generated growth insights</p>
-            <button className="text-xs px-3 py-1 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>Refresh</button>
-          </div>
-          <div className="rounded-lg border p-8 text-center" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>No insights available. Run analysis to generate AI insights.</p>
-          </div>
+          ); })()}
         </div>
       )}
 

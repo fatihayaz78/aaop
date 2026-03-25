@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S20 next — Growth & Retention + Capacity & Cost
-**Önceki:** S19 complete — Viewer Experience + Live Intelligence (575 tests)
-**Son commit:** S19 complete
+**Aktif Sprint:** S21 next — Admin & Governance
+**Önceki:** S20 complete — Growth & Retention + Capacity & Cost (605 tests)
+**Son commit:** S20 complete
 
 ---
 
