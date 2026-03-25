@@ -141,8 +141,13 @@ Senaryolar: Dedup (2x event → 1x Slack) | Storm (15/5dk → 1 özet) | Suppres
 ---
 ## Sprint Completion — S18
 - Date: Mart 2026
-- seed.py: 5 rules, 3 channels, 2 suppression, 100 alert history
-- 10 new backend endpoints
-- Frontend: 6 tabs, WebSocket Live Feed
-- Tests: 47 passed, 0 failures
+- Tests: 47 passed, 0 failures (11 agent + 4 schemas + 6 tools + 8 config + 18 router)
+- ruff: clean
 - Status: ✅ Complete
+- Commit: 80c933f
+
+### Files Created
+- apps/alert_center/seed.py — 5 rules, 3 channels, 2 suppression windows, 100 DuckDB alerts
+- backend/routers/alert_center.py — 10 endpoints (dashboard, list, rules CRUD, channels, suppression, analytics)
+- apps/alert_center/tests/test_router.py — 18 router tests
+- frontend/src/app/(apps)/alert-center/page.tsx — 6 tabs, WebSocket Live Feed
