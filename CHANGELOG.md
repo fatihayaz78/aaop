@@ -8,6 +8,18 @@
 
 ---
 
+### S-MDG-06 — 2026-03-26
+- generators/crm/schemas.py: SubscriberProfile 50+ alan, SubscriberDailyDelta, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
+- generators/crm/generator.py: 485K base CSV + daily delta, churn risk formula, calendar effects
+- generators/epg/schemas.py: EPGProgram 23 alan, capacity/pre-scale fields
+- generators/epg/generator.py: 6 kanal, 24h schedule, pre_scale_required >50K, ElClasico 420K+
+- generators/billing/schemas.py: BillingLogEntry 26 alan, 8 event_type
+- generators/billing/generator.py: monthly renewal spike 85K, holiday fail %8, CDN outage cancellations
+- tests/test_crm_epg_billing.py: 25 test passed (CRM 7 + EPG 8 + Billing 8 + schema 2)
+- Tests: 125 passed toplam (26+18+18+19+19+25)
+
+---
+
 ### S-MDG-05 — 2026-03-26
 - generators/api_logs/schemas.py: APILogEntry 16 alan, 13 endpoint, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
 - generators/api_logs/generator.py: 280K/gün normal, 2.8M derby, CDN outage 503, rate limit 429
