@@ -321,3 +321,60 @@ Mock data generator, AAOP frontend'inde iki panel olarak görünür:
 - Kanal genişletme: beIN Sports, DAZN entegrasyonu senaryoları
 - Multi-tenant: Tivibu, D-Smart tenant profilleri
 - S3 upload: Üretilen veriyi S3'e otomatik yükle (Akamai ile aynı bucket yapısı)
+
+---
+
+## 10. EXPORT SCHEMA
+
+### 10.1 Amaç
+Farklı log kaynaklarından alan seçerek yeniden kullanılabilir extraction şemaları oluşturmak.
+Şema, kayıtlar arasındaki cross-system join ilişkilerini otomatik tespit eder.
+
+### 10.2 Veri Modeli
+ExportSchema
+├── id: str (UUID)
+├── name: str
+├── description: str
+├── category: CDN | QoE | DRM | Business | Platform
+├── sources: list[FieldSelection]
+│   └── FieldSelection: source_id, fields[]
+├── join_keys: list[JoinKey]  ← otomatik tespit
+│   └── JoinKey: type(exact|window|filter), left, right, note, window_ms
+├── insight: str             ← kural tabanlı üretim
+└── created_at: str
+SQLite: export_schemas tablosu (platform.db)
+
+### 10.3 Join Key Kataloğu
+| Kaynak Çifti | Tip | Alan | Window |
+|---|---|---|---|
+| medianova_cdn ↔ origin_server | exact | client_ip | — |
+| medianova_cdn ↔ origin_server | window | timestamp | ±100ms |
+| medianova_cdn ↔ origin_server | exact | content_id | — |
+| medianova_cdn ↔ akamai_ds2 | exact | client_ip | — |
+| medianova_cdn ↔ akamai_ds2 | window | timestamp | ±60s |
+| player_events ↔ npaw_analytics | exact | session_id | — |
+| player_events ↔ crm_subscriber | exact | subscriber_id | — |
+| player_events ↔ widevine_drm | exact | subscriber_id | — |
+| player_events ↔ widevine_drm | window | timestamp | ±5s |
+| player_events ↔ fairplay_drm | exact | subscriber_id | — |
+| player_events ↔ fairplay_drm | window | timestamp | ±5s |
+| widevine_drm ↔ fairplay_drm | exact | subscriber_id | — |
+| widevine_drm ↔ fairplay_drm | exact | content_id | — |
+| crm_subscriber ↔ billing | exact | subscriber_id | — |
+| crm_subscriber ↔ billing | window | timestamp | ±24h |
+| player_events ↔ api_logs | exact | subscriber_id | — |
+| player_events ↔ api_logs | window | timestamp | ±2s |
+
+### 10.4 UI
+- Tab: "Export Schema" (mock-data-gen page, 3. tab)
+- Sol panel: kayıtlı şema listesi + "+ New schema" butonu
+- Sağ panel: seçili şema detayı (sources, join keys, insight, SQL export)
+- New schema akışı: 2 adım (kaynak seçimi → alan seçimi)
+- Export SQL: DuckDB WITH clause + JOIN sorgusu modal'da gösterilir
+
+### 10.5 Endpoint Listesi
+GET  /mock-data-gen/schemas
+POST /mock-data-gen/schemas
+GET  /mock-data-gen/schemas/{id}
+DELETE /mock-data-gen/schemas/{id}
+GET  /mock-data-gen/schemas/{id}/export/sql

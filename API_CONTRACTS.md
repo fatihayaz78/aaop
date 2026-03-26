@@ -254,7 +254,56 @@ GET    /admin/compliance/violations Query: tenant_id, status → [ComplianceViol
 
 ---
 
-## 11. AI LAB, KNOWLEDGE BASE, DEVOPS ASSISTANT
+## 11. MOCK DATA GEN (Dev/Test)
+
+```
+GET    /mock-data-gen/sources                        → [SourceInfo]
+GET    /mock-data-gen/sources/{source}/schema        → SourceSchema
+POST   /mock-data-gen/generate                       Body: GenerateRequest → {job_id}
+GET    /mock-data-gen/jobs/{job_id}                  → JobStatus
+POST   /mock-data-gen/jobs/{job_id}/cancel           → {status: "cancelled"}
+GET    /mock-data-gen/output/summary                 → OutputSummary
+POST   /mock-data-gen/validate                       → ValidationResults
+GET    /mock-data-gen/schemas                        → [ExportSchema]
+POST   /mock-data-gen/schemas                        Body: ExportSchemaCreate → ExportSchema
+GET    /mock-data-gen/schemas/{schema_id}            → ExportSchema
+DELETE /mock-data-gen/schemas/{schema_id}            → 204
+GET    /mock-data-gen/schemas/{schema_id}/export/sql → {sql: str}
+```
+
+**ExportSchemaCreate (request):**
+```json
+{
+  "name": "CDN Bandwidth Analysis",
+  "description": "Measures per-client bandwidth across CDN providers",
+  "category": "CDN",
+  "sources": [
+    { "source_id": "medianova_cdn", "fields": ["timestamp", "client_ip", "bytes_sent", "cache_status"] },
+    { "source_id": "origin_server", "fields": ["timestamp", "client_ip", "bytes_sent", "status_code"] }
+  ]
+}
+```
+
+**ExportSchema (response):**
+```json
+{
+  "id": "uuid",
+  "name": "CDN Bandwidth Analysis",
+  "description": "...",
+  "category": "CDN",
+  "sources": [...],
+  "join_keys": [
+    { "type": "exact", "left": "medianova_cdn.client_ip", "right": "origin_server.client_ip", "note": "Same client, different CDN layer", "window_ms": null },
+    { "type": "window", "left": "medianova_cdn.timestamp", "right": "origin_server.timestamp", "note": "±100ms (cache miss moment)", "window_ms": 100 }
+  ],
+  "insight": "client_ip başına toplam bandwidth hesaplanır, overlap window çıkarılır.",
+  "created_at": "2026-03-26T14:00:00"
+}
+```
+
+---
+
+## 12. AI LAB, KNOWLEDGE BASE, DEVOPS ASSISTANT
 
 ```
 # AI Lab (M10 + M14)
@@ -276,7 +325,7 @@ POST   /devops/diagnose             Body: DiagnosticRequest → DiagnosticResult
 
 ---
 
-## 12. ORTAK RESPONSE MODELLERİ
+## 13. ORTAK RESPONSE MODELLERİ
 
 ```python
 # Tüm agent kararları bu forma uyar
@@ -305,7 +354,7 @@ class ErrorResponse(BaseModel):
 
 ---
 
-## 13. WEBSOCKET PROTOKOLÜ
+## 14. WEBSOCKET PROTOKOLÜ
 
 ```typescript
 // Socket.IO events (client → server)

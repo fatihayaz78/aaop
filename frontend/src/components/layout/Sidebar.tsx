@@ -46,6 +46,13 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "DevOps Assistant", href: "/devops-assistant", icon: "🤖" },
     ],
   },
+  {
+    title: "Dev / Test",
+    priority: "DEV",
+    items: [
+      { label: "Data Generation & Extraction", href: "/mock-data-gen", icon: "🗄️" },
+    ],
+  },
 ];
 
 export default function Sidebar() {

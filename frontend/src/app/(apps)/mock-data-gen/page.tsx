@@ -43,6 +43,17 @@ interface JobStatus {
   elapsed_s: number;
 }
 
+interface ExportSchemaItem {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  sources: { source_id: string; fields: string[] }[];
+  join_keys: { type: string; left: string; right: string; note: string; window_ms: number | null }[];
+  insight: string;
+  created_at: string;
+}
+
 interface OutputSummary {
   source: string;
   display_name: string;
@@ -61,13 +72,13 @@ const SOURCE_GROUPS: Record<string, string[]> = {
 };
 
 export default function MockDataGenPage() {
-  const [tab, setTab] = useState<"generator" | "schema">("generator");
+  const [tab, setTab] = useState<"generator" | "schema" | "export">("generator");
 
   return (
     <div className="p-6 space-y-6 min-h-screen" style={{ background: "var(--background)" }}>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-          Mock Data Generator
+          Data Generation & Extraction
         </h1>
         <div className="flex gap-2">
           <button
@@ -100,10 +111,25 @@ export default function MockDataGenPage() {
           >
             Schema Browser
           </button>
+          <button
+            onClick={() => setTab("export")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              tab === "export"
+                ? "text-white"
+                : "hover:opacity-80"
+            }`}
+            style={{
+              background: tab === "export" ? "var(--brand-primary)" : "var(--background-card)",
+              color: tab === "export" ? "#fff" : "var(--text-secondary)",
+              border: `1px solid ${tab === "export" ? "var(--brand-primary)" : "var(--border)"}`,
+            }}
+          >
+            Export Schema
+          </button>
         </div>
       </div>
 
-      {tab === "generator" ? <GeneratorTab /> : <SchemaBrowserTab />}
+      {tab === "generator" ? <GeneratorTab /> : tab === "schema" ? <SchemaBrowserTab /> : <ExportSchemaTab />}
     </div>
   );
 }
@@ -301,6 +327,22 @@ function GeneratorTab() {
         >
           {generating ? "Generating..." : "Generate"}
         </button>
+        {jobStatus && jobStatus.status === "running" && (
+          <button
+            onClick={async () => {
+              if (!jobId) return;
+              try {
+                await fetch(`${API}/mock-data-gen/jobs/${jobId}/cancel`, { method: "POST" });
+                setJobStatus((prev) => prev ? { ...prev, status: "cancelled", progress_pct: prev.progress_pct } : null);
+                setGenerating(false);
+              } catch { /* ignore */ }
+            }}
+            className="px-6 py-2 rounded-lg text-sm font-medium text-white"
+            style={{ background: "var(--status-error)" }}
+          >
+            Stop
+          </button>
+        )}
         <button
           onClick={handleValidate}
           disabled={validating}
@@ -528,6 +570,359 @@ function SchemaBrowserTab() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// EXPORT SCHEMA TAB
+// ══════════════════════════════════════════════════════════════════════
+
+const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
+  CDN: { bg: "rgba(31,111,235,0.15)", color: "#1f6feb" },
+  QoE: { bg: "rgba(35,134,54,0.15)", color: "#238636" },
+  DRM: { bg: "rgba(210,153,34,0.15)", color: "#d29922" },
+  Business: { bg: "rgba(218,54,51,0.15)", color: "#da3633" },
+  Platform: { bg: "rgba(139,148,158,0.15)", color: "#8b949e" },
+};
+
+const ALL_SOURCES_FOR_EXPORT = [
+  "medianova_cdn", "origin_server", "widevine_drm", "fairplay_drm",
+  "player_events", "npaw_analytics", "api_logs", "newrelic_apm",
+  "crm_subscriber", "epg", "billing", "push_notifications", "app_reviews",
+];
+
+function ExportSchemaTab() {
+  const [schemas, setSchemas] = useState<ExportSchemaItem[]>([]);
+  const [selected, setSelected] = useState<ExportSchemaItem | null>(null);
+  const [mode, setMode] = useState<"view" | "new">("view");
+  const [sqlModal, setSqlModal] = useState<string | null>(null);
+
+  // New schema form state
+  const [formName, setFormName] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [formCategory, setFormCategory] = useState("CDN");
+  const [formSources, setFormSources] = useState<Set<string>>(new Set());
+  const [formStep, setFormStep] = useState(1);
+  const [previewKeys, setPreviewKeys] = useState<ExportSchemaItem["join_keys"]>([]);
+  const [formFields, setFormFields] = useState<Record<string, Set<string>>>({});
+  const [sourceSchemas, setSourceSchemas] = useState<Record<string, SchemaField[]>>({});
+
+  const loadSchemas = () => {
+    fetch(`${API}/mock-data-gen/schemas`).then(r => r.json()).then(setSchemas).catch(() => {});
+  };
+
+  useEffect(() => { loadSchemas(); }, []);
+
+  // Preview join keys when sources change
+  useEffect(() => {
+    if (formSources.size < 2) { setPreviewKeys([]); return; }
+    const sources = Array.from(formSources).map(s => ({ source_id: s, fields: [] }));
+    fetch(`${API}/mock-data-gen/schemas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "_preview", description: "", category: formCategory, sources }),
+    }).then(r => r.json()).then(data => {
+      setPreviewKeys(data.join_keys || []);
+      // Clean up preview schema
+      if (data.id) fetch(`${API}/mock-data-gen/schemas/${data.id}`, { method: "DELETE" });
+    }).catch(() => {});
+  }, [formSources, formCategory]);
+
+  // Load field schemas for step 2
+  useEffect(() => {
+    if (formStep !== 2) return;
+    const mapping: Record<string, string> = {
+      medianova_cdn: "medianova", origin_server: "origin_logs",
+      widevine_drm: "drm_widevine", fairplay_drm: "drm_fairplay",
+      player_events: "player_events", npaw_analytics: "npaw",
+      api_logs: "api_logs", newrelic_apm: "newrelic",
+      crm_subscriber: "crm", epg: "epg", billing: "billing",
+      push_notifications: "push_notifications", app_reviews: "app_reviews",
+    };
+    Array.from(formSources).forEach(srcId => {
+      const apiName = mapping[srcId] || srcId;
+      if (!sourceSchemas[srcId]) {
+        fetch(`${API}/mock-data-gen/sources/${apiName}/schema`)
+          .then(r => r.json())
+          .then(data => {
+            setSourceSchemas(prev => ({ ...prev, [srcId]: data.fields || [] }));
+            // Pre-check join key fields
+            const jkFields = new Set<string>();
+            previewKeys.forEach(jk => {
+              if (jk.left.startsWith(srcId + ".")) jkFields.add(jk.left.split(".")[1]);
+              if (jk.right.startsWith(srcId + ".")) jkFields.add(jk.right.split(".")[1]);
+            });
+            setFormFields(prev => ({ ...prev, [srcId]: new Set(Array.from(jkFields)) }));
+          }).catch(() => {});
+      }
+    });
+  }, [formStep, formSources, previewKeys, sourceSchemas]);
+
+  const toggleFormSource = (s: string) => {
+    setFormSources(prev => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  };
+
+  const toggleField = (srcId: string, field: string) => {
+    setFormFields(prev => {
+      const current = new Set(prev[srcId] || []);
+      if (current.has(field)) current.delete(field); else current.add(field);
+      return { ...prev, [srcId]: current };
+    });
+  };
+
+  const isJoinKeyField = (srcId: string, field: string) => {
+    return previewKeys.some(jk =>
+      jk.left === `${srcId}.${field}` || jk.right === `${srcId}.${field}`
+    );
+  };
+
+  const handleSave = async () => {
+    const sources = Array.from(formSources).map(s => ({
+      source_id: s,
+      fields: Array.from(formFields[s] || []),
+    }));
+    const res = await fetch(`${API}/mock-data-gen/schemas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: formName, description: formDesc, category: formCategory, sources }),
+    });
+    const data = await res.json();
+    loadSchemas();
+    setSelected(data);
+    setMode("view");
+    setFormStep(1);
+    setFormName(""); setFormDesc(""); setFormSources(new Set()); setFormFields({});
+  };
+
+  const handleExportSQL = async (id: string) => {
+    const res = await fetch(`${API}/mock-data-gen/schemas/${id}/export/sql`);
+    const data = await res.json();
+    setSqlModal(data.sql || "-- No SQL generated");
+  };
+
+  const handleDownloadJSON = (schema: ExportSchemaItem) => {
+    const blob = new Blob([JSON.stringify(schema, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${schema.name}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const catBadge = (cat: string) => {
+    const c = CATEGORY_COLORS[cat] || CATEGORY_COLORS.Platform;
+    return <span className="text-xs px-2 py-0.5 rounded" style={{ background: c.bg, color: c.color }}>{cat}</span>;
+  };
+
+  return (
+    <div className="flex gap-4" style={{ minHeight: "calc(100vh - 200px)" }}>
+      {/* LEFT PANEL */}
+      <div className="flex-shrink-0" style={{ width: 280, background: "var(--background-card)", border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Saved schemas</span>
+          <button onClick={() => { setMode("new"); setSelected(null); setFormStep(1); }} className="text-xs px-2 py-1 rounded" style={{ background: "var(--brand-primary)", color: "#fff" }}>+ New schema</button>
+        </div>
+        <div className="space-y-2">
+          {schemas.map(s => (
+            <div
+              key={s.id}
+              onClick={() => { setSelected(s); setMode("view"); }}
+              className="p-2 rounded-lg cursor-pointer transition"
+              style={{
+                background: selected?.id === s.id ? "var(--brand-glow)" : "var(--background-hover)",
+                border: `1px solid ${selected?.id === s.id ? "var(--brand-primary)" : "transparent"}`,
+              }}
+            >
+              <div className="text-sm" style={{ color: "var(--text-primary)", fontWeight: 500 }}>{s.name}</div>
+              <div className="flex items-center gap-2 mt-1">
+                {catBadge(s.category)}
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{s.sources.length} sources · {s.join_keys.length} join keys</span>
+              </div>
+            </div>
+          ))}
+          {schemas.length === 0 && <p className="text-xs" style={{ color: "var(--text-muted)" }}>No schemas yet</p>}
+        </div>
+      </div>
+
+      {/* RIGHT PANEL */}
+      <div className="flex-1 rounded-lg" style={{ background: "var(--background-card)", border: "1px solid var(--border)", padding: 16 }}>
+        {mode === "view" && selected ? (
+          <div className="space-y-5">
+            {/* Header */}
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>{selected.name}</h2>
+                {catBadge(selected.category)}
+              </div>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>{selected.description}</p>
+            </div>
+
+            {/* Sources & fields */}
+            <div>
+              <h3 className="text-sm font-medium mb-2" style={{ color: "var(--text-primary)" }}>Sources & fields</h3>
+              {selected.sources.map(src => (
+                <details key={src.source_id} className="mb-2">
+                  <summary className="text-sm cursor-pointer py-1 px-2 rounded" style={{ background: "var(--background-hover)", color: "var(--text-primary)" }}>
+                    {src.source_id} <span className="text-xs" style={{ color: "var(--text-muted)" }}>({src.fields.length} fields)</span>
+                  </summary>
+                  <div className="flex flex-wrap gap-1 mt-1 pl-4">
+                    {src.fields.map(f => {
+                      const isJK = selected.join_keys.some(jk => jk.left.endsWith(`.${f}`) || jk.right.endsWith(`.${f}`));
+                      return (
+                        <span key={f} className="text-xs px-2 py-0.5 rounded" style={{
+                          background: isJK ? "rgba(31,111,235,0.15)" : "var(--background-hover)",
+                          color: isJK ? "var(--brand-primary)" : "var(--text-secondary)",
+                          border: isJK ? "1px solid var(--brand-primary)" : "1px solid transparent",
+                        }}>{f}</span>
+                      );
+                    })}
+                  </div>
+                </details>
+              ))}
+            </div>
+
+            {/* Join keys */}
+            <div>
+              <h3 className="text-sm font-medium mb-2" style={{ color: "var(--text-primary)" }}>Join keys — auto-detected</h3>
+              <div className="space-y-1">
+                {selected.join_keys.map((jk, i) => {
+                  const typeBg = jk.type === "exact" ? "rgba(31,111,235,0.15)" : jk.type === "window" ? "rgba(210,153,34,0.15)" : "rgba(139,148,158,0.15)";
+                  const typeColor = jk.type === "exact" ? "#1f6feb" : jk.type === "window" ? "#d29922" : "#8b949e";
+                  return (
+                    <div key={i} className="flex items-center gap-2 p-2 rounded text-xs" style={{ background: "var(--background-hover)" }}>
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: typeBg, color: typeColor }}>{jk.type}</span>
+                      <span style={{ color: "var(--text-primary)" }}>{jk.left}</span>
+                      <span style={{ color: "var(--text-muted)" }}>&rarr;</span>
+                      <span style={{ color: "var(--text-primary)" }}>{jk.right}</span>
+                      <span className="ml-auto" style={{ color: "var(--text-muted)" }}>{jk.note}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Insight */}
+            <div className="pl-3" style={{ borderLeft: "2px solid var(--brand-primary)" }}>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{selected.insight}</p>
+            </div>
+
+            {/* Action bar */}
+            <div className="flex gap-2 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+              <button onClick={() => handleExportSQL(selected.id)} className="px-4 py-2 rounded-lg text-sm" style={{ background: "var(--brand-primary)", color: "#fff" }}>Export SQL</button>
+              <button onClick={() => handleDownloadJSON(selected)} className="px-4 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>Download JSON</button>
+              <button onClick={() => { setMode("new"); setFormName(selected.name); setFormDesc(selected.description); setFormCategory(selected.category); setFormSources(new Set(selected.sources.map(s => s.source_id))); setFormStep(1); }} className="px-4 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>Edit</button>
+            </div>
+          </div>
+        ) : mode === "new" ? (
+          <div className="space-y-4">
+            {formStep === 1 ? (
+              <>
+                <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>New Export Schema — Step 1</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>Name *</label>
+                    <input value={formName} onChange={e => setFormName(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>Description</label>
+                    <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} rows={2} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>Category</label>
+                    <select value={formCategory} onChange={e => setFormCategory(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
+                      {["CDN", "QoE", "DRM", "Business", "Platform"].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-2" style={{ color: "var(--text-secondary)" }}>Sources</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {ALL_SOURCES_FOR_EXPORT.map(s => (
+                        <label key={s} className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer text-xs" style={{
+                          background: formSources.has(s) ? "var(--brand-glow)" : "var(--background-hover)",
+                          border: `1px solid ${formSources.has(s) ? "var(--brand-primary)" : "var(--border)"}`,
+                          color: formSources.has(s) ? "var(--brand-primary)" : "var(--text-secondary)",
+                        }}>
+                          <input type="checkbox" checked={formSources.has(s)} onChange={() => toggleFormSource(s)} className="accent-blue-500" />
+                          {s}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {previewKeys.length > 0 && (
+                    <div>
+                      <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>Auto-detected join keys:</p>
+                      {previewKeys.map((jk, i) => (
+                        <div key={i} className="text-xs px-2 py-1 rounded mb-1" style={{ background: "var(--background-hover)", color: "var(--text-secondary)" }}>
+                          <span style={{ color: jk.type === "exact" ? "#1f6feb" : "#d29922" }}>[{jk.type}]</span> {jk.left} &rarr; {jk.right}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button disabled={!formName || formSources.size === 0} onClick={() => setFormStep(2)} className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--brand-primary)" }}>Continue &rarr;</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>New Export Schema — Step 2: Select Fields</h3>
+                <div className="space-y-3">
+                  {Array.from(formSources).map(srcId => {
+                    const fields = sourceSchemas[srcId] || [];
+                    return (
+                      <div key={srcId}>
+                        <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>{srcId}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {fields.map(f => {
+                            const isJK = isJoinKeyField(srcId, f.field_name);
+                            const checked = formFields[srcId]?.has(f.field_name) || false;
+                            return (
+                              <label key={f.field_name} className="flex items-center gap-1 text-xs px-2 py-1 rounded cursor-pointer" style={{
+                                background: isJK ? "rgba(31,111,235,0.15)" : checked ? "var(--brand-glow)" : "var(--background-hover)",
+                                color: isJK ? "var(--brand-primary)" : "var(--text-secondary)",
+                                border: `1px solid ${isJK ? "var(--brand-primary)" : "transparent"}`,
+                              }}>
+                                <input type="checkbox" checked={checked || isJK} disabled={isJK} onChange={() => toggleField(srcId, f.field_name)} className="accent-blue-500" />
+                                {f.field_name}
+                              </label>
+                            );
+                          })}
+                          {fields.length === 0 && <span className="text-xs" style={{ color: "var(--text-muted)" }}>Loading...</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="flex gap-2">
+                    <button onClick={() => setFormStep(1)} className="px-4 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>&larr; Back</button>
+                    <button onClick={handleSave} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Save Schema</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Select a schema or create a new one</p>
+          </div>
+        )}
+      </div>
+
+      {/* SQL Modal */}
+      {sqlModal !== null && (
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+          <div className="rounded-lg p-6" style={{ background: "var(--background-card)", border: "1px solid var(--border)", maxWidth: 700, width: "100%", minHeight: 400, maxHeight: "80vh", overflow: "auto" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>DuckDB SQL</h3>
+              <div className="flex gap-2">
+                <button onClick={() => navigator.clipboard.writeText(sqlModal)} className="px-3 py-1 rounded text-xs" style={{ background: "var(--brand-primary)", color: "#fff" }}>Copy</button>
+                <button onClick={() => setSqlModal(null)} className="px-3 py-1 rounded text-xs" style={{ background: "var(--background-hover)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>Close</button>
+              </div>
+            </div>
+            <pre className="text-xs p-4 rounded overflow-x-auto" style={{ background: "var(--background)", color: "var(--text-primary)", fontFamily: "var(--font-mono)", whiteSpace: "pre-wrap" }}>{sqlModal}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

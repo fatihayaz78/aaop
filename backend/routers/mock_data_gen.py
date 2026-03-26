@@ -1,16 +1,26 @@
-"""Mock Data Generator API — source listing, schema browser, generate jobs, validation."""
+"""Mock Data Generator API — source listing, schema browser, generate jobs, validation, export schemas."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
+from itertools import combinations
 from typing import Any
 
+import aiosqlite
 import structlog
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
+
+from backend.models.export_schema import (
+    ExportSchema,
+    ExportSchemaCreate,
+    FieldSelection,
+    JoinKey,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -145,13 +155,36 @@ async def generate(req: GenerateRequest, background_tasks: BackgroundTasks) -> d
         "progress_pct": 0,
         "files_generated": 0,
         "elapsed_s": 0,
+        "_task": None,
     }
 
     start = date.fromisoformat(req.start_date)
     end = date.fromisoformat(req.end_date)
 
+    # Run in background thread via BackgroundTasks
     background_tasks.add_task(_run_generate_job, job_id, req.sources, start, end)
     return {"job_id": job_id, "status": "pending"}
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str) -> dict:
+    """Cancel a running generation job."""
+    job = _jobs.get(job_id)
+    if not job:
+        return {"error": "Job not found"}
+
+    if job["status"] not in ("running", "pending"):
+        return {"job_id": job_id, "status": job["status"], "detail": "Job is not running"}
+
+    job["status"] = "cancelled"
+    # Cancel the asyncio task if stored
+    task = job.get("_task")
+    if task is not None and not task.done():
+        task.cancel()
+
+    job["elapsed_s"] = round(time.time() - job.get("started_at", time.time()), 2)
+    logger.info("job_cancelled", job_id=job_id)
+    return {"job_id": job_id, "status": "cancelled"}
 
 
 @router.get("/jobs/{job_id}")
@@ -214,3 +247,292 @@ async def validate() -> dict:
         "passed": passed,
         "checks": results,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# EXPORT SCHEMA — join key catalog, insight rules, CRUD, SQL export
+# ══════════════════════════════════════════════════════════════════════
+
+_EXPORT_DB_PATH = "data/sqlite/export_schemas.db"
+
+JOIN_KEY_CATALOG: dict[tuple[str, str], list[JoinKey]] = {
+    ("medianova_cdn", "origin_server"): [
+        JoinKey(type="exact", left="medianova_cdn.client_ip", right="origin_server.client_ip", note="Same client, different CDN layer"),
+        JoinKey(type="window", left="medianova_cdn.timestamp", right="origin_server.timestamp", note="±100ms (cache miss moment)", window_ms=100),
+        JoinKey(type="exact", left="medianova_cdn.content_id", right="origin_server.content_id", note="Content-based correlation"),
+    ],
+    ("player_events", "npaw_analytics"): [
+        JoinKey(type="exact", left="player_events.session_id", right="npaw_analytics.session_id", note="1:1 session match"),
+    ],
+    ("player_events", "crm_subscriber"): [
+        JoinKey(type="exact", left="player_events.subscriber_id", right="crm_subscriber.subscriber_id", note="Subscriber profile join"),
+    ],
+    ("player_events", "widevine_drm"): [
+        JoinKey(type="window", left="player_events.timestamp", right="widevine_drm.timestamp", note="±5s (license request moment)", window_ms=5000),
+        JoinKey(type="exact", left="player_events.subscriber_id", right="widevine_drm.subscriber_id", note="Subscriber-level DRM trace"),
+    ],
+    ("player_events", "fairplay_drm"): [
+        JoinKey(type="window", left="player_events.timestamp", right="fairplay_drm.timestamp", note="±5s (certificate exchange)", window_ms=5000),
+        JoinKey(type="exact", left="player_events.subscriber_id", right="fairplay_drm.subscriber_id", note="Subscriber-level DRM trace"),
+    ],
+    ("widevine_drm", "fairplay_drm"): [
+        JoinKey(type="exact", left="widevine_drm.subscriber_id", right="fairplay_drm.subscriber_id", note="Same subscriber, different DRM"),
+        JoinKey(type="exact", left="widevine_drm.content_id", right="fairplay_drm.content_id", note="Content-based error comparison"),
+    ],
+    ("crm_subscriber", "billing"): [
+        JoinKey(type="exact", left="crm_subscriber.subscriber_id", right="billing.subscriber_id", note="Subscription + payment history"),
+        JoinKey(type="window", left="crm_subscriber.timestamp", right="billing.timestamp", note="±24h (daily granular)", window_ms=86400000),
+    ],
+    ("player_events", "api_logs"): [
+        JoinKey(type="exact", left="player_events.subscriber_id", right="api_logs.subscriber_id", note="Subscriber-level API trace"),
+        JoinKey(type="window", left="player_events.timestamp", right="api_logs.timestamp", note="±2s (auth + manifest request)", window_ms=2000),
+    ],
+    ("medianova_cdn", "akamai_ds2"): [
+        JoinKey(type="exact", left="medianova_cdn.client_ip", right="akamai_ds2.client_ip", note="Same client, multi-CDN bandwidth"),
+        JoinKey(type="window", left="medianova_cdn.timestamp", right="akamai_ds2.timestamp", note="±60s (same client, different request)", window_ms=60000),
+    ],
+}
+
+
+def _detect_join_keys(source_ids: list[str]) -> list[JoinKey]:
+    """Auto-detect join keys from the catalog for given source pairs."""
+    keys: list[JoinKey] = []
+    seen: set[tuple[str, str]] = set()
+    for a, b in combinations(source_ids, 2):
+        pair = tuple(sorted([a, b]))
+        catalog_keys = JOIN_KEY_CATALOG.get(pair, [])  # type: ignore[arg-type]
+        for jk in catalog_keys:
+            sig = (jk.left, jk.right)
+            if sig not in seen:
+                seen.add(sig)
+                keys.append(jk)
+    return keys
+
+
+def _generate_insight(join_keys: list[JoinKey], source_ids: list[str]) -> str:
+    """Rule-based insight generation (no LLM)."""
+    parts: list[str] = []
+    all_keys_str = " ".join(jk.left + " " + jk.right for jk in join_keys)
+
+    if "client_ip" in all_keys_str:
+        parts.append("client_ip başına toplam bandwidth hesaplanır, overlap window çıkarılır.")
+    if "session_id" in all_keys_str:
+        parts.append("session_id üzerinden QoE metrikleri karşılaştırılır.")
+    if "crm_subscriber" in source_ids and "billing" in source_ids:
+        parts.append("Churn risk sinyali: seans azalması + payment_failed + churn_risk > 0.7")
+    if "subscriber_id" in all_keys_str:
+        parts.append("Abone bazında cross-source analiz mümkündür.")
+
+    if not parts:
+        parts.append(f"{len(join_keys)} join key tespit edildi.")
+
+    return " ".join(parts)
+
+
+def _generate_sql(schema: ExportSchema) -> str:
+    """Generate DuckDB SQL from an ExportSchema."""
+    lines: list[str] = []
+    lines.append(f"-- Schema: {schema.name}")
+    lines.append(f"-- Join keys: {len(schema.join_keys)}")
+    lines.append("")
+
+    # WITH clauses
+    cte_parts: list[str] = []
+    source_aliases: dict[str, str] = {}
+    for i, src in enumerate(schema.sources):
+        alias = src.source_id.replace("-", "_").replace(" ", "_")
+        source_aliases[src.source_id] = alias
+        fields_str = ", ".join(src.fields) if src.fields else "*"
+        cte = f"  {alias} AS (\n    SELECT {fields_str}\n    FROM read_parquet('{src.source_id}/*.parquet')\n  )"
+        cte_parts.append(cte)
+
+    lines.append("WITH")
+    lines.append(",\n".join(cte_parts))
+
+    # SELECT
+    all_fields: list[str] = []
+    for src in schema.sources:
+        alias = source_aliases[src.source_id]
+        for f in src.fields:
+            all_fields.append(f"{alias}.{f}")
+
+    lines.append(f"SELECT {', '.join(all_fields) if all_fields else '*'}")
+
+    # FROM + JOINs
+    if schema.sources:
+        first_alias = source_aliases[schema.sources[0].source_id]
+        lines.append(f"FROM {first_alias}")
+
+        for src in schema.sources[1:]:
+            alias = source_aliases[src.source_id]
+            # Find join keys involving these two sources
+            join_conditions: list[str] = []
+            for jk in schema.join_keys:
+                left_src = jk.left.split(".")[0]
+                right_src = jk.right.split(".")[0]
+                involved = {left_src, right_src}
+                if alias in involved or first_alias in involved:
+                    left_col = jk.left.split(".")[-1]
+                    right_col = jk.right.split(".")[-1]
+                    if jk.type == "exact":
+                        join_conditions.append(f"  {jk.left} = {jk.right}")
+                    elif jk.type == "window" and jk.window_ms:
+                        join_conditions.append(
+                            f"  ABS(epoch_ms({jk.left}) - epoch_ms({jk.right})) <= {jk.window_ms}"
+                        )
+
+            if join_conditions:
+                lines.append(f"JOIN {alias} ON")
+                lines.append("\n  AND ".join(join_conditions))
+            else:
+                lines.append(f"CROSS JOIN {alias}")
+
+    lines.append(";")
+    return "\n".join(lines)
+
+
+async def _get_export_db():
+    """Get or create the export schemas SQLite database."""
+    import os
+    os.makedirs("data/sqlite", exist_ok=True)
+    db = await aiosqlite.connect(_EXPORT_DB_PATH)
+    db.row_factory = aiosqlite.Row
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS export_schemas (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            category TEXT,
+            sources_json TEXT,
+            join_keys_json TEXT,
+            insight TEXT,
+            created_at TEXT
+        )
+    """)
+    await db.commit()
+    return db
+
+
+@router.get("/schemas")
+async def list_schemas() -> list[dict]:
+    """List all saved export schemas."""
+    db = await _get_export_db()
+    try:
+        cursor = await db.execute("SELECT * FROM export_schemas ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        result = []
+        for row in rows:
+            result.append({
+                "id": row["id"],
+                "name": row["name"],
+                "description": row["description"],
+                "category": row["category"],
+                "sources": json.loads(row["sources_json"]),
+                "join_keys": json.loads(row["join_keys_json"]),
+                "insight": row["insight"],
+                "created_at": row["created_at"],
+            })
+        return result
+    finally:
+        await db.close()
+
+
+@router.post("/schemas")
+async def create_schema(req: ExportSchemaCreate) -> dict:
+    """Create a new export schema with auto-detected join keys and insight."""
+    source_ids = [s.source_id for s in req.sources]
+    join_keys = _detect_join_keys(source_ids)
+    insight = _generate_insight(join_keys, source_ids)
+
+    schema_id = f"es-{uuid.uuid4().hex[:8]}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    schema = ExportSchema(
+        id=schema_id,
+        name=req.name,
+        description=req.description,
+        category=req.category,
+        sources=req.sources,
+        join_keys=join_keys,
+        insight=insight,
+        created_at=now,
+    )
+
+    db = await _get_export_db()
+    try:
+        await db.execute(
+            """INSERT INTO export_schemas (id, name, description, category, sources_json, join_keys_json, insight, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                schema.id, schema.name, schema.description, schema.category,
+                json.dumps([s.model_dump() for s in schema.sources]),
+                json.dumps([jk.model_dump() for jk in schema.join_keys]),
+                schema.insight, schema.created_at,
+            ),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    return schema.model_dump()
+
+
+@router.get("/schemas/{schema_id}")
+async def get_schema(schema_id: str) -> dict:
+    """Get a single export schema by ID."""
+    db = await _get_export_db()
+    try:
+        cursor = await db.execute("SELECT * FROM export_schemas WHERE id = ?", (schema_id,))
+        row = await cursor.fetchone()
+        if not row:
+            return {"error": "Schema not found"}
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "description": row["description"],
+            "category": row["category"],
+            "sources": json.loads(row["sources_json"]),
+            "join_keys": json.loads(row["join_keys_json"]),
+            "insight": row["insight"],
+            "created_at": row["created_at"],
+        }
+    finally:
+        await db.close()
+
+
+@router.delete("/schemas/{schema_id}")
+async def delete_schema(schema_id: str) -> dict:
+    """Delete an export schema."""
+    db = await _get_export_db()
+    try:
+        await db.execute("DELETE FROM export_schemas WHERE id = ?", (schema_id,))
+        await db.commit()
+        return {"deleted": schema_id}
+    finally:
+        await db.close()
+
+
+@router.get("/schemas/{schema_id}/export/sql")
+async def export_sql(schema_id: str) -> dict:
+    """Generate DuckDB SQL query for an export schema."""
+    db = await _get_export_db()
+    try:
+        cursor = await db.execute("SELECT * FROM export_schemas WHERE id = ?", (schema_id,))
+        row = await cursor.fetchone()
+        if not row:
+            return {"error": "Schema not found"}
+
+        schema = ExportSchema(
+            id=row["id"],
+            name=row["name"],
+            description=row["description"] or "",
+            category=row["category"] or "",
+            sources=[FieldSelection(**s) for s in json.loads(row["sources_json"])],
+            join_keys=[JoinKey(**jk) for jk in json.loads(row["join_keys_json"])],
+            insight=row["insight"] or "",
+            created_at=row["created_at"] or "",
+        )
+        sql = _generate_sql(schema)
+        return {"sql": sql}
+    finally:
+        await db.close()

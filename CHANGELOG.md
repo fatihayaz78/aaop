@@ -8,6 +8,19 @@
 
 ---
 
+### S-MDG-09 — 2026-03-26
+- backend/routers/mock_data_gen.py: POST /jobs/{job_id}/cancel endpoint added, asyncio.Task.cancel() support
+- frontend/src/app/(apps)/mock-data-gen/page.tsx: Stop button (visible only when status=running), page renamed to "Data Generation & Extraction"
+- frontend/src/components/layout/Sidebar.tsx: label renamed to "Data Generation & Extraction"
+- backend/models/export_schema.py: Pydantic v2 models (FieldSelection, JoinKey, ExportSchema, ExportSchemaCreate)
+- backend/routers/mock_data_gen.py: 5 new Export Schema endpoints (GET/POST/DELETE schemas, export/sql)
+- frontend/src/app/(apps)/mock-data-gen/page.tsx: Export Schema tab (3rd tab) — two-panel layout, new schema flow (2 steps), SQL modal
+- JOIN_KEY_CATALOG: 17 cross-source join key rules across 9 source pairs
+- SQLite: export_schemas table added to platform.db
+- Tests: 10 passed (existing test_run_validate.py)
+
+---
+
 ### S-MDG-08 — 2026-03-26
 - apps/mock_data_gen/run_all.py: 13 source registry, argparse --start/--end/--sources, sequential runner
 - apps/mock_data_gen/validate.py: 8 korelasyon check, run_all_checks()

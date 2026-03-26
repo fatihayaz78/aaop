@@ -75,9 +75,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S-MDG-02 next
-**Önceki:** S-MDG-01 complete — base infra (calendar, subscriber pool, base generator)
-**Son commit:** S-MDG-01 — mock data gen base infrastructure
+**Aktif Sprint:** S-MDG-09 complete — Export Schema feature
+**Önceki:** S-MDG-08 complete — run_all.py + validate.py + frontend
+**Son commit:** S-MDG-09 — Export Schema + Stop button + rename
 
 ---
 
