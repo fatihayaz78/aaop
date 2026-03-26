@@ -8,6 +8,17 @@
 
 ---
 
+### S-MDG-02 — 2026-03-26
+- generators/medianova/schemas.py: MedianovaLogEntry 32 alan, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
+- generators/medianova/generator.py: 50K/gün normal, 500K/gün derby, 5dk dosyalar, CDN outage 503 spike
+- generators/origin_logs/schemas.py: OriginLogEntry 4 event_type, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
+- generators/origin_logs/generator.py: cdn_miss (Medianova korelasyonlu), health_check 30s, transcoder_event
+- tests/test_medianova.py: 10 test passed
+- tests/test_origin.py: 8 test passed
+- Tests: 44 passed toplam (26 S-MDG-01 + 18 S-MDG-02)
+
+---
+
 ### S-MDG-01 — 2026-03-26
 - apps/mock_data_gen/ modülü oluşturuldu
 - generators/calendar_events.py: 18 CalendarEvent, get_traffic_multiplier(), is_anomaly_active()

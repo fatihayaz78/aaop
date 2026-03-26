@@ -285,7 +285,7 @@ Mock data generator, AAOP frontend'inde iki panel olarak görünür:
 | Sprint | Kapsam | Durum |
 |---|---|---|
 | S-MDG-01 | base_generator + calendar + subscriber_pool | ✅ Tamamlandı |
-| S-MDG-02 | Medianova + Origin generator | ⏳ |
+| S-MDG-02 | Medianova + Origin generator | ✅ Tamamlandı |
 | S-MDG-03 | Widevine + FairPlay generator | ⏳ |
 | S-MDG-04 | Player Events + NPAW generator | ⏳ |
 | S-MDG-05 | API Logs + New Relic generator | ⏳ |
