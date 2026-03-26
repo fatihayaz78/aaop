@@ -8,6 +8,16 @@
 
 ---
 
+### S-MDG-03 — 2026-03-26
+- generators/drm_widevine/schemas.py: WidevineLogEntry 29 alan, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
+- generators/drm_widevine/generator.py: 120K/gün normal, session chain, L1/L3 security levels, derby timeout spike
+- generators/drm_fairplay/schemas.py: FairPlayLogEntry 33 alan, certificate_status/expiry/ksm_response_code
+- generators/drm_fairplay/generator.py: 55K/gün normal, 15 Mart cert expired (ios/apple_tv etkilenir, web_safari etkilenmez, 18 UTC sonrası restore)
+- tests/test_drm.py: 18 test passed (Widevine 9 + FairPlay 8 + cross-DRM 1)
+- Tests: 62 passed toplam (26 + 18 + 18)
+
+---
+
 ### S-MDG-02 — 2026-03-26
 - generators/medianova/schemas.py: MedianovaLogEntry 32 alan, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
 - generators/medianova/generator.py: 50K/gün normal, 500K/gün derby, 5dk dosyalar, CDN outage 503 spike
