@@ -8,6 +8,16 @@
 
 ---
 
+### S-MDG-04 — 2026-03-26
+- generators/player_events/schemas.py: PlayerEventEntry 30 alan, 7 event_type, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
+- generators/player_events/generator.py: session chain (start→buffer→bitrate→error→seek→end), QoE formula, 50K session/gün normal, derby/outage degradation
+- generators/npaw/schemas.py: NPAWSessionEntry 25 alan, youbora_score/qoe_score
+- generators/npaw/generator.py: post-session agregat, Player Events korelasyonlu (session_id, qoe ±0.1, rebuf ±5%)
+- tests/test_player_npaw.py: 19 test passed (Player 11 + NPAW 8)
+- Tests: 81 passed toplam (26 + 18 + 18 + 19)
+
+---
+
 ### S-MDG-03 — 2026-03-26
 - generators/drm_widevine/schemas.py: WidevineLogEntry 29 alan, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
 - generators/drm_widevine/generator.py: 120K/gün normal, session chain, L1/L3 security levels, derby timeout spike
