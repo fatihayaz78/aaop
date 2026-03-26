@@ -8,6 +8,16 @@
 
 ---
 
+### S-MDG-07 — 2026-03-26
+- generators/push_notifications/schemas.py: PushNotificationEntry 27 alan, 10 notification_type, Türkçe templates
+- generators/push_notifications/generator.py: match reminder/starting/score, system_alert CDN outage + FairPlay ios-only, service_restored +32dk, open rate dağılımları
+- generators/app_reviews/schemas.py: AppReviewEntry 19 alan, sentiment/category/topics
+- generators/app_reviews/generator.py: 15-30/gün normal, 250+ CDN outage, 400+ ElClasico, FairPlay ios DRM dominant, developer response %15-35
+- tests/test_push_reviews.py: 21 test passed (Push 11 + Reviews 10)
+- Tests: 146 passed toplam (26+18+18+19+19+25+21)
+
+---
+
 ### S-MDG-06 — 2026-03-26
 - generators/crm/schemas.py: SubscriberProfile 50+ alan, SubscriberDailyDelta, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
 - generators/crm/generator.py: 485K base CSV + daily delta, churn risk formula, calendar effects
