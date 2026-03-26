@@ -74,9 +74,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S24 — UI Fix Sprint (in progress)
-**Önceki:** S23 complete — metrics fix + Swagger + KB + raw log values
-**Son commit:** S24-Fix1 — Log Analyzer chart crash fixed
+**Aktif Sprint:** S-MDG-02 next
+**Önceki:** S-MDG-01 complete — base infra (calendar, subscriber pool, base generator)
+**Son commit:** S-MDG-01 — mock data gen base infrastructure
 
 ---
 

@@ -8,6 +8,16 @@
 
 ---
 
+### S-MDG-01 — 2026-03-26
+- apps/mock_data_gen/ modülü oluşturuldu
+- generators/calendar_events.py: 18 CalendarEvent, get_traffic_multiplier(), is_anomaly_active()
+- generators/subscriber_pool.py: 485K abone, lazy load, seed(42), TR demographics
+- generators/base_generator.py: BaseGenerator ABC, write_jsonl_gz/json/csv, generate_range()
+- tests/test_base_infra.py: 26 test, 26 passed
+- Tests: 93 + 26 = toplam passed (3 DuckDB IO error — S-MDG-01 ile ilgisiz)
+
+---
+
 ## [S24-Fix1] — 2026-03-25
 ### Fixed
 - Log Analyzer: invalid JSX removed (lines 1108-1110 in log-analyzer/page.tsx)
