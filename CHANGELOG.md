@@ -8,6 +8,16 @@
 
 ---
 
+### S-MDG-05 — 2026-03-26
+- generators/api_logs/schemas.py: APILogEntry 16 alan, 13 endpoint, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
+- generators/api_logs/generator.py: 280K/gün normal, 2.8M derby, CDN outage 503, rate limit 429
+- generators/newrelic/schemas.py: NewRelicAPMEntry 20 alan, 3 event_type, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
+- generators/newrelic/generator.py: 5 servis profili, dakika bazlı APM, 60s infra, derby pod scaling (4→16), CDN outage apdex 0.12
+- tests/test_api_newrelic.py: 19 test passed (API 10 + NewRelic 9)
+- Tests: 100 passed toplam (26+18+18+19+19)
+
+---
+
 ### S-MDG-04 — 2026-03-26
 - generators/player_events/schemas.py: PlayerEventEntry 30 alan, 7 event_type, FIELD_CATEGORIES, FIELD_DESCRIPTIONS
 - generators/player_events/generator.py: session chain (start→buffer→bitrate→error→seek→end), QoE formula, 50K session/gün normal, derby/outage degradation
