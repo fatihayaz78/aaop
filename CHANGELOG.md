@@ -8,6 +8,19 @@
 
 ---
 
+### S-MDG-08 — 2026-03-26
+- apps/mock_data_gen/run_all.py: 13 source registry, argparse --start/--end/--sources, sequential runner
+- apps/mock_data_gen/validate.py: 8 korelasyon check, run_all_checks()
+- apps/mock_data_gen/requirements.txt: pydantic, structlog, faker
+- backend/routers/mock_data_gen.py: 6 endpoint (sources, schema, generate, jobs, output/summary, validate)
+- backend/main.py: mock_data_gen_router mount eklendi
+- frontend/mock-data-gen/page.tsx: Generator tab (source selector, date range, progress, validate) + Schema Browser (field table, category filter, export JSON)
+- tests/test_run_validate.py: 10 test passed
+- Tests: 156 passed toplam (26+18+18+19+19+25+21+10)
+- mock_data_gen modülü TAMAMLANDI — 13 kaynak, 8 sprint, 156 test
+
+---
+
 ### S-MDG-07 — 2026-03-26
 - generators/push_notifications/schemas.py: PushNotificationEntry 27 alan, 10 notification_type, Türkçe templates
 - generators/push_notifications/generator.py: match reminder/starting/score, system_alert CDN outage + FairPlay ios-only, service_restored +32dk, open rate dağılımları

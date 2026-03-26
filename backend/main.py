@@ -21,6 +21,7 @@ from backend.routers.knowledge_base import router as knowledge_base_router
 from backend.routers.live_intelligence import router as live_intelligence_router
 from backend.routers.log_analyzer import router as log_analyzer_router
 from backend.routers.ops_center import router as ops_center_router
+from backend.routers.mock_data_gen import router as mock_data_gen_router
 from backend.routers.viewer_experience import router as viewer_experience_router
 
 logger = structlog.get_logger(__name__)
@@ -94,6 +95,7 @@ app.include_router(ai_lab_router)
 app.include_router(knowledge_base_router)
 app.include_router(devops_assistant_router)
 app.include_router(admin_governance_router)
+app.include_router(mock_data_gen_router)
 
 
 @app.get("/health")

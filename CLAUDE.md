@@ -69,6 +69,7 @@ curl http://localhost:8000/health
 | 9 | `apps/ai_lab/` | `ai_lab.spec.md` | M10 Experimentation + M14 ML Gov | P2 |
 | 10 | `apps/knowledge_base/` | `knowledge_base.spec.md` | M15 Knowledge Base | P2 |
 | 11 | `apps/devops_assistant/` | `devops_assistant.spec.md` | M08 DevOps Assistant | P2 |
+| 12 | `apps/mock_data_gen/` | `mock_data_gen_spec.md` | Mock Data Generator (13 kaynak, 91 gün) | Dev/Test |
 
 ---
 
