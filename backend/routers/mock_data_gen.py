@@ -122,6 +122,102 @@ async def get_source_schema(source_name: str) -> dict:
     }
 
 
+# Sample values for field type inference
+_SAMPLE_VALUES: dict[str, dict[str, str]] = {
+    "medianova": {
+        "request_id": "550e8400-e29b-41d4-a716-446655440000", "request_method": "GET",
+        "request_uri": "/live/s_sport_1/1080/seg_123.ts", "request_time": "0.012",
+        "scheme": "https", "http_protocol": "HTTP/2.0", "http_host": "cdn.ssport.com.tr",
+        "http_user_agent": "ExoPlayer/2.18.7", "status": "200", "content_type": "video/MP2T",
+        "proxy_cache_status": "HIT", "body_bytes_sent": "524288", "bytes_sent": "524800",
+        "timestamp": "2026-03-04T19:30:00Z", "remote_addr": "a1b2c3d4e5f6a7b8",
+        "client_port": "54321", "asn": "AS9121", "country_code": "TR", "isp": "Turk Telekom",
+        "tcp_info_rtt": "25", "tcp_info_rtt_var": "5", "ssl_protocol": "TLSv1.3",
+        "ssl_cipher": "TLS_AES_256_GCM_SHA384", "resource_uuid": "r-abcdef12",
+        "account_type": "enterprise", "channel": "s_sport_1", "edge_node": "ist-01",
+        "stream_type": "live", "request_param": "null", "http_referrer": "null",
+        "upstream_response_time": "null", "sent_http_content_length": "524288", "via": "1.1 medianova",
+    },
+}
+
+_TYPE_INFERENCE: dict[str, str] = {
+    "str": "string", "int": "integer", "float": "float", "bool": "boolean",
+}
+
+
+def _infer_field_type(field_name: str, type_str: str) -> str:
+    """Infer a friendly type name from field name and annotation."""
+    name_lower = field_name.lower()
+    if "timestamp" in name_lower or name_lower in ("created_at", "delivered_at", "opened_at", "start_time", "end_time"):
+        return "datetime"
+    if name_lower.endswith("_id") and "uuid" not in name_lower:
+        if "subscriber" in name_lower or "session" in name_lower or "content" in name_lower:
+            return "string"
+        return "uuid"
+    if name_lower == "event_id" or name_lower == "request_id" or name_lower == "notification_id" or name_lower == "review_id" or name_lower == "transaction_id" or name_lower == "program_id":
+        return "uuid"
+    if "ip" in name_lower and "hash" not in name_lower:
+        return "ip_address"
+    if name_lower.endswith("_ms") or name_lower.endswith("_s") or name_lower in ("status", "status_code", "rating", "port", "client_port", "pod_count", "retry_count"):
+        return "integer"
+    if name_lower.endswith("_pct") or name_lower.endswith("_rate") or name_lower.endswith("_ratio") or name_lower in ("amount_tl", "completion_rate", "apdex_score", "qoe_score", "youbora_score", "churn_risk_score"):
+        return "float"
+    if name_lower.startswith("is_") or name_lower in ("delivered", "opened", "conversion", "auto_renew", "developer_response", "error_fatal", "cache_hit", "pre_scale_required"):
+        return "boolean"
+    for base, friendly in _TYPE_INFERENCE.items():
+        if base in type_str.lower():
+            return friendly
+    return "string"
+
+
+def _get_sample_value(source_name: str, field_name: str, field_type: str) -> str:
+    """Return a realistic sample value for a field."""
+    # Check explicit samples first
+    src_samples = _SAMPLE_VALUES.get(source_name, {})
+    if field_name in src_samples:
+        return src_samples[field_name]
+    # Generic samples by type
+    if field_type == "uuid":
+        return "550e8400-e29b-41d4-a716-446655440000"
+    if field_type == "datetime":
+        return "2026-03-04T19:30:00Z"
+    if field_type == "integer":
+        return "200"
+    if field_type == "float":
+        return "0.95"
+    if field_type == "boolean":
+        return "true"
+    if field_type == "ip_address":
+        return "203.0.113.42"
+    return "sample_value"
+
+
+@router.get("/sources/{source_name}/fields")
+async def get_source_fields(source_name: str) -> dict:
+    """Return field list with inferred type and sample value."""
+    if source_name not in _SCHEMA_MODULES:
+        return {"error": f"Unknown source: {source_name}", "source_id": source_name, "fields": []}
+
+    import importlib
+    mod_path, class_name = _SCHEMA_MODULES[source_name]
+    mod = importlib.import_module(mod_path)
+    model_cls = getattr(mod, class_name)
+
+    fields = []
+    for fname, finfo in model_cls.model_fields.items():
+        annotation = finfo.annotation
+        type_str = getattr(annotation, "__name__", str(annotation))
+        inferred = _infer_field_type(fname, type_str)
+        sample = _get_sample_value(source_name, fname, inferred)
+        fields.append({
+            "name": fname,
+            "type": inferred,
+            "sample": sample,
+        })
+
+    return {"source_id": source_name, "fields": fields}
+
+
 def _run_generate_job(job_id: str, sources: list[str], start: date, end: date) -> None:
     """Background task: run generators."""
     from apps.mock_data_gen.run_all import run

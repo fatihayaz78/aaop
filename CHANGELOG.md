@@ -8,6 +8,17 @@
 
 ---
 
+### S-MDG-10 — 2026-03-26
+- backend/routers/mock_data_gen.py: GET /mock-data-gen/sources/{source_name}/fields endpoint (type + sample value per field)
+- frontend/src/app/(apps)/mock-data-gen/page.tsx: Step 2 redesigned — two-panel layout (left: source list with live field counts, right: relationship fields + other fields)
+- Relationship detection: frontend-only, field name overlap across selected sources → join keys
+- Relationship fields: amber-themed, auto pre-checked, link indicator showing cross-source connection
+- Other fields: checkbox + type (monospace) + sample value
+- Action bar: live summary "{total} fields · {n} join keys"
+- Tests: 10 passed, 0 failures
+
+---
+
 ### S-MDG-09 — 2026-03-26
 - backend/routers/mock_data_gen.py: POST /jobs/{job_id}/cancel endpoint added, asyncio.Task.cancel() support
 - frontend/src/app/(apps)/mock-data-gen/page.tsx: Stop button (visible only when status=running), page renamed to "Data Generation & Extraction"

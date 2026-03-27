@@ -606,7 +606,8 @@ function ExportSchemaTab() {
   const [formStep, setFormStep] = useState(1);
   const [previewKeys, setPreviewKeys] = useState<ExportSchemaItem["join_keys"]>([]);
   const [formFields, setFormFields] = useState<Record<string, Set<string>>>({});
-  const [sourceSchemas, setSourceSchemas] = useState<Record<string, SchemaField[]>>({});
+  const [sourceSchemas, setSourceSchemas] = useState<Record<string, { name: string; type: string; sample: string }[]>>({});
+  const [activeSource, setActiveSource] = useState<string | null>(null);
 
   const loadSchemas = () => {
     fetch(`${API}/mock-data-gen/schemas`).then(r => r.json()).then(setSchemas).catch(() => {});
@@ -629,35 +630,76 @@ function ExportSchemaTab() {
     }).catch(() => {});
   }, [formSources, formCategory]);
 
-  // Load field schemas for step 2
+  // Load field data for step 2 using /fields endpoint
+  const SOURCE_ID_TO_API: Record<string, string> = {
+    medianova_cdn: "medianova", origin_server: "origin_logs",
+    widevine_drm: "drm_widevine", fairplay_drm: "drm_fairplay",
+    player_events: "player_events", npaw_analytics: "npaw",
+    api_logs: "api_logs", newrelic_apm: "newrelic",
+    crm_subscriber: "crm", epg: "epg", billing: "billing",
+    push_notifications: "push_notifications", app_reviews: "app_reviews",
+  };
+
   useEffect(() => {
     if (formStep !== 2) return;
-    const mapping: Record<string, string> = {
-      medianova_cdn: "medianova", origin_server: "origin_logs",
-      widevine_drm: "drm_widevine", fairplay_drm: "drm_fairplay",
-      player_events: "player_events", npaw_analytics: "npaw",
-      api_logs: "api_logs", newrelic_apm: "newrelic",
-      crm_subscriber: "crm", epg: "epg", billing: "billing",
-      push_notifications: "push_notifications", app_reviews: "app_reviews",
-    };
-    Array.from(formSources).forEach(srcId => {
-      const apiName = mapping[srcId] || srcId;
-      if (!sourceSchemas[srcId]) {
-        fetch(`${API}/mock-data-gen/sources/${apiName}/schema`)
-          .then(r => r.json())
-          .then(data => {
-            setSourceSchemas(prev => ({ ...prev, [srcId]: data.fields || [] }));
-            // Pre-check join key fields
-            const jkFields = new Set<string>();
-            previewKeys.forEach(jk => {
-              if (jk.left.startsWith(srcId + ".")) jkFields.add(jk.left.split(".")[1]);
-              if (jk.right.startsWith(srcId + ".")) jkFields.add(jk.right.split(".")[1]);
-            });
-            setFormFields(prev => ({ ...prev, [srcId]: new Set(Array.from(jkFields)) }));
-          }).catch(() => {});
-      }
+    const srcs = Array.from(formSources);
+    if (!activeSource && srcs.length > 0) setActiveSource(srcs[0]);
+
+    srcs.forEach(srcId => {
+      if (sourceSchemas[srcId]) return;
+      const apiName = SOURCE_ID_TO_API[srcId] || srcId;
+      fetch(`${API}/mock-data-gen/sources/${apiName}/fields`)
+        .then(r => r.json())
+        .then(data => {
+          const fields = (data.fields || []) as { name: string; type: string; sample: string }[];
+          setSourceSchemas(prev => ({ ...prev, [srcId]: fields }));
+          // Pre-check relationship fields (fields whose name exists in another selected source)
+          // We'll compute this after all schemas load, so just init empty for now
+          setFormFields(prev => {
+            if (prev[srcId]) return prev;
+            return { ...prev, [srcId]: new Set<string>() };
+          });
+        }).catch(() => {});
     });
-  }, [formStep, formSources, previewKeys, sourceSchemas]);
+  }, [formStep, formSources, activeSource, sourceSchemas]);
+
+  // Auto pre-check relationship fields once all schemas are loaded
+  useEffect(() => {
+    if (formStep !== 2) return;
+    const srcs = Array.from(formSources);
+    const allLoaded = srcs.every(s => sourceSchemas[s]);
+    if (!allLoaded) return;
+
+    // Compute relationship field names: fields that appear in 2+ selected sources
+    const fieldSourceMap: Record<string, string[]> = {};
+    srcs.forEach(srcId => {
+      (sourceSchemas[srcId] || []).forEach(f => {
+        if (!fieldSourceMap[f.name]) fieldSourceMap[f.name] = [];
+        fieldSourceMap[f.name].push(srcId);
+      });
+    });
+    const relationshipFields = new Set(
+      Object.entries(fieldSourceMap).filter(([, s]) => s.length >= 2).map(([name]) => name)
+    );
+
+    // Pre-check relationship fields in each source (only if not already set by user)
+    setFormFields(prev => {
+      const next = { ...prev };
+      let changed = false;
+      srcs.forEach(srcId => {
+        const current = next[srcId] || new Set<string>();
+        const srcFieldNames = (sourceSchemas[srcId] || []).map(f => f.name);
+        const relFields = srcFieldNames.filter(f => relationshipFields.has(f));
+        const alreadyHasRelFields = relFields.every(f => current.has(f));
+        if (!alreadyHasRelFields && current.size === 0) {
+          // First time: pre-check relationship fields
+          next[srcId] = new Set(relFields);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [formStep, formSources, sourceSchemas]);
 
   const toggleFormSource = (s: string) => {
     setFormSources(prev => {
@@ -675,17 +717,63 @@ function ExportSchemaTab() {
     });
   };
 
-  const isJoinKeyField = (srcId: string, field: string) => {
-    return previewKeys.some(jk =>
-      jk.left === `${srcId}.${field}` || jk.right === `${srcId}.${field}`
+  // Compute relationship fields: field names appearing in 2+ selected sources
+  const getRelationshipInfo = useCallback(() => {
+    const srcs = Array.from(formSources);
+    const fieldSourceMap: Record<string, string[]> = {};
+    srcs.forEach(srcId => {
+      (sourceSchemas[srcId] || []).forEach(f => {
+        if (!fieldSourceMap[f.name]) fieldSourceMap[f.name] = [];
+        fieldSourceMap[f.name].push(srcId);
+      });
+    });
+    return Object.fromEntries(
+      Object.entries(fieldSourceMap).filter(([, s]) => s.length >= 2)
     );
-  };
+  }, [formSources, sourceSchemas]);
+
+  // Count join keys: fields checked in 2+ sources
+  const getJoinKeyCount = useCallback(() => {
+    const relInfo = getRelationshipInfo();
+    let count = 0;
+    for (const [fieldName, srcIds] of Object.entries(relInfo)) {
+      const checkedIn = srcIds.filter(s => formFields[s]?.has(fieldName));
+      if (checkedIn.length >= 2) count++;
+    }
+    return count;
+  }, [getRelationshipInfo, formFields]);
+
+  const getTotalSelectedFields = useCallback(() => {
+    let total = 0;
+    Array.from(formSources).forEach(s => { total += (formFields[s]?.size || 0); });
+    return total;
+  }, [formSources, formFields]);
 
   const handleSave = async () => {
-    const sources = Array.from(formSources).map(s => ({
+    const srcs = Array.from(formSources);
+    const sources = srcs.map(s => ({
       source_id: s,
       fields: Array.from(formFields[s] || []),
     }));
+
+    // Build join_keys from relationship fields checked in 2+ sources
+    const relInfo = getRelationshipInfo();
+    const joinKeys: { type: string; left: string; right: string; note: string; window_ms: number | null }[] = [];
+    for (const [fieldName, srcIds] of Object.entries(relInfo)) {
+      const checkedIn = srcIds.filter(s => formFields[s]?.has(fieldName));
+      if (checkedIn.length >= 2) {
+        for (let i = 0; i < checkedIn.length - 1; i++) {
+          joinKeys.push({
+            type: "exact",
+            left: `${checkedIn[i]}.${fieldName}`,
+            right: `${checkedIn[i + 1]}.${fieldName}`,
+            note: `Shared field: ${fieldName}`,
+            window_ms: null,
+          });
+        }
+      }
+    }
+
     const res = await fetch(`${API}/mock-data-gen/schemas`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -696,7 +784,8 @@ function ExportSchemaTab() {
     setSelected(data);
     setMode("view");
     setFormStep(1);
-    setFormName(""); setFormDesc(""); setFormSources(new Set()); setFormFields({});
+    setFormName(""); setFormDesc(""); setFormSources(new Set()); setFormFields({}); setActiveSource(null);
+    setSourceSchemas({});
   };
 
   const handleExportSQL = async (id: string) => {
@@ -866,38 +955,148 @@ function ExportSchemaTab() {
               </>
             ) : (
               <>
-                <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>New Export Schema — Step 2: Select Fields</h3>
-                <div className="space-y-3">
-                  {Array.from(formSources).map(srcId => {
-                    const fields = sourceSchemas[srcId] || [];
-                    return (
-                      <div key={srcId}>
-                        <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>{srcId}</p>
-                        <div className="flex flex-wrap gap-1">
-                          {fields.map(f => {
-                            const isJK = isJoinKeyField(srcId, f.field_name);
-                            const checked = formFields[srcId]?.has(f.field_name) || false;
-                            return (
-                              <label key={f.field_name} className="flex items-center gap-1 text-xs px-2 py-1 rounded cursor-pointer" style={{
-                                background: isJK ? "rgba(31,111,235,0.15)" : checked ? "var(--brand-glow)" : "var(--background-hover)",
-                                color: isJK ? "var(--brand-primary)" : "var(--text-secondary)",
-                                border: `1px solid ${isJK ? "var(--brand-primary)" : "transparent"}`,
-                              }}>
-                                <input type="checkbox" checked={checked || isJK} disabled={isJK} onChange={() => toggleField(srcId, f.field_name)} className="accent-blue-500" />
-                                {f.field_name}
-                              </label>
-                            );
-                          })}
-                          {fields.length === 0 && <span className="text-xs" style={{ color: "var(--text-muted)" }}>Loading...</span>}
+              <div className="flex gap-3" style={{ height: "calc(100% - 56px)" }}>
+                {/* LEFT — Source list */}
+                <div className="flex-shrink-0 overflow-y-auto" style={{ width: 220, background: "var(--background)", borderRadius: 8, border: "1px solid var(--border)", padding: 10 }}>
+                  <p className="text-sm font-medium mb-0.5" style={{ color: "var(--text-primary)" }}>Sources</p>
+                  <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Click to select fields</p>
+                  <div className="space-y-1">
+                    {Array.from(formSources).map(srcId => {
+                      const selectedCount = formFields[srcId]?.size || 0;
+                      const srcGroup = ALL_SOURCES_FOR_EXPORT.includes(srcId) ? (
+                        ["medianova_cdn", "origin_server"].includes(srcId) ? "CDN" :
+                        ["widevine_drm", "fairplay_drm"].includes(srcId) ? "DRM" :
+                        ["player_events", "npaw_analytics"].includes(srcId) ? "QoE" :
+                        ["api_logs", "newrelic_apm"].includes(srcId) ? "Platform" : "Business"
+                      ) : "Platform";
+                      const dotColor = CATEGORY_COLORS[srcGroup]?.color || "#8b949e";
+                      const isActive = activeSource === srcId;
+                      return (
+                        <div
+                          key={srcId}
+                          onClick={() => setActiveSource(srcId)}
+                          className="p-2 rounded-lg cursor-pointer transition"
+                          style={{
+                            background: isActive ? "var(--brand-glow)" : "transparent",
+                            border: `1px solid ${isActive ? "var(--brand-primary)" : "transparent"}`,
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                            <span className="text-sm" style={{ color: "var(--text-primary)", fontWeight: 500 }}>{srcId}</span>
+                          </div>
+                          <p className="text-xs mt-0.5 ml-4" style={{ color: "var(--text-muted)" }}>{selectedCount} fields selected</p>
                         </div>
-                      </div>
-                    );
-                  })}
-                  <div className="flex gap-2">
-                    <button onClick={() => setFormStep(1)} className="px-4 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>&larr; Back</button>
-                    <button onClick={handleSave} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Save Schema</button>
+                      );
+                    })}
                   </div>
                 </div>
+
+                {/* RIGHT — Field selection */}
+                <div className="flex-1 overflow-y-auto" style={{ background: "var(--background)", borderRadius: 8, border: "1px solid var(--border)", padding: 12 }}>
+                  {activeSource && (() => {
+                    const fields = sourceSchemas[activeSource] || [];
+                    const relInfo = getRelationshipInfo();
+                    const relFieldNames = new Set(
+                      Object.entries(relInfo)
+                        .filter(([, srcs]) => srcs.includes(activeSource))
+                        .map(([name]) => name)
+                    );
+                    const relFields = fields.filter(f => relFieldNames.has(f.name));
+                    const otherFields = fields.filter(f => !relFieldNames.has(f.name));
+                    const totalFields = fields.length;
+                    const selectedCount = formFields[activeSource]?.size || 0;
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{activeSource}</span>
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedCount} / {totalFields} selected</span>
+                        </div>
+                        <p className="text-xs" style={{ color: "var(--text-muted)", marginTop: -8 }}>Data type and sample value shown for each field</p>
+
+                        {fields.length === 0 && <p className="text-xs" style={{ color: "var(--text-muted)" }}>Loading fields...</p>}
+
+                        {/* Section 1: Relationship fields */}
+                        {relFields.length > 0 && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-medium" style={{ color: "var(--risk-medium)" }}>Relationship fields</span>
+                              {Array.from(new Set(
+                                relFields.flatMap(f => (relInfo[f.name] || []).filter(s => s !== activeSource))
+                              )).map(other => (
+                                <span key={other} className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(210,153,34,0.15)", color: "#d29922" }}>links to {other}</span>
+                              ))}
+                            </div>
+                            <p className="text-xs mb-2 px-2 py-1.5 rounded" style={{ background: "rgba(210,153,34,0.08)", color: "var(--text-secondary)", border: "1px solid rgba(210,153,34,0.2)" }}>
+                              These fields appear in both sources — selecting them creates join keys in your data model
+                            </p>
+                            <div className="space-y-0.5">
+                              {relFields.map(f => {
+                                const checked = formFields[activeSource]?.has(f.name) || false;
+                                const otherSrcs = (relInfo[f.name] || []).filter(s => s !== activeSource);
+                                return (
+                                  <label
+                                    key={f.name}
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition"
+                                    style={{ background: checked ? "rgba(210,153,34,0.1)" : "transparent" }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(210,153,34,0.12)"; }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = checked ? "rgba(210,153,34,0.1)" : "transparent"; }}
+                                  >
+                                    <input type="checkbox" checked={checked} onChange={() => toggleField(activeSource, f.name)} className="accent-amber-500" />
+                                    <span className="text-sm" style={{ color: "#d29922", fontWeight: 500, minWidth: 140 }}>{f.name}</span>
+                                    <span className="text-xs font-mono" style={{ color: "var(--text-muted)", minWidth: 70 }}>{f.type}</span>
+                                    <span className="ml-auto flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d29922" }} />
+                                      {otherSrcs.map(s => `${s}.${f.name}`).join(", ")}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Section 2: Other fields */}
+                        {otherFields.length > 0 && (
+                          <div>
+                            <span className="text-xs font-medium mb-2 block" style={{ color: "var(--text-secondary)" }}>Other fields</span>
+                            <div className="space-y-0.5">
+                              {otherFields.map(f => {
+                                const checked = formFields[activeSource]?.has(f.name) || false;
+                                return (
+                                  <label
+                                    key={f.name}
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition"
+                                    style={{ background: "transparent" }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--background-hover)"; }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                                  >
+                                    <input type="checkbox" checked={checked} onChange={() => toggleField(activeSource, f.name)} className="accent-blue-500" />
+                                    <span className="text-sm" style={{ color: "var(--text-primary)", minWidth: 140 }}>{f.name}</span>
+                                    <span className="text-xs font-mono" style={{ color: "var(--text-muted)", minWidth: 70 }}>{f.type}</span>
+                                    <span className="text-xs font-mono ml-auto" style={{ color: "var(--text-muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.sample}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Action bar */}
+              <div className="flex items-center justify-between pt-3 mt-3" style={{ borderTop: "1px solid var(--border)" }}>
+                <button onClick={() => { setFormStep(1); setActiveSource(null); }} className="px-4 py-2 rounded-lg text-sm" style={{ background: "var(--background-hover)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>&larr; Back</button>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{getTotalSelectedFields()} fields · {getJoinKeyCount()} join keys</span>
+                  <button onClick={handleSave} className="px-5 py-2 rounded-lg text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Save Schema</button>
+                </div>
+              </div>
               </>
             )}
           </div>
