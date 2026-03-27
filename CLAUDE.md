@@ -75,9 +75,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S-MDG-10 complete — Step 2 two-panel redesign
+**Aktif Sprint:** S-DI-01 complete — Data Ingestion Layer
 **Önceki:** S-MDG-08 complete — run_all.py + validate.py + frontend
-**Son commit:** S-MDG-10 — Export Schema Step 2 redesign
+**Son commit:** S-DI-01 — logs.duckdb + 13 kaynak parser + Data Sources UI
 
 ---
 

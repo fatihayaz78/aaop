@@ -254,7 +254,41 @@ GET    /admin/compliance/violations Query: tenant_id, status → [ComplianceViol
 
 ---
 
-## 11. MOCK DATA GEN (Dev/Test)
+## 11. DATA SOURCES
+
+```
+GET    /data-sources/configs                    Query: tenant_id → [SourceConfig]
+POST   /data-sources/configs                    Body: SourceConfigCreate → SourceConfig
+PATCH  /data-sources/configs/{config_id}        Body: partial → SourceConfig
+DELETE /data-sources/configs/{config_id}        → 204
+POST   /data-sources/sync/{config_id}           → SyncResult
+POST   /data-sources/sync-all                   Query: tenant_id → [SyncResult]
+GET    /data-sources/sync-status                Query: tenant_id → [SyncStatus]
+GET    /data-sources/query/{source_name}        Query: tenant_id, date_from, date_to, limit → QueryResult
+```
+
+**SourceConfig:**
+```json
+{
+  "id": "uuid",
+  "tenant_id": "aaop_company",
+  "source_name": "medianova",
+  "source_type": "local",
+  "local_path": "/Users/.../aaop_company/medianova/",
+  "s3_bucket": null,
+  "s3_prefix": null,
+  "enabled": true,
+  "sync_interval_minutes": null,
+  "last_sync_at": "2026-03-27T08:00:00",
+  "last_sync_rows": 12400,
+  "last_sync_error": null,
+  "created_at": "2026-03-27T07:00:00"
+}
+```
+
+---
+
+## 12. MOCK DATA GEN (Dev/Test)
 
 ```
 GET    /mock-data-gen/sources                        → [SourceInfo]
@@ -303,7 +337,7 @@ GET    /mock-data-gen/schemas/{schema_id}/export/sql → {sql: str}
 
 ---
 
-## 12. AI LAB, KNOWLEDGE BASE, DEVOPS ASSISTANT
+## 13. AI LAB, KNOWLEDGE BASE, DEVOPS ASSISTANT
 
 ```
 # AI Lab (M10 + M14)
@@ -325,7 +359,7 @@ POST   /devops/diagnose             Body: DiagnosticRequest → DiagnosticResult
 
 ---
 
-## 13. ORTAK RESPONSE MODELLERİ
+## 14. ORTAK RESPONSE MODELLERİ
 
 ```python
 # Tüm agent kararları bu forma uyar
@@ -354,7 +388,7 @@ class ErrorResponse(BaseModel):
 
 ---
 
-## 14. WEBSOCKET PROTOKOLÜ
+## 15. WEBSOCKET PROTOKOLÜ
 
 ```typescript
 // Socket.IO events (client → server)

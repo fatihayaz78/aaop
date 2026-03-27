@@ -8,7 +8,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiPatch, exportToCsv } from "@/lib/api";
 import type { AdminDashboard, Tenant, AuditEntry } from "@/types/admin_governance";
 
-type Tab = "dashboard" | "tenants" | "modules" | "audit" | "compliance" | "usage";
+type Tab = "dashboard" | "tenants" | "modules" | "audit" | "compliance" | "usage" | "datasources";
 
 const planColor: Record<string, { bg: string; text: string }> = {
   enterprise: { bg: "rgba(168,85,247,0.15)", text: "#a855f7" },
@@ -75,6 +75,7 @@ export default function AdminGovernance() {
     { key: "dashboard", label: "Dashboard" }, { key: "tenants", label: "Tenants" },
     { key: "modules", label: "Module Config" }, { key: "audit", label: "Audit Log" },
     { key: "compliance", label: "Compliance" }, { key: "usage", label: "Usage Stats" },
+    { key: "datasources", label: "Data Sources" },
   ];
 
   return (
@@ -88,6 +89,16 @@ export default function AdminGovernance() {
           </button>
         ))}
       </div>
+
+      {/* Empty data state */}
+      {!dash && tab === "dashboard" && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+          <p className="mt-3 text-sm font-medium" style={{ color: "var(--text-primary)" }}>No data available</p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Connect a data source and run sync to populate this view.</p>
+          <a href="/admin-governance" className="mt-3 text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--brand-primary)", color: "#fff" }}>Go to Data Sources →</a>
+        </div>
+      )}
 
       {/* ═══ Dashboard ═══ */}
       {tab === "dashboard" && dash && (
@@ -301,7 +312,206 @@ export default function AdminGovernance() {
         );
       })()}
 
+      {tab === "datasources" && <DataSourcesTab />}
+
       <AgentChatPanel appName="Admin & Governance" />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// DATA SOURCES TAB
+// ══════════════════════════════════════════════════════════════════════
+
+const DS_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const SRC_CATEGORIES: Record<string, string> = {
+  medianova: "CDN", origin_server: "CDN",
+  widevine_drm: "DRM", fairplay_drm: "DRM",
+  player_events: "QoE", npaw_analytics: "QoE",
+  api_logs: "Platform", newrelic_apm: "Platform",
+  crm_subscriber: "Business", epg: "Business", billing: "Business",
+  push_notifications: "Business", app_reviews: "Business",
+};
+const CAT_COLORS: Record<string, { bg: string; color: string }> = {
+  CDN: { bg: "rgba(31,111,235,0.15)", color: "#1f6feb" },
+  DRM: { bg: "rgba(210,153,34,0.15)", color: "#d29922" },
+  QoE: { bg: "rgba(35,134,54,0.15)", color: "#238636" },
+  Platform: { bg: "rgba(139,148,158,0.15)", color: "#8b949e" },
+  Business: { bg: "rgba(218,54,51,0.15)", color: "#da3633" },
+};
+const INTERVALS = [
+  { value: "", label: "Manual" }, { value: "5", label: "Every 5 min" },
+  { value: "60", label: "Every hour" }, { value: "360", label: "Every 6h" },
+  { value: "1440", label: "Every 24h" },
+];
+
+function DataSourcesTab() {
+  const [configs, setConfigs] = useState<Record<string, unknown>[]>([]);
+  const [statuses, setStatuses] = useState<Record<string, unknown>[]>([]);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [syncing, setSyncing] = useState<Set<string>>(new Set());
+
+  const load = useCallback(() => {
+    fetch(`${DS_API}/data-sources/configs?tenant_id=aaop_company`).then(r => r.json()).then(setConfigs).catch(() => {});
+    fetch(`${DS_API}/data-sources/sync-status?tenant_id=aaop_company`).then(r => r.json()).then(setStatuses).catch(() => {});
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSync = async (configId: string) => {
+    setSyncing(prev => { const n = new Set(Array.from(prev)); n.add(configId); return n; });
+    try {
+      await fetch(`${DS_API}/data-sources/sync/${configId}`, { method: "POST" });
+    } catch { /* */ }
+    setSyncing(prev => { const n = new Set(Array.from(prev)); n.delete(configId); return n; });
+    load();
+  };
+
+  const handleSyncAll = async () => {
+    await fetch(`${DS_API}/data-sources/sync-all?tenant_id=aaop_company`, { method: "POST" });
+    load();
+  };
+
+  const handleSave = async () => {
+    if (!editing) return;
+    await fetch(`${DS_API}/data-sources/configs/${editing.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editing),
+    });
+    setEditing(null);
+    load();
+  };
+
+  const activeCount = configs.filter(c => c.enabled).length;
+  const lastSync = configs.reduce((acc: string, c: Record<string, unknown>) => {
+    const ls = c.last_sync_at as string | null;
+    if (ls && (!acc || ls > acc)) return ls;
+    return acc;
+  }, "");
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Data Sources</h3>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{activeCount} sources active{lastSync ? ` · last sync ${lastSync.slice(11, 16)} UTC` : ""}</p>
+        </div>
+        <button onClick={handleSyncAll} className="px-4 py-2 rounded-lg text-sm text-white" style={{ background: "var(--brand-primary)" }}>Sync All</button>
+      </div>
+
+      {/* Source cards grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {configs.map((c: Record<string, unknown>) => {
+          const cat = SRC_CATEGORIES[c.source_name as string] || "Platform";
+          const cc = CAT_COLORS[cat] || CAT_COLORS.Platform;
+          const enabled = Boolean(c.enabled);
+          const isSyncing = syncing.has(c.id as string);
+          return (
+            <div key={c.id as string} className="rounded-lg p-3" style={{ background: "var(--background-card)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: enabled ? "var(--status-active)" : "var(--status-inactive)" }} />
+                <span className="text-sm" style={{ color: "var(--text-primary)", fontWeight: 500 }}>{c.source_name as string}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded ml-auto" style={{ background: cc.bg, color: cc.color }}>{cat}</span>
+              </div>
+              <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+                {c.last_sync_rows ? `${c.last_sync_rows} rows` : "No data"} · {c.source_type as string}
+              </p>
+              <p className="text-xs mb-2 truncate" style={{ color: "var(--text-muted)", maxWidth: 250 }}>
+                {(c.local_path || c.s3_bucket || "Not configured") as string}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => handleSync(c.id as string)} disabled={isSyncing} className="text-xs px-2 py-1 rounded disabled:opacity-50" style={{ background: "var(--brand-glow)", color: "var(--brand-primary)" }}>
+                  {isSyncing ? "Syncing..." : "Sync"}
+                </button>
+                <button onClick={() => setEditing({ ...c })} className="text-xs px-2 py-1 rounded" style={{ background: "var(--background-hover)", color: "var(--text-secondary)" }}>Configure</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Config panel */}
+      {editing && (
+        <div className="rounded-lg p-4" style={{ background: "var(--background-card)", border: "1px solid var(--border)" }}>
+          <h4 className="text-sm font-medium mb-3" style={{ color: "var(--text-primary)" }}>Configure: {editing.source_name as string}</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs block mb-1" style={{ color: "var(--text-secondary)" }}>Source Type</label>
+              <select value={editing.source_type as string} onChange={e => setEditing({ ...editing, source_type: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
+                <option value="local">Local</option><option value="s3">S3</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs block mb-1" style={{ color: "var(--text-secondary)" }}>Sync Interval</label>
+              <select value={String(editing.sync_interval_minutes ?? "")} onChange={e => setEditing({ ...editing, sync_interval_minutes: e.target.value ? Number(e.target.value) : null })} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
+                {INTERVALS.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
+              </select>
+            </div>
+            {editing.source_type === "local" && (
+              <div className="col-span-2">
+                <label className="text-xs block mb-1" style={{ color: "var(--text-secondary)" }}>Local Path</label>
+                <input value={(editing.local_path || "") as string} onChange={e => setEditing({ ...editing, local_path: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+              </div>
+            )}
+            {editing.source_type === "s3" && (<>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-secondary)" }}>S3 Bucket</label>
+                <input value={(editing.s3_bucket || "") as string} onChange={e => setEditing({ ...editing, s3_bucket: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+              </div>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: "var(--text-secondary)" }}>S3 Prefix</label>
+                <input value={(editing.s3_prefix || "") as string} onChange={e => setEditing({ ...editing, s3_prefix: e.target.value })} className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "var(--background-hover)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+              </div>
+            </>)}
+            <div>
+              <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                <input type="checkbox" checked={Boolean(editing.enabled)} onChange={e => setEditing({ ...editing, enabled: e.target.checked })} />
+                Enabled
+              </label>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button onClick={handleSave} className="px-3 py-1.5 rounded text-sm text-white" style={{ background: "var(--brand-primary)" }}>Save</button>
+            <button onClick={() => setEditing(null)} className="px-3 py-1.5 rounded text-sm" style={{ background: "var(--background-hover)", color: "var(--text-secondary)" }}>Cancel</button>
+          </div>
+          {editing.last_sync_error ? <p className="text-xs mt-2" style={{ color: "var(--status-error)" }}>Last error: {String(editing.last_sync_error)}</p> : null}
+        </div>
+      )}
+
+      {/* Sync status table */}
+      {statuses.length > 0 && (
+        <div className="rounded-lg overflow-hidden" style={{ background: "var(--background-card)", border: "1px solid var(--border)" }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ background: "var(--background-hover)", color: "var(--text-secondary)" }}>
+                <th className="text-left px-3 py-2">Source</th>
+                <th className="text-left px-3 py-2">Type</th>
+                <th className="text-right px-3 py-2">Last Sync Rows</th>
+                <th className="text-left px-3 py-2">Last Sync</th>
+                <th className="text-left px-3 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {statuses.map((s: Record<string, unknown>) => (
+                <tr key={s.source_name as string} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td className="px-3 py-2" style={{ color: "var(--text-primary)" }}>{s.source_name as string}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-muted)" }}>{s.source_type as string}</td>
+                  <td className="px-3 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{(s.last_sync_rows ?? "—") as string}</td>
+                  <td className="px-3 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{(s.last_sync_at ?? "Never") as string}</td>
+                  <td className="px-3 py-2">
+                    <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                      background: s.enabled ? "var(--risk-low-bg)" : "rgba(139,148,158,0.15)",
+                      color: s.enabled ? "var(--risk-low)" : "var(--text-muted)",
+                    }}>{s.enabled ? "Active" : "Disabled"}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

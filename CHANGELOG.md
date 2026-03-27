@@ -8,6 +8,23 @@
 
 ---
 
+### S-DI-01 — 2026-03-27
+- shared/clients/logs_duckdb_client.py: LogsDuckDBClient — logs.duckdb yönetimi, tenant schema izolasyonu, batch insert, 30 gün retention
+- shared/ingest/__init__.py: package init
+- shared/ingest/source_config.py: SourceConfig/SourceConfigCreate/SyncResult Pydantic v2 modelleri + SQLite DDL (data_source_configs, ingestion_log)
+- shared/ingest/log_schemas.py: 13 kaynak için DuckDB CREATE TABLE (tenant schema bazlı)
+- shared/ingest/jsonl_parser.py: JSONL.gz parser tüm 13 kaynak + directory scanner
+- shared/ingest/sync_engine.py: SyncEngine — file-level sync, skip-already-ingested, delete >30 days from cache
+- shared/ingest/query_router.py: QueryRouter — hot path (DuckDB ≤30 gün) / cold path (source >30 gün) / mixed
+- backend/routers/data_sources.py: 8 endpoint (source config CRUD, sync, sync-all, sync-status, query)
+- backend/main.py: data_sources_router mount, seed calls kaldırıldı, logs.duckdb startup init
+- frontend/src/app/(apps)/admin-governance/page.tsx: Data Sources tab (7. tab) — 13 kaynak kartı, config panel, sync status tablosu
+- frontend: 11 sayfaya empty state eklendi ("No data available — connect a data source")
+- tests/unit/test_data_ingestion.py: 13 test, 0 failures
+- Tenant: aaop_company (default tenant, logs.duckdb schema izolasyonu)
+
+---
+
 ### S-MDG-10 — 2026-03-26
 - backend/routers/mock_data_gen.py: GET /mock-data-gen/sources/{source_name}/fields endpoint (type + sample value per field)
 - frontend/src/app/(apps)/mock-data-gen/page.tsx: Step 2 redesigned — two-panel layout (left: source list with live field counts, right: relationship fields + other fields)

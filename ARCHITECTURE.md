@@ -18,6 +18,7 @@
 | ADR-008 | **asyncio.Queue** Event Bus | Lokal cross-app sinyal, GCP'de Pub/Sub'a adaptor |
 | ADR-009 | **Anthropic Claude** tek LLM sağlayıcı | Haiku/Sonnet/Opus 3-model strateji, severity-based routing |
 | ADR-010 | **Adaptor Pattern** her GCP servisi için | Agent kodu değişmeden lokal↔GCP geçiş |
+| ADR-011 | **logs.duckdb** ayrı log cache DB | 30 gün hot retention, kaynak bazlı tablo izolasyonu, tenant schema |
 
 ---
 
@@ -59,6 +60,8 @@ SQLite              platform metadata (tenants, users, configs)
                     → GCP: Cloud Spanner (adaptor: shared/clients/sqlite_client.py)
 DuckDB              paylaşımlı analiz çıktıları
                     → GCP: BigQuery (adaptor: shared/clients/duckdb_client.py)
+logs.duckdb         log verisi hot cache (≤30 gün, tenant schema bazlı)
+                    → GCP: BigQuery (adaptor: shared/clients/logs_duckdb_client.py)
 ChromaDB            vector RAG (3 collection: code, docs, incidents)
                     → GCP: Vertex AI VS (adaptor: shared/clients/chroma_client.py)
 Redis               context cache (redis-py async)
@@ -224,7 +227,15 @@ AAOP/
 │   │   ├── sqlite_client.py    ← SQLite async wrapper (→ Spanner adaptor)
 │   │   ├── duckdb_client.py    ← DuckDB wrapper (→ BigQuery adaptor)
 │   │   ├── chroma_client.py    ← ChromaDB wrapper (→ Vertex AI VS adaptor)
-│   │   └── redis_client.py     ← redis.asyncio wrapper
+│   │   ├── redis_client.py     ← redis.asyncio wrapper
+│   │   └── logs_duckdb_client.py ← logs.duckdb hot cache client
+│   ├── ingest/
+│   │   ├── __init__.py
+│   │   ├── source_config.py        ← SourceConfig Pydantic modeli + SQLite DDL
+│   │   ├── log_schemas.py          ← 13 kaynak DuckDB tablo şemaları
+│   │   ├── jsonl_parser.py         ← JSONL.gz parser, directory scanner
+│   │   ├── sync_engine.py          ← Sync orchestration, file tracking
+│   │   └── query_router.py         ← Hot/cold query routing
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── base_event.py       ← BaseEvent, SeverityLevel, RiskLevel, TenantContext
@@ -237,7 +248,8 @@ AAOP/
 │   ├── sqlite/
 │   │   └── platform.db         ← Platform metadata
 │   ├── duckdb/
-│   │   └── analytics.duckdb    ← Paylaşımlı analiz DB
+│   │   ├── analytics.duckdb    ← Paylaşımlı analiz DB
+│   │   └── logs.duckdb             ← Log data hot cache (≤30 gün)
 │   ├── chromadb/               ← Vector store kalıcı depolama
 │   └── logs/                   ← Akamai S3'ten çekilen log dosyaları (cache)
 │
