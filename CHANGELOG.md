@@ -8,6 +8,21 @@
 
 ---
 
+### S-DI-02 — 2026-03-27
+- shared/ingest/watch_folder.py: LogFolderWatcher + LogFileHandler — watchdog, 14 klasör mapping, 2s debounce, otomatik sync+delete
+- shared/ingest/default_configs.py: aaop_company için 14 kaynak config otomatik seed (idempotent)
+- shared/ingest/sync_engine.py: mtime-based upsert (unchanged→skip, changed→reprocess), delete_source_file(), delete_after_import flag
+- shared/ingest/source_config.py: akamai_ds2 eklendi, FOLDER_TO_SOURCE mapping (14 giriş), file_mtime ingestion_log, files_deleted SyncResult
+- backend/main.py: seed_default_configs + LogFolderWatcher start/stop lifespan
+- backend/routers/data_sources.py: POST /import-delete/{config_id} + GET /watch-status
+- frontend/admin-governance/page.tsx: Watch Status bölümü, Import & Delete butonu, kaynak başına watch göstergesi
+- pyproject.toml: watchdog >=3.0.0 eklendi
+- .env.example: MOCK_DATA_BASE_PATH + LOGS_DUCKDB_PATH eklendi
+- tests/unit/test_data_ingestion.py: 8 yeni test (toplam 21)
+- Base path: /Users/fatihayaz/Documents/Projects/AAOP/aaop-mock-data/aaop_company/
+
+---
+
 ### S-DI-01 — 2026-03-27
 - shared/clients/logs_duckdb_client.py: LogsDuckDBClient — logs.duckdb yönetimi, tenant schema izolasyonu, batch insert, 30 gün retention
 - shared/ingest/__init__.py: package init

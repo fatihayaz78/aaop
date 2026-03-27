@@ -135,9 +135,10 @@ class TestSyncEngine:
             for r in records:
                 f.write(json.dumps(r) + "\n")
 
-        # Mock SQLite (file already ingested)
+        # Mock SQLite (file already ingested with matching mtime)
+        file_mtime = str(os.path.getmtime(gz_path))
         mock_sqlite = AsyncMock()
-        mock_sqlite.fetch_one = AsyncMock(return_value={"id": "exists"})  # already ingested
+        mock_sqlite.fetch_one = AsyncMock(return_value={"id": "exists", "file_mtime": file_mtime})
         mock_sqlite.execute = AsyncMock()
 
         # Mock DuckDB
@@ -200,9 +201,10 @@ class TestAPIEndpoints:
 
         client = TestClient(app)
 
-        # CREATE
+        # CREATE — use unique tenant to avoid seed clash
+        test_tenant = "test_crud_tenant"
         res = client.post("/data-sources/configs", json={
-            "tenant_id": "aaop_company", "source_name": "medianova",
+            "tenant_id": test_tenant, "source_name": "medianova",
             "source_type": "local", "local_path": "/tmp/test",
             "enabled": True,
         })
@@ -212,7 +214,7 @@ class TestAPIEndpoints:
         assert data["source_name"] == "medianova"
 
         # GET
-        res = client.get("/data-sources/configs?tenant_id=aaop_company")
+        res = client.get(f"/data-sources/configs?tenant_id={test_tenant}")
         assert res.status_code == 200
         configs = res.json()
         assert any(c["id"] == config_id for c in configs)
@@ -265,3 +267,193 @@ class TestAPIEndpoints:
         res = client.post("/data-sources/sync-all?tenant_id=aaop_company")
         # Accept 200 (success) or 500 (DuckDB lock in test env)
         assert res.status_code in (200, 500)
+
+    def test_import_delete_endpoint(self):
+        """Import & delete endpoint returns SyncResult."""
+        from fastapi.testclient import TestClient
+        from backend.main import app
+
+        client = TestClient(app)
+        # Create config
+        res = client.post("/data-sources/configs", json={
+            "tenant_id": "test_import_tenant", "source_name": "billing",
+            "source_type": "local", "local_path": "/tmp/nonexistent_import",
+        })
+        assert res.status_code == 200
+        config_id = res.json()["id"]
+
+        # Import & delete
+        res = client.post(f"/data-sources/import-delete/{config_id}")
+        assert res.status_code == 200
+        data = res.json()
+        assert "files_deleted" in data
+
+        client.delete(f"/data-sources/configs/{config_id}")
+
+
+# ══════════════════════════════════════════════════════════════════════
+# WATCH FOLDER + DEFAULT CONFIGS
+# ══════════════════════════════════════════════════════════════════════
+
+
+class TestWatchFolder:
+    def test_watch_folder_handler_recognizes_jsonl_gz(self):
+        """LogFileHandler recognizes .jsonl.gz files."""
+        from shared.ingest.watch_folder import LogFileHandler
+        handler = LogFileHandler("t1", None)
+        assert handler._is_valid_file("/path/to/data.jsonl.gz") is True
+        assert handler._is_valid_file("/path/to/data.json") is True
+        assert handler._is_valid_file("/path/to/data.csv") is False
+
+    def test_watch_folder_source_name_mapping(self):
+        """All 14 folder names map to correct source names."""
+        from shared.ingest.source_config import FOLDER_TO_SOURCE
+        from shared.ingest.watch_folder import LogFileHandler
+
+        handler = LogFileHandler("t1", None)
+        assert len(FOLDER_TO_SOURCE) == 14
+
+        expected = {
+            "api_logs": "api_logs", "app_reviews": "app_reviews", "billing": "billing",
+            "crm": "crm_subscriber", "drm_fairplay": "fairplay_drm", "drm_widevine": "widevine_drm",
+            "epg": "epg", "medianova": "medianova", "newrelic": "newrelic_apm",
+            "npaw": "npaw_analytics", "origin_logs": "origin_server",
+            "player_events": "player_events", "push_notifications": "push_notifications",
+            "akamai": "akamai_ds2",
+        }
+        assert FOLDER_TO_SOURCE == expected
+
+        # Test handler mapping
+        assert handler._get_source_name("/data/medianova/file.gz") == "medianova"
+        assert handler._get_source_name("/data/drm_widevine/file.gz") == "widevine_drm"
+        assert handler._get_source_name("/data/akamai/file.gz") == "akamai_ds2"
+
+
+class TestDefaultConfigs:
+    @pytest.mark.asyncio
+    async def test_default_configs_seed_idempotent(self):
+        """Running seed twice doesn't create duplicates."""
+        from shared.ingest.default_configs import seed_default_configs
+
+        mock_sqlite = AsyncMock()
+        mock_sqlite.fetch_one = AsyncMock(return_value=None)  # not exists
+        mock_sqlite.execute = AsyncMock()
+
+        count1 = await seed_default_configs(mock_sqlite)
+        assert count1 == 14
+
+        # Second run: all exist
+        mock_sqlite.fetch_one = AsyncMock(return_value={"id": "exists"})
+        count2 = await seed_default_configs(mock_sqlite)
+        assert count2 == 0
+
+    def test_default_configs_all_paths_correct(self):
+        """All default configs have correct local_path format."""
+        from shared.ingest.default_configs import DEFAULT_SOURCE_CONFIGS, BASE_MOCK_DATA_PATH
+
+        for cfg in DEFAULT_SOURCE_CONFIGS:
+            expected_path = f"{BASE_MOCK_DATA_PATH}/{cfg['folder']}/"
+            assert cfg["folder"]  # not empty
+            assert cfg["source_name"]  # not empty
+
+
+class TestSyncEngineAdvanced:
+    @pytest.mark.asyncio
+    async def test_sync_engine_deletes_file_after_import(self, tmp_path: Path):
+        """Files are deleted after successful import when delete_after_import=True."""
+        from shared.ingest.sync_engine import SyncEngine
+
+        gz_path = tmp_path / "source" / "test.jsonl.gz"
+        gz_path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(gz_path, "wt", encoding="utf-8") as f:
+            f.write(json.dumps({"timestamp": "2026-03-04T19:30:00Z"}) + "\n")
+
+        assert gz_path.exists()
+
+        mock_sqlite = AsyncMock()
+        mock_sqlite.fetch_one = AsyncMock(return_value=None)
+        mock_sqlite.execute = AsyncMock()
+
+        mock_duckdb = MagicMock()
+        mock_duckdb.ensure_tenant_schema = MagicMock()
+        mock_duckdb.ensure_source_table = MagicMock()
+        mock_duckdb.insert_batch = MagicMock(return_value=1)
+        mock_duckdb.delete_older_than = MagicMock(return_value=0)
+
+        config = SourceConfig(
+            id="cfg1", tenant_id="t1", source_name="api_logs",
+            source_type="local", local_path=str(tmp_path / "source"),
+            created_at="2026-03-01T00:00:00Z",
+        )
+
+        engine = SyncEngine(mock_sqlite, mock_duckdb)
+        result = await engine.sync_source("t1", config, delete_after_import=True)
+
+        assert result.files_processed == 1
+        assert result.files_deleted == 1
+        assert not gz_path.exists()  # file was deleted
+
+    @pytest.mark.asyncio
+    async def test_sync_engine_skips_unchanged_mtime(self, tmp_path: Path):
+        """Files with unchanged mtime are skipped."""
+        from shared.ingest.sync_engine import SyncEngine
+
+        gz_path = tmp_path / "source" / "test.jsonl.gz"
+        gz_path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(gz_path, "wt", encoding="utf-8") as f:
+            f.write(json.dumps({"timestamp": "2026-03-04T19:30:00Z"}) + "\n")
+
+        file_mtime = str(os.path.getmtime(gz_path))
+
+        mock_sqlite = AsyncMock()
+        # Return existing record with same mtime
+        mock_sqlite.fetch_one = AsyncMock(return_value={"id": "x", "file_mtime": file_mtime})
+        mock_sqlite.execute = AsyncMock()
+
+        mock_duckdb = MagicMock()
+        mock_duckdb.ensure_tenant_schema = MagicMock()
+        mock_duckdb.ensure_source_table = MagicMock()
+        mock_duckdb.delete_older_than = MagicMock(return_value=0)
+
+        config = SourceConfig(
+            id="cfg1", tenant_id="t1", source_name="api_logs",
+            source_type="local", local_path=str(tmp_path / "source"),
+            created_at="2026-03-01T00:00:00Z",
+        )
+
+        engine = SyncEngine(mock_sqlite, mock_duckdb)
+        result = await engine.sync_source("t1", config)
+
+        assert result.files_processed == 0  # skipped
+
+    @pytest.mark.asyncio
+    async def test_sync_engine_reprocesses_changed_mtime(self, tmp_path: Path):
+        """Files with changed mtime are reprocessed."""
+        from shared.ingest.sync_engine import SyncEngine
+
+        gz_path = tmp_path / "source" / "test.jsonl.gz"
+        gz_path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(gz_path, "wt", encoding="utf-8") as f:
+            f.write(json.dumps({"timestamp": "2026-03-04T19:30:00Z"}) + "\n")
+
+        mock_sqlite = AsyncMock()
+        # Return existing record with DIFFERENT mtime
+        mock_sqlite.fetch_one = AsyncMock(return_value={"id": "x", "file_mtime": "old_mtime"})
+        mock_sqlite.execute = AsyncMock()
+
+        mock_duckdb = MagicMock()
+        mock_duckdb.ensure_tenant_schema = MagicMock()
+        mock_duckdb.ensure_source_table = MagicMock()
+        mock_duckdb.insert_batch = MagicMock(return_value=1)
+        mock_duckdb.delete_older_than = MagicMock(return_value=0)
+
+        config = SourceConfig(
+            id="cfg1", tenant_id="t1", source_name="api_logs",
+            source_type="local", local_path=str(tmp_path / "source"),
+            created_at="2026-03-01T00:00:00Z",
+        )
+
+        engine = SyncEngine(mock_sqlite, mock_duckdb)
+        result = await engine.sync_source("t1", config)
+
+        assert result.files_processed == 1  # reprocessed

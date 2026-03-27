@@ -45,9 +45,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("logs_duckdb_initialized", tenant="aaop_company", tables=len(LOG_TABLE_SCHEMAS))
     except Exception as exc:
         logger.warning("logs_duckdb_init_error", error=str(exc))
+    # Seed default source configs
+    try:
+        from backend.routers.data_sources import _SimpleSQLite, _DB_PATH, _logs_duckdb
+        from shared.ingest.default_configs import seed_default_configs
+        _seed_sqlite = _SimpleSQLite(_DB_PATH)
+        await seed_default_configs(_seed_sqlite)
+    except Exception as exc:
+        logger.warning("default_configs_seed_error", error=str(exc))
+    # Start folder watcher
+    try:
+        from shared.ingest.default_configs import BASE_MOCK_DATA_PATH
+        from shared.ingest.watch_folder import LogFolderWatcher
+        from shared.ingest.sync_engine import SyncEngine
+        watcher_sqlite = _SimpleSQLite(_DB_PATH)
+        watcher_engine = SyncEngine(watcher_sqlite, _logs_duckdb)
+        watcher = LogFolderWatcher(BASE_MOCK_DATA_PATH, "aaop_company", watcher_engine)
+        watcher.start()
+        app.state.watcher = watcher
+    except Exception as exc:
+        logger.warning("watcher_start_error", error=str(exc))
+        app.state.watcher = None
     logger.info("startup_complete")
     yield
     logger.info("shutdown_begin")
+    # Stop watcher
+    if hasattr(app.state, "watcher") and app.state.watcher:
+        app.state.watcher.stop()
     await shutdown_clients()
     logger.info("shutdown_complete")
 

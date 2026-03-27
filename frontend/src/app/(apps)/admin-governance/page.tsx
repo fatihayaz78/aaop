@@ -350,10 +350,14 @@ function DataSourcesTab() {
   const [statuses, setStatuses] = useState<Record<string, unknown>[]>([]);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [syncing, setSyncing] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState<Set<string>>(new Set());
+  const [importResult, setImportResult] = useState<Record<string, string>>({});
+  const [watchStatus, setWatchStatus] = useState<{ watching: boolean; folders: { folder: string; source_name: string; exists: boolean; file_count: number }[] } | null>(null);
 
   const load = useCallback(() => {
     fetch(`${DS_API}/data-sources/configs?tenant_id=aaop_company`).then(r => r.json()).then(setConfigs).catch(() => {});
     fetch(`${DS_API}/data-sources/sync-status?tenant_id=aaop_company`).then(r => r.json()).then(setStatuses).catch(() => {});
+    fetch(`${DS_API}/data-sources/watch-status?tenant_id=aaop_company`).then(r => r.json()).then(setWatchStatus).catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -369,6 +373,17 @@ function DataSourcesTab() {
 
   const handleSyncAll = async () => {
     await fetch(`${DS_API}/data-sources/sync-all?tenant_id=aaop_company`, { method: "POST" });
+    load();
+  };
+
+  const handleImportDelete = async (configId: string) => {
+    setImporting(prev => { const n = new Set(Array.from(prev)); n.add(configId); return n; });
+    try {
+      const res = await fetch(`${DS_API}/data-sources/import-delete/${configId}`, { method: "POST" });
+      const data = await res.json();
+      setImportResult(prev => ({ ...prev, [configId]: `${data.rows_inserted || 0} rows imported, ${data.files_deleted || 0} files deleted` }));
+    } catch { setImportResult(prev => ({ ...prev, [configId]: "Error" })); }
+    setImporting(prev => { const n = new Set(Array.from(prev)); n.delete(configId); return n; });
     load();
   };
 
@@ -401,6 +416,28 @@ function DataSourcesTab() {
         <button onClick={handleSyncAll} className="px-4 py-2 rounded-lg text-sm text-white" style={{ background: "var(--brand-primary)" }}>Sync All</button>
       </div>
 
+      {/* Watch status */}
+      {watchStatus && (
+        <div className="rounded-lg p-3" style={{ background: "var(--background-card)", border: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: watchStatus.watching ? "var(--status-active)" : "var(--status-inactive)" }} />
+            <span className="text-sm" style={{ color: "var(--text-primary)" }}>Watcher: {watchStatus.watching ? "Active" : "Inactive"}</span>
+            {watchStatus.folders.filter(f => f.file_count > 0).length > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--risk-medium-bg)", color: "var(--risk-medium)" }}>
+                {watchStatus.folders.reduce((s, f) => s + f.file_count, 0)} files pending
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {watchStatus.folders.filter(f => f.file_count > 0).map(f => (
+              <span key={f.folder} className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--background-hover)", color: "var(--text-secondary)" }}>
+                {f.folder}: {f.file_count}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Source cards grid */}
       <div className="grid grid-cols-2 gap-3">
         {configs.map((c: Record<string, unknown>) => {
@@ -421,12 +458,24 @@ function DataSourcesTab() {
               <p className="text-xs mb-2 truncate" style={{ color: "var(--text-muted)", maxWidth: 250 }}>
                 {(c.local_path || c.s3_bucket || "Not configured") as string}
               </p>
+              {/* Watch indicator */}
+              {(() => {
+                const wf = watchStatus?.folders.find(f => f.source_name === c.source_name);
+                if (!wf) return null;
+                if (wf.exists && wf.file_count > 0) return <p className="text-xs mb-1" style={{ color: "var(--risk-medium)" }}>{wf.file_count} files pending</p>;
+                if (wf.exists) return <p className="text-xs mb-1" style={{ color: "var(--status-active)" }}>Watching</p>;
+                return <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>Folder not found</p>;
+              })()}
               <div className="flex gap-2">
                 <button onClick={() => handleSync(c.id as string)} disabled={isSyncing} className="text-xs px-2 py-1 rounded disabled:opacity-50" style={{ background: "var(--brand-glow)", color: "var(--brand-primary)" }}>
                   {isSyncing ? "Syncing..." : "Sync"}
                 </button>
+                <button onClick={() => handleImportDelete(c.id as string)} disabled={importing.has(c.id as string)} className="text-xs px-2 py-1 rounded disabled:opacity-50" style={{ background: "var(--background-hover)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+                  {importing.has(c.id as string) ? "Importing..." : "Import & Delete"}
+                </button>
                 <button onClick={() => setEditing({ ...c })} className="text-xs px-2 py-1 rounded" style={{ background: "var(--background-hover)", color: "var(--text-secondary)" }}>Configure</button>
               </div>
+              {importResult[c.id as string] && <p className="text-xs mt-1" style={{ color: "var(--risk-low)" }}>{importResult[c.id as string]}</p>}
             </div>
           );
         })}

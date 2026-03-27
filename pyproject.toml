@@ -36,6 +36,7 @@ kaleido = "==0.2.1"
 pandas = ">=2.2"
 pyarrow = ">=17.0"
 bcrypt = ">=5.0"
+watchdog = ">=3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.0"

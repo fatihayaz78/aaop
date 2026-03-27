@@ -265,6 +265,8 @@ POST   /data-sources/sync/{config_id}           → SyncResult
 POST   /data-sources/sync-all                   Query: tenant_id → [SyncResult]
 GET    /data-sources/sync-status                Query: tenant_id → [SyncStatus]
 GET    /data-sources/query/{source_name}        Query: tenant_id, date_from, date_to, limit → QueryResult
+POST   /data-sources/import-delete/{config_id}  → SyncResult (sync + delete imported files)
+GET    /data-sources/watch-status               Query: tenant_id → WatchStatus
 ```
 
 **SourceConfig:**

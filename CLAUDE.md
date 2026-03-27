@@ -75,9 +75,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S-DI-01 complete — Data Ingestion Layer
+**Aktif Sprint:** S-DI-02 complete — Watch Folder + Default Configs
 **Önceki:** S-MDG-08 complete — run_all.py + validate.py + frontend
-**Son commit:** S-DI-01 — logs.duckdb + 13 kaynak parser + Data Sources UI
+**Son commit:** S-DI-02 — watch folder, mtime upsert, auto import+delete
 
 ---
 

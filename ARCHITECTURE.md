@@ -79,6 +79,7 @@ claude-opus-4-20250514         P0/P1 incident, RCA — sadece bu iki app
 ```
 boto3               S3 log okuma (Akamai DataStream 2)
 APScheduler         zamanlanmış log çekme görevleri
+watchdog            file system watcher (watch folder → auto import+delete)
 python-docx         DOCX rapor üretme
 kaleido==0.2.1      DOCX'e grafik gömme (1.x Chrome gerektirir — PIN'Lİ)
 plotly              grafik üretme (kaleido ile birlikte)
@@ -235,7 +236,9 @@ AAOP/
 │   │   ├── log_schemas.py          ← 13 kaynak DuckDB tablo şemaları
 │   │   ├── jsonl_parser.py         ← JSONL.gz parser, directory scanner
 │   │   ├── sync_engine.py          ← Sync orchestration, file tracking
-│   │   └── query_router.py         ← Hot/cold query routing
+│   │   ├── query_router.py         ← Hot/cold query routing
+│   │   ├── watch_folder.py         ← File system watcher (watchdog)
+│   │   └── default_configs.py      ← aaop_company default source config seed
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── base_event.py       ← BaseEvent, SeverityLevel, RiskLevel, TenantContext

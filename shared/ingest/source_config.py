@@ -12,7 +12,17 @@ VALID_SOURCE_NAMES = [
     "medianova", "origin_server", "widevine_drm", "fairplay_drm",
     "player_events", "npaw_analytics", "api_logs", "newrelic_apm",
     "crm_subscriber", "epg", "billing", "push_notifications", "app_reviews",
+    "akamai_ds2",
 ]
+
+FOLDER_TO_SOURCE: dict[str, str] = {
+    "api_logs": "api_logs", "app_reviews": "app_reviews", "billing": "billing",
+    "crm": "crm_subscriber", "drm_fairplay": "fairplay_drm", "drm_widevine": "widevine_drm",
+    "epg": "epg", "medianova": "medianova", "newrelic": "newrelic_apm",
+    "npaw": "npaw_analytics", "origin_logs": "origin_server",
+    "player_events": "player_events", "push_notifications": "push_notifications",
+    "akamai": "akamai_ds2",
+}
 
 SOURCE_CONFIG_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS data_source_configs (
@@ -39,6 +49,7 @@ CREATE TABLE IF NOT EXISTS ingestion_log (
     tenant_id TEXT,
     source_name TEXT,
     file_path TEXT,
+    file_mtime TEXT,
     rows_ingested INTEGER,
     ingested_at TEXT,
     UNIQUE(tenant_id, file_path)
@@ -78,5 +89,6 @@ class SyncResult(BaseModel):
     files_processed: int
     rows_inserted: int
     rows_deleted_from_cache: int
+    files_deleted: int = 0
     errors: list[str]
     duration_ms: int

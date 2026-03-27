@@ -272,3 +272,65 @@ async def query_source(
         "data": rows[:limit],
         "from_cache": from_cache,
     }
+
+
+# ── IMPORT-DELETE + WATCH STATUS ──
+
+
+@router.post("/import-delete/{config_id}")
+async def import_and_delete(config_id: str) -> dict:
+    """Sync source + delete imported files."""
+    from shared.ingest.sync_engine import SyncEngine
+
+    db = await _get_db()
+    try:
+        cursor = await db.execute("SELECT * FROM data_source_configs WHERE id = ?", (config_id,))
+        row = await cursor.fetchone()
+        if not row:
+            return {"error": "Config not found"}
+        config = SourceConfig(**{**dict(row), "enabled": bool(row["enabled"])})
+    finally:
+        await db.close()
+
+    try:
+        engine = SyncEngine(_sqlite_helper, _logs_duckdb)
+        result = await engine.sync_source(config.tenant_id, config, delete_after_import=True)
+        return result.model_dump()
+    except Exception as exc:
+        logger.warning("import_delete_error", config_id=config_id, error=str(exc))
+        return SyncResult(
+            source_name=config.source_name, files_processed=0, rows_inserted=0,
+            rows_deleted_from_cache=0, files_deleted=0, errors=[str(exc)], duration_ms=0,
+        ).model_dump()
+
+
+@router.get("/watch-status")
+async def watch_status(tenant_id: str = "aaop_company") -> dict:
+    """Return watcher status and pending file counts per folder."""
+    from fastapi import Request
+    from starlette.requests import Request as StarletteRequest
+
+    # Try to get watcher from app state
+    from backend.main import app
+    watcher = getattr(app.state, "watcher", None)
+    watching = watcher.is_active if watcher else False
+
+    folders = []
+    if watcher:
+        folders = watcher.get_folder_status()
+    else:
+        # Fallback: check folders manually
+        import os
+        from shared.ingest.default_configs import BASE_MOCK_DATA_PATH
+        from shared.ingest.source_config import FOLDER_TO_SOURCE
+        tenant_path = os.path.join(BASE_MOCK_DATA_PATH, tenant_id)
+        for folder_name, source_name in FOLDER_TO_SOURCE.items():
+            folder_path = os.path.join(tenant_path, folder_name)
+            exists = os.path.isdir(folder_path)
+            file_count = 0
+            if exists:
+                for _root, _dirs, files in os.walk(folder_path):
+                    file_count += sum(1 for f in files if f.endswith((".jsonl.gz", ".json", ".gz")))
+            folders.append({"folder": folder_name, "source_name": source_name, "exists": exists, "file_count": file_count})
+
+    return {"watching": watching, "folders": folders}
