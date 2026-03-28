@@ -169,6 +169,66 @@ class LogFolderWatcher:
     def is_active(self) -> bool:
         return self._active
 
+    async def process_existing_files(self) -> dict:
+        """Scan all source folders and import+delete existing files.
+
+        Called on startup to handle files that arrived before the watcher started.
+        Returns dict of source_name → SyncResult.
+        """
+        from shared.ingest.source_config import SourceConfig, SyncResult
+
+        tenant_path = os.path.join(self._base_path, self._tenant_id)
+        results: dict = {}
+        total_found = 0
+        total_imported = 0
+        total_skipped = 0
+
+        for folder_name, source_name in FOLDER_TO_SOURCE.items():
+            folder_path = os.path.join(tenant_path, folder_name)
+            if not os.path.isdir(folder_path):
+                continue
+
+            # Look up config for this source
+            try:
+                row = await self._sync_engine._sqlite.fetch_one(
+                    "SELECT * FROM data_source_configs WHERE tenant_id = ? AND source_name = ?",
+                    (self._tenant_id, source_name),
+                )
+                if not row:
+                    continue
+                config = SourceConfig(**dict(row))
+            except Exception as exc:
+                logger.warning("startup_scan_config_error", source=source_name, error=str(exc))
+                continue
+
+            # Count files
+            file_count = 0
+            for _root, _dirs, files in os.walk(folder_path):
+                file_count += sum(1 for f in files if f.endswith((".jsonl.gz", ".json", ".gz")))
+            total_found += file_count
+
+            if file_count == 0:
+                continue
+
+            try:
+                result = await self._sync_engine.sync_source(
+                    self._tenant_id, config, delete_after_import=True,
+                )
+                results[source_name] = result
+                total_imported += result.rows_inserted
+                total_skipped += (file_count - result.files_processed)
+            except Exception as exc:
+                logger.warning("startup_scan_sync_error", source=source_name, error=str(exc))
+
+        logger.info(
+            "startup_scan_complete",
+            files_found=total_found,
+            rows_imported=total_imported,
+            skipped=total_skipped,
+            sources=len(results),
+        )
+        return results
+
     def get_folder_status(self) -> list[dict]:
         """Return status of all watched folders."""
         tenant_path = os.path.join(self._base_path, self._tenant_id)

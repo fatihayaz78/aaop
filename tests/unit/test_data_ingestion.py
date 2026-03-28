@@ -457,3 +457,100 @@ class TestSyncEngineAdvanced:
         result = await engine.sync_source("t1", config)
 
         assert result.files_processed == 1  # reprocessed
+
+
+class TestProcessExistingFiles:
+    @pytest.mark.asyncio
+    async def test_process_existing_files_on_startup(self, tmp_path: Path):
+        """Startup scan imports all existing files and deletes them."""
+        from shared.ingest.watch_folder import LogFolderWatcher
+        from shared.ingest.sync_engine import SyncEngine
+
+        # Create folder structure with 3 files
+        tenant_path = tmp_path / "aaop_company" / "api_logs"
+        tenant_path.mkdir(parents=True, exist_ok=True)
+        for i in range(3):
+            gz = tenant_path / f"test_{i}.jsonl.gz"
+            with gzip.open(gz, "wt", encoding="utf-8") as f:
+                f.write(json.dumps({"timestamp": f"2026-03-0{i+1}T10:00:00Z"}) + "\n")
+
+        mock_sqlite = AsyncMock()
+        # fetch_one for config lookup returns a config
+        mock_sqlite.fetch_one = AsyncMock(side_effect=lambda sql, params=None: (
+            {"id": "cfg1", "tenant_id": "aaop_company", "source_name": "api_logs",
+             "source_type": "local", "local_path": str(tenant_path),
+             "s3_bucket": None, "s3_prefix": None, "enabled": 1,
+             "sync_interval_minutes": None, "last_sync_at": None,
+             "last_sync_rows": None, "last_sync_error": None,
+             "created_at": "2026-03-01T00:00:00Z"}
+            if "data_source_configs" in sql else None
+        ))
+        mock_sqlite.execute = AsyncMock()
+
+        mock_duckdb = MagicMock()
+        mock_duckdb.ensure_tenant_schema = MagicMock()
+        mock_duckdb.ensure_source_table = MagicMock()
+        mock_duckdb.insert_batch = MagicMock(return_value=1)
+        mock_duckdb.delete_older_than = MagicMock(return_value=0)
+
+        engine = SyncEngine(mock_sqlite, mock_duckdb)
+        watcher = LogFolderWatcher(str(tmp_path), "aaop_company", engine)
+
+        results = await watcher.process_existing_files()
+
+        assert "api_logs" in results
+        result = results["api_logs"]
+        assert result.files_processed == 3
+        assert result.files_deleted == 3
+        # Files should be deleted
+        remaining = list(tenant_path.glob("*.jsonl.gz"))
+        assert len(remaining) == 0
+
+    @pytest.mark.asyncio
+    async def test_process_existing_files_skips_already_ingested(self, tmp_path: Path):
+        """Startup scan skips files already in ingestion_log with same mtime."""
+        from shared.ingest.watch_folder import LogFolderWatcher
+        from shared.ingest.sync_engine import SyncEngine
+
+        tenant_path = tmp_path / "aaop_company" / "api_logs"
+        tenant_path.mkdir(parents=True, exist_ok=True)
+        gz = tenant_path / "existing.jsonl.gz"
+        with gzip.open(gz, "wt", encoding="utf-8") as f:
+            f.write(json.dumps({"timestamp": "2026-03-01T10:00:00Z"}) + "\n")
+
+        file_mtime = str(os.path.getmtime(gz))
+
+        call_count = 0
+
+        async def mock_fetch_one(sql, params=None):
+            nonlocal call_count
+            call_count += 1
+            if "data_source_configs" in sql:
+                return {"id": "cfg1", "tenant_id": "aaop_company", "source_name": "api_logs",
+                        "source_type": "local", "local_path": str(tenant_path),
+                        "s3_bucket": None, "s3_prefix": None, "enabled": 1,
+                        "sync_interval_minutes": None, "last_sync_at": None,
+                        "last_sync_rows": None, "last_sync_error": None,
+                        "created_at": "2026-03-01T00:00:00Z"}
+            if "ingestion_log" in sql:
+                return {"id": "old", "file_mtime": file_mtime}  # same mtime → skip
+            return None
+
+        mock_sqlite = AsyncMock()
+        mock_sqlite.fetch_one = AsyncMock(side_effect=mock_fetch_one)
+        mock_sqlite.execute = AsyncMock()
+
+        mock_duckdb = MagicMock()
+        mock_duckdb.ensure_tenant_schema = MagicMock()
+        mock_duckdb.ensure_source_table = MagicMock()
+        mock_duckdb.delete_older_than = MagicMock(return_value=0)
+
+        engine = SyncEngine(mock_sqlite, mock_duckdb)
+        watcher = LogFolderWatcher(str(tmp_path), "aaop_company", engine)
+
+        results = await watcher.process_existing_files()
+
+        if "api_logs" in results:
+            assert results["api_logs"].files_processed == 0  # skipped
+        # File should still exist (not deleted since skipped)
+        assert gz.exists()

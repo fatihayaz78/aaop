@@ -8,6 +8,17 @@
 
 ---
 
+### S-DI-02-fix — 2026-03-28
+- ingestion_log SQLite tablosu yeniden oluşturuldu (file_mtime kolonu eksikti)
+- backend/routers/data_sources.py: migration guard eklendi (PRAGMA table_info + ALTER TABLE ADD COLUMN file_mtime)
+- shared/ingest/watch_folder.py: process_existing_files() startup scan düzeltildi
+- shared/ingest/default_configs.py: local_path /{DEFAULT_TENANT}/ segment eksikliği giderildi
+- watchdog kuruldu (pip install watchdog)
+- Startup sync sonucu: 62,335 dosya tarandı, 45,650,663 satır import edildi, 26,047 dosya lokalden silindi
+- logs.duckdb: 13 kaynak, aaop_company tenant, tam veri yüklü
+
+---
+
 ### S-DI-02 — 2026-03-27
 - shared/ingest/watch_folder.py: LogFolderWatcher + LogFileHandler — watchdog, 14 klasör mapping, 2s debounce, otomatik sync+delete
 - shared/ingest/default_configs.py: aaop_company için 14 kaynak config otomatik seed (idempotent)

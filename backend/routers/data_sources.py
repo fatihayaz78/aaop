@@ -33,6 +33,14 @@ async def _get_db():
     db.row_factory = aiosqlite.Row
     await db.execute(SOURCE_CONFIG_TABLE_SQL)
     await db.execute(INGESTION_LOG_TABLE_SQL)
+    # Migration guard — add file_mtime if missing
+    try:
+        cursor = await db.execute("PRAGMA table_info(ingestion_log)")
+        cols = [r[1] for r in await cursor.fetchall()]
+        if "file_mtime" not in cols:
+            await db.execute("ALTER TABLE ingestion_log ADD COLUMN file_mtime TEXT")
+    except Exception:
+        pass
     await db.commit()
     return db
 
@@ -115,13 +123,24 @@ class _SimpleSQLite:
     def __init__(self, db_path: str) -> None:
         self._path = db_path
 
+    async def _ensure_tables(self, db) -> None:
+        await db.execute(SOURCE_CONFIG_TABLE_SQL)
+        await db.execute(INGESTION_LOG_TABLE_SQL)
+        try:
+            cursor = await db.execute("PRAGMA table_info(ingestion_log)")
+            cols = [r[1] for r in await cursor.fetchall()]
+            if "file_mtime" not in cols:
+                await db.execute("ALTER TABLE ingestion_log ADD COLUMN file_mtime TEXT")
+        except Exception:
+            pass
+        await db.commit()
+
     async def fetch_one(self, sql: str, params=None):
         import os
         os.makedirs("data/sqlite", exist_ok=True)
         async with aiosqlite.connect(self._path) as db:
             db.row_factory = aiosqlite.Row
-            await db.execute(SOURCE_CONFIG_TABLE_SQL)
-            await db.execute(INGESTION_LOG_TABLE_SQL)
+            await self._ensure_tables(db)
             cursor = await db.execute(sql, params or ())
             return await cursor.fetchone()
 
@@ -130,8 +149,7 @@ class _SimpleSQLite:
         os.makedirs("data/sqlite", exist_ok=True)
         async with aiosqlite.connect(self._path) as db:
             db.row_factory = aiosqlite.Row
-            await db.execute(SOURCE_CONFIG_TABLE_SQL)
-            await db.execute(INGESTION_LOG_TABLE_SQL)
+            await self._ensure_tables(db)
             cursor = await db.execute(sql, params or ())
             return await cursor.fetchall()
 
@@ -139,8 +157,7 @@ class _SimpleSQLite:
         import os
         os.makedirs("data/sqlite", exist_ok=True)
         async with aiosqlite.connect(self._path) as db:
-            await db.execute(SOURCE_CONFIG_TABLE_SQL)
-            await db.execute(INGESTION_LOG_TABLE_SQL)
+            await self._ensure_tables(db)
             await db.execute(sql, params or ())
             await db.commit()
 

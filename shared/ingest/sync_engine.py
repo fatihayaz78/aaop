@@ -102,7 +102,10 @@ class SyncEngine:
 
             # Check if already ingested with same mtime
             existing = await self._get_ingestion_record(tenant_id, fpath)
-            if existing and existing.get("file_mtime") == current_mtime:
+            in_log = existing is not None
+            mtime_match = in_log and existing.get("file_mtime") == current_mtime
+            if mtime_match:
+                logger.debug("file_skip_reason", file=fpath, in_log=in_log, mtime_match=mtime_match)
                 continue  # skip unchanged file
 
             try:

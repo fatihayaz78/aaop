@@ -42,7 +42,7 @@ async def seed_default_configs(sqlite_client) -> int:
     for cfg in DEFAULT_SOURCE_CONFIGS:
         source_name = cfg["source_name"]
         folder = cfg["folder"]
-        local_path = f"{BASE_MOCK_DATA_PATH}/{folder}/"
+        local_path = f"{BASE_MOCK_DATA_PATH}/{DEFAULT_TENANT}/{folder}/"
 
         # Check if exists
         existing = await sqlite_client.fetch_one(
