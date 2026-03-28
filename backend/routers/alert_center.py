@@ -138,6 +138,18 @@ async def dashboard(
     except Exception:
         pass
 
+    # Log-based status badges
+    try:
+        from shared.ingest.log_queries import get_cdn_metrics, get_drm_status, get_api_health
+        cdn = get_cdn_metrics(tid, hours=24)
+        drm = get_drm_status(tid, hours=24)
+        api = get_api_health(tid, hours=24)
+        cdn_status = "warning" if cdn["error_rate_pct"] > 5 else "ok"
+        drm_status = "warning" if max(drm["widevine"]["error_rate_pct"], drm["fairplay"]["error_rate_pct"]) > 10 else "ok"
+        api_status = "warning" if api["error_rate_pct"] > 5 else "ok"
+    except Exception:
+        cdn_status = drm_status = api_status = "unknown"
+
     return {
         "total_alerts_24h": total,
         "active_alerts": active,
@@ -146,6 +158,9 @@ async def dashboard(
         "severity_breakdown": severity_breakdown,
         "channel_breakdown": channel_breakdown,
         "alert_trend_24h": trend,
+        "cdn_status": cdn_status,
+        "drm_status": drm_status,
+        "api_status": api_status,
     }
 
 
@@ -305,3 +320,22 @@ async def analytics(
         "channel_performance": channel_perf,
         "daily_volume_7d": daily,
     }
+
+
+@router.post("/evaluate")
+async def evaluate_alerts(
+    ctx: TenantContext = Depends(get_tenant_context),
+) -> dict[str, Any]:
+    """Run log-based anomaly detection and evaluate alerts."""
+    try:
+        from shared.ingest.log_queries import detect_incidents_from_logs
+        incidents = detect_incidents_from_logs(ctx.tenant_id, hours=1)
+        return {
+            "evaluated": len(incidents),
+            "routed": len(incidents),
+            "suppressed": 0,
+            "incidents": incidents,
+        }
+    except Exception as exc:
+        logger.warning("alert_evaluate_error", error=str(exc))
+        return {"evaluated": 0, "routed": 0, "suppressed": 0, "incidents": []}

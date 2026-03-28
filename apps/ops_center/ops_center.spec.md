@@ -63,7 +63,9 @@ OUTPUT (publish):
   incident_created → alert_center, knowledge_base
   rca_completed    → knowledge_base, alert_center
 
-DuckDB OKUMA:  shared_analytics.cdn_analysis, qoe_metrics, live_events
+DuckDB OKUMA:  logs.duckdb: medianova_logs, widevine_drm_logs, fairplay_drm_logs,
+               player_events_logs, api_logs_logs, newrelic_apm_logs
+               shared_analytics: cdn_analysis, qoe_metrics, live_events
 DuckDB YAZMA:  shared_analytics.incidents, agent_decisions
 ```
 

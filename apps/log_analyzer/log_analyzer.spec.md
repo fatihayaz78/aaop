@@ -379,3 +379,9 @@ credentials  → SQLite settings tablosunda encrypted, response'da son 4 karakte
 - Removed PII hashing: client_ip and user_agent stored as raw values (as received from DS2)
 - KB: clickable document cards (Dialog with full content)
 - KB: dynamic index counts, akamai_ds2 in search filter dropdown
+
+### S-DI-03 — 2026-03-28
+- New endpoints: /medianova/dashboard, /timeseries, /anomalies, /analyze
+- Data source: logs.duckdb aaop_company.medianova_logs (QueryRouter)
+- Frontend: Medianova tab added to Log Analyzer
+- Status: ✅ Complete

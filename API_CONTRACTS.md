@@ -55,6 +55,8 @@ WS     /ws/ops/incidents            WebSocket: real-time incident stream
 }
 ```
 
+Note: `/ops/dashboard` now includes `cdn_health`, `infrastructure`, `qoe`, `detected_incidents` from logs.duckdb
+
 ---
 
 ## 4. LOG ANALYZER (M07)
@@ -152,6 +154,14 @@ field_name, sample_values, null_count, unique_count, inferred_type, current_cate
 
 **Valid categories:** meta | timing | traffic | content | client | network | response | cache | geo | custom
 
+```
+# Medianova Local CDN (from logs.duckdb)
+GET    /log-analyzer/medianova/dashboard    Query: tenant_id, hours → CDNMetrics + anomalies
+GET    /log-analyzer/medianova/timeseries   Query: tenant_id, metric, hours → list[{timestamp, value}]
+GET    /log-analyzer/medianova/anomalies    Query: tenant_id, hours → list[AnomalyEvent]
+POST   /log-analyzer/medianova/analyze      Body: {tenant_id, hours, generate_report} → {job_id, status, summary}
+```
+
 ---
 
 ## 5. ALERT CENTER (M13)
@@ -169,6 +179,7 @@ DELETE /alerts/rules/{id}           → 204
 GET    /alerts/channels             Query: tenant_id → [AlertChannel]
 POST   /alerts/test                 Body: {channel_id, message} → TestResult
 WS     /ws/alerts/stream            WebSocket: real-time alert stream
+POST   /alerts/evaluate                  Body: {tenant_id} → {evaluated, routed, suppressed}
 ```
 
 ---

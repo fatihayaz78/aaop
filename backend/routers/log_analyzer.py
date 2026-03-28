@@ -2578,3 +2578,80 @@ async def chat_api_status() -> dict[str, Any]:
     settings = get_settings()
     has_key = bool(settings.anthropic_api_key)
     return {"configured": has_key}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# MEDIANOVA LOCAL CDN LOGS (from logs.duckdb)
+# ══════════════════════════════════════════════════════════════════════
+
+
+@router.get("/medianova/dashboard")
+async def medianova_dashboard(
+    ctx: TenantContext = Depends(get_tenant_context),
+    hours: int = 24,
+) -> dict[str, Any]:
+    """Medianova CDN dashboard from logs.duckdb."""
+    from shared.ingest.log_queries import get_cdn_metrics, get_cdn_anomalies
+    tid = ctx.tenant_id
+    metrics = get_cdn_metrics(tid, hours)
+    anomalies = get_cdn_anomalies(tid, hours)
+    return {"metrics": metrics, "anomalies": anomalies}
+
+
+@router.get("/medianova/timeseries")
+async def medianova_timeseries(
+    ctx: TenantContext = Depends(get_tenant_context),
+    metric: str = "requests",
+    hours: int = 24,
+) -> dict[str, Any]:
+    """Medianova time series data."""
+    from shared.ingest.log_queries import _get_logs_db, _hours_ago, _safe_query
+    tid = ctx.tenant_id
+    t = tid.replace("-", "_")
+    table = f"{t}.medianova_logs"
+    since = _hours_ago(hours)
+    db = _get_logs_db()
+
+    metric_sql = {
+        "requests": f"SELECT time_bucket(INTERVAL '1 hour', timestamp) as ts, COUNT(*) as value FROM {table} WHERE tenant_id = '{tid}' AND timestamp >= '{since}' GROUP BY ts ORDER BY ts",
+        "bandwidth": f"SELECT time_bucket(INTERVAL '1 hour', timestamp) as ts, SUM(bytes_sent)/1e9 as value FROM {table} WHERE tenant_id = '{tid}' AND timestamp >= '{since}' GROUP BY ts ORDER BY ts",
+        "error_rate": f"SELECT time_bucket(INTERVAL '1 hour', timestamp) as ts, SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END)*100.0/COUNT(*) as value FROM {table} WHERE tenant_id = '{tid}' AND timestamp >= '{since}' GROUP BY ts ORDER BY ts",
+        "cache_hit": f"SELECT time_bucket(INTERVAL '1 hour', timestamp) as ts, SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END)*100.0/COUNT(*) as value FROM {table} WHERE tenant_id = '{tid}' AND timestamp >= '{since}' GROUP BY ts ORDER BY ts",
+    }
+
+    sql = metric_sql.get(metric, metric_sql["requests"])
+    rows = _safe_query(db, tid, sql)
+    data = [{"timestamp": str(r["ts"]), "value": round(r["value"], 2)} for r in rows]
+    return {"metric": metric, "data": data}
+
+
+@router.get("/medianova/anomalies")
+async def medianova_anomalies(
+    ctx: TenantContext = Depends(get_tenant_context),
+    hours: int = 24,
+) -> list[dict]:
+    """Medianova anomaly detection."""
+    from shared.ingest.log_queries import get_cdn_anomalies
+    return get_cdn_anomalies(ctx.tenant_id, hours)
+
+
+@router.post("/medianova/analyze")
+async def medianova_analyze(
+    ctx: TenantContext = Depends(get_tenant_context),
+    hours: int = 24,
+) -> dict[str, Any]:
+    """Trigger Medianova analysis with real data."""
+    from shared.ingest.log_queries import get_cdn_metrics, get_cdn_anomalies
+    tid = ctx.tenant_id
+    metrics = get_cdn_metrics(tid, hours)
+    anomalies = get_cdn_anomalies(tid, hours)
+    return {
+        "status": "completed",
+        "summary": {
+            "total_requests": metrics["total_requests"],
+            "error_rate_pct": metrics["error_rate_pct"],
+            "cache_hit_rate_pct": metrics["cache_hit_rate_pct"],
+            "anomalies_detected": len(anomalies),
+        },
+        "anomalies": anomalies,
+    }

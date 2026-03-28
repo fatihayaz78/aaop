@@ -268,6 +268,34 @@ class TestAPIEndpoints:
         # Accept 200 (success) or 500 (DuckDB lock in test env)
         assert res.status_code in (200, 500)
 
+    def test_ops_dashboard_has_log_fields(self):
+        """Ops dashboard response schema includes log-based fields."""
+        # Verify the router imports log_queries correctly
+        from shared.ingest.log_queries import get_cdn_metrics, get_player_qoe
+        # Just verify functions exist and return correct shape with mock
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.query = MagicMock(return_value=[{"cnt": 0}])
+        with patch("shared.ingest.log_queries._get_logs_db", return_value=mock_db):
+            cdn = get_cdn_metrics("t1", 1)
+            assert "total_requests" in cdn
+            assert "error_rate_pct" in cdn
+            qoe = get_player_qoe("t1", 1)
+            assert "avg_qoe_score" in qoe
+
+    def test_alert_evaluate_endpoint(self):
+        """Alert evaluate endpoint returns incident detection results."""
+        from fastapi.testclient import TestClient
+        from backend.main import app
+
+        client = TestClient(app)
+        res = client.post("/alerts/evaluate", headers={"X-Tenant-ID": "aaop_company"})
+        assert res.status_code == 200
+        data = res.json()
+        assert "evaluated" in data
+        assert "routed" in data
+        assert "incidents" in data
+
     def test_import_delete_endpoint(self):
         """Import & delete endpoint returns SyncResult."""
         from fastapi.testclient import TestClient

@@ -9,7 +9,7 @@ import { AccordionItem } from "@/components/ui/Accordion";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 import type { LogProject, FetchJob, AnalysisResult } from "@/types";
 
-type Tab = "projects" | "analyzer" | "structure" | "intelligence" | "settings";
+type Tab = "projects" | "analyzer" | "structure" | "intelligence" | "settings" | "medianova";
 
 /* ── Revised 21 chart names (match backend) ── */
 const CHART_TYPES = [
@@ -676,6 +676,7 @@ export default function LogAnalyzer() {
     { key: "structure", label: "Log Structure" },
     { key: "intelligence", label: "Intelligence & Tasks" },
     { key: "settings", label: "Settings" },
+    { key: "medianova", label: "Medianova" },
   ];
 
   /* ── Password field helper ── */
@@ -2417,6 +2418,75 @@ export default function LogAnalyzer() {
           </div>
         )}
       </div>
+      {/* ══════════ Tab: Medianova ══════════ */}
+      {tab === "medianova" && <MedianovaTab />}
+    </div>
+  );
+}
+
+function MedianovaTab() {
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [tsMetric, setTsMetric] = useState("requests");
+  const [tsData, setTsData] = useState<{timestamp: string; value: number}[]>([]);
+  const [anomalies, setAnomalies] = useState<Record<string, unknown>[]>([]);
+
+  useEffect(() => {
+    apiGet("/log-analyzer/medianova/dashboard").then(d => setData(d as Record<string, unknown>)).catch(() => {});
+    apiGet("/log-analyzer/medianova/anomalies").then(d => setAnomalies(d as Record<string, unknown>[])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    apiGet(`/log-analyzer/medianova/timeseries?metric=${tsMetric}`).then(d => setTsData(((d as Record<string, unknown>).data || []) as {timestamp: string; value: number}[])).catch(() => {});
+  }, [tsMetric]);
+
+  const m = (data?.metrics || {}) as Record<string, unknown>;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Total Requests</p>
+          <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{String(m.total_requests ?? 0)}</p>
+        </div>
+        <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Error Rate</p>
+          <p className="text-2xl font-bold" style={{ color: Number(m.error_rate_pct ?? 0) > 5 ? "var(--status-error)" : "var(--risk-low)" }}>{String(m.error_rate_pct ?? 0)}%</p>
+        </div>
+        <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Cache Hit Rate</p>
+          <p className="text-2xl font-bold" style={{ color: "var(--risk-low)" }}>{String(m.cache_hit_rate_pct ?? 0)}%</p>
+        </div>
+        <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Bandwidth</p>
+          <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{String(m.bandwidth_gb ?? 0)} GB</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-3 mb-3">
+          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Time Series</h3>
+          {["requests", "bandwidth", "error_rate", "cache_hit"].map(m => (
+            <button key={m} onClick={() => setTsMetric(m)} className="text-xs px-2 py-1 rounded" style={{ background: tsMetric === m ? "var(--brand-primary)" : "var(--background-hover)", color: tsMetric === m ? "#fff" : "var(--text-secondary)" }}>{m}</button>
+          ))}
+        </div>
+        {tsData.length > 0 && <RechartsWrapper data={tsData} xKey="timestamp" yKey="value" title="" height={250} type="line" />}
+      </div>
+
+      {anomalies.length > 0 && (
+        <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Anomalies ({anomalies.length})</h3>
+          <div className="space-y-1">
+            {anomalies.map((a, i) => (
+              <div key={i} className="flex items-center justify-between px-3 py-2 rounded" style={{ background: "var(--risk-high-bg)" }}>
+                <span className="text-xs" style={{ color: "var(--text-primary)" }}>{String(a.timestamp)}</span>
+                <span className="text-xs font-medium" style={{ color: "var(--risk-high)" }}>{String(a.error_rate_pct)}% error rate</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button onClick={async () => { try { await apiPost("/log-analyzer/medianova/analyze", {}); alert("Analysis triggered"); } catch {} }} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Analyze Medianova Data</button>
     </div>
   );
 }

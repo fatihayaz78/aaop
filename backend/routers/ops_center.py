@@ -100,15 +100,54 @@ async def dashboard(
     except Exception:
         pass
 
-    logger.info("ops_dashboard", tenant_id=tid, total=total, open=open_count, mttr_p50=mttr_p50)
+    # Log-based metrics
+    try:
+        from shared.ingest.log_queries import (
+            get_cdn_metrics, get_infrastructure_health, get_player_qoe, detect_incidents_from_logs,
+        )
+        cdn = get_cdn_metrics(tid, hours=24)
+        infra = get_infrastructure_health(tid, hours=24)
+        qoe = get_player_qoe(tid, hours=24)
+        detected = detect_incidents_from_logs(tid, hours=24)
+    except Exception as exc:
+        logger.warning("ops_dashboard_log_queries_error", error=str(exc))
+        cdn = {"total_requests": 0, "error_rate_pct": 0, "cache_hit_rate_pct": 0, "bandwidth_gb": 0}
+        infra = {"avg_apdex": 0, "critical_services": [], "services": []}
+        qoe = {"avg_qoe_score": 0, "sessions_total": 0}
+        detected = []
+
+    # Merge detected incidents into severity breakdown
+    for d in detected:
+        sev = d.get("severity", "P2")
+        if sev in severity_breakdown:
+            severity_breakdown[sev] += 1
+
+    logger.info("ops_dashboard", tenant_id=tid, total=total, open=open_count, mttr_p50=mttr_p50, detected=len(detected))
 
     return {
-        "total_incidents": total,
-        "open_incidents": open_count,
+        "total_incidents": total + len(detected),
+        "open_incidents": open_count + len(detected),
         "mttr_p50_seconds": mttr_p50,
-        "active_p0_count": active_p0,
+        "active_p0_count": active_p0 + sum(1 for d in detected if d.get("severity") == "P0"),
         "severity_breakdown": severity_breakdown,
         "incident_trend_24h": trend,
+        "cdn_health": {
+            "total_requests": cdn["total_requests"],
+            "error_rate_pct": cdn["error_rate_pct"],
+            "cache_hit_rate_pct": cdn.get("cache_hit_rate_pct", 0),
+            "bandwidth_gb": cdn.get("bandwidth_gb", 0),
+        },
+        "infrastructure": {
+            "avg_apdex": infra["avg_apdex"],
+            "critical_services": infra["critical_services"],
+            "service_count": len(infra["services"]),
+        },
+        "qoe": {
+            "avg_score": qoe["avg_qoe_score"],
+            "sessions_24h": qoe["sessions_total"],
+        },
+        "detected_incidents": detected,
+        "events_24h": len(detected),
     }
 
 
@@ -293,6 +332,22 @@ async def ops_chat(
                 f"MTTR: {row.get('mttr_seconds')}s\n"
                 f"Affected: {row.get('affected_svcs')}\n"
             )
+
+    # Enrich with real log metrics
+    try:
+        from shared.ingest.log_queries import get_cdn_metrics, get_player_qoe, get_infrastructure_health
+        cdn_ctx = get_cdn_metrics(ctx.tenant_id, hours=24)
+        qoe_ctx = get_player_qoe(ctx.tenant_id, hours=24)
+        infra_ctx = get_infrastructure_health(ctx.tenant_id, hours=24)
+        system_prompt += (
+            f"\n\nReal-time platform metrics (last 24h):\n"
+            f"CDN: {cdn_ctx['total_requests']} requests, {cdn_ctx['error_rate_pct']}% error rate, "
+            f"{cdn_ctx.get('cache_hit_rate_pct', 0)}% cache hit\n"
+            f"QoE: avg score {qoe_ctx['avg_qoe_score']}, {qoe_ctx['sessions_total']} sessions\n"
+            f"Infra: avg apdex {infra_ctx['avg_apdex']}, critical services: {infra_ctx['critical_services']}\n"
+        )
+    except Exception:
+        pass
 
     try:
         from anthropic import AsyncAnthropic

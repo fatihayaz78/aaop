@@ -148,6 +148,9 @@ export default function AlertCenter() {
             <MetricCard title="Rules Active" value={rules.filter((r) => r.isActive).length} trend="flat" />
             <MetricCard title="Storm Mode" value={stormMode ? "ON" : "OFF"} trend="flat" />
           </div>
+          <div className="flex items-center gap-3 mb-4">
+            <button onClick={async () => { try { const r = await apiPost("/alerts/evaluate", {}); alert(`Evaluated: ${(r as Record<string,unknown>).evaluated}, Routed: ${(r as Record<string,unknown>).routed}`); } catch {} }} className="px-4 py-1.5 rounded text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Evaluate Now</button>
+          </div>
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
             <div className="max-h-96 overflow-y-auto">
               {wsAlerts.length === 0 && (

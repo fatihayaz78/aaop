@@ -75,9 +75,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S-DI-02 complete — Watch Folder + 45.6M rows imported
+**Aktif Sprint:** S-DI-03 complete — P0 Module Integration
 **Önceki:** S-MDG-08 complete — run_all.py + validate.py + frontend
-**Son commit:** S-DI-02-fix — ingestion_log migration + startup scan fix
+**Son commit:** S-DI-03 — log_queries + Ops/Log/Alert real data
 
 ---
 

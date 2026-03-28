@@ -221,6 +221,27 @@ export default function OpsCenter() {
             <MetricCard title="Active P0" value={metrics?.p0Open ?? 0} />
           </div>
 
+          {/* CDN + Infra + QoE from log data */}
+          {dashboardRaw.cdn_health ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                <h3 className="text-xs font-semibold mb-2" style={{ color: "var(--text-primary)" }}>CDN Health</h3>
+                <p className="text-2xl font-bold" style={{ color: Number((dashboardRaw.cdn_health as {error_rate_pct: number}).error_rate_pct) > 5 ? "var(--status-error)" : "var(--risk-low)" }}>{String((dashboardRaw.cdn_health as {error_rate_pct: number}).error_rate_pct)}% err</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>{String((dashboardRaw.cdn_health as {cache_hit_rate_pct: number}).cache_hit_rate_pct)}% cache · {String((dashboardRaw.cdn_health as {bandwidth_gb: number}).bandwidth_gb)} GB</p>
+              </div>
+              <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                <h3 className="text-xs font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Infrastructure</h3>
+                <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{String((dashboardRaw.infrastructure as {avg_apdex: number} | undefined)?.avg_apdex ?? 0)} apdex</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>{String((dashboardRaw.infrastructure as {critical_services: string[]} | undefined)?.critical_services?.length ?? 0)} critical</p>
+              </div>
+              <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                <h3 className="text-xs font-semibold mb-2" style={{ color: "var(--text-primary)" }}>QoE Score</h3>
+                <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{String((dashboardRaw.qoe as {avg_score: number} | undefined)?.avg_score ?? 0)}</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>{String((dashboardRaw.qoe as {sessions_24h: number} | undefined)?.sessions_24h ?? 0)} sessions</p>
+              </div>
+            </div>
+          ) : null}
+
           {/* FIX 2: Severity Breakdown + FIX 3: Incident Trend */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {sevChartData.length > 0 && (

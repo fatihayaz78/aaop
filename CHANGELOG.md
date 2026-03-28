@@ -8,6 +8,20 @@
 
 ---
 
+### S-DI-03 — 2026-03-28
+- shared/ingest/log_queries.py: 7 query helper (get_cdn_metrics, get_cdn_anomalies, get_drm_status, get_api_health, get_infrastructure_health, get_player_qoe, detect_incidents_from_logs)
+- backend/routers/ops_center.py: dashboard CDN/QoE/infra kartları logs.duckdb'den, chat context zenginleştirildi
+- backend/routers/log_analyzer.py: 4 yeni Medianova endpoint (dashboard, timeseries, anomalies, analyze)
+- backend/routers/alert_center.py: CDN/DRM/API status badge'leri + POST /alerts/evaluate
+- frontend/ops-center/page.tsx: CDN Health + Infrastructure + QoE kartları eklendi
+- frontend/log-analyzer/page.tsx: Medianova tab eklendi (KPI, time series, anomaliler, analyze)
+- frontend/alert-center/page.tsx: Evaluate Now butonu eklendi
+- tests/unit/test_log_queries.py: 9 test (mock DataFrame ile)
+- tests/unit/test_data_ingestion.py: 2 yeni test (toplam 25)
+- Incident detection thresholds: CDN >5% P1, >15% P0 | DRM >10% P1 | API p99 >2s P2 | Apdex <0.7 P2 | QoE <2.5 P1
+
+---
+
 ### S-DI-02-fix — 2026-03-28
 - ingestion_log SQLite tablosu yeniden oluşturuldu (file_mtime kolonu eksikti)
 - backend/routers/data_sources.py: migration guard eklendi (PRAGMA table_info + ALTER TABLE ADD COLUMN file_mtime)
