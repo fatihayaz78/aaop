@@ -72,6 +72,12 @@ async def dashboard(
     top_rows = await db.fetch_all("SELECT action, COUNT(*) as cnt FROM audit_log GROUP BY action ORDER BY cnt DESC LIMIT 5", ())
     top_actions = [{"action": r["action"], "count": r["cnt"]} for r in top_rows]
 
+    try:
+        from shared.ingest.log_queries import get_data_source_stats
+        source_stats = get_data_source_stats("aaop_company")
+    except Exception:
+        source_stats = {"sources": {}, "total_rows": 0}
+
     return {
         "total_tenants": total_tenants,
         "active_tenants": active_tenants,
@@ -81,6 +87,7 @@ async def dashboard(
         "token_usage_today": {"input": token_in, "output": token_out, "cost_usd": token_cost},
         "compliance_score": 94.5,
         "top_actions": top_actions,
+        "data_source_stats": source_stats,
     }
 
 

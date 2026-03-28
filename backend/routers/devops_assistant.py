@@ -26,11 +26,22 @@ async def health() -> dict[str, str]:
 async def dashboard(ctx: TenantContext = Depends(get_tenant_context)) -> dict[str, Any]:
     from apps.knowledge_base.seed import get_all_docs
     docs = get_all_docs()
+
+    try:
+        from shared.ingest.log_queries import get_infrastructure_health, get_api_health
+        infra = get_infrastructure_health("aaop_company", hours=24)
+        api = get_api_health("aaop_company", hours=24)
+    except Exception:
+        infra = {"services": [], "critical_services": []}
+        api = {"total_requests": 0, "error_rate_pct": 0}
+
     return {
         "runbooks_available": len(docs.get("runbooks", [])),
         "recent_queries_24h": random.randint(5, 25),
         "dangerous_commands_blocked": random.randint(0, 3),
         "top_topics": ["cdn", "drm", "scaling", "incident", "deployment"],
+        "infra_health": infra,
+        "api_health": api,
     }
 
 @router.post("/chat")

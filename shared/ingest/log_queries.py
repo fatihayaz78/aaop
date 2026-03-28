@@ -306,3 +306,120 @@ def detect_incidents_from_logs(tenant_id: str, hours: int = 1) -> list[dict]:
                           "affected_sources": ["player_events"], "detected_at": now})
 
     return incidents
+
+
+# ══════════════════════════════════════════════════════════════════════
+# P1/P2 MODULE QUERY HELPERS
+# ══════════════════════════════════════════════════════════════════════
+
+
+def get_app_reviews(tenant_id: str, hours: int = 168) -> dict:
+    """App review summary from app_reviews_logs (default 7 days)."""
+    db = _get_logs_db()
+    t = tenant_id.replace("-", "_")
+    table = f"{t}.app_reviews_logs"
+    since = _hours_ago(hours)
+
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+    total = total_row[0]["cnt"] if total_row else 0
+    if total == 0:
+        return {"total_reviews": 0, "avg_rating": 0, "sentiment_breakdown": {}, "top_categories": []}
+
+    avg_row = _safe_query(db, tenant_id, f"SELECT AVG(rating) as avg_r FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+    avg_rating = round(avg_row[0]["avg_r"] or 0, 2) if avg_row else 0
+
+    sent = _safe_query(db, tenant_id, f"SELECT sentiment, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY sentiment")
+    cats = _safe_query(db, tenant_id, f"SELECT category, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY category ORDER BY cnt DESC LIMIT 5")
+
+    return {
+        "total_reviews": total, "avg_rating": avg_rating,
+        "sentiment_breakdown": {r["sentiment"]: r["cnt"] for r in sent},
+        "top_categories": [{"category": r["category"], "count": r["cnt"]} for r in cats],
+    }
+
+
+def get_epg_schedule(tenant_id: str) -> dict:
+    """EPG schedule summary from epg_logs."""
+    db = _get_logs_db()
+    t = tenant_id.replace("-", "_")
+    table = f"{t}.epg_logs"
+
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}'")
+    total = total_row[0]["cnt"] if total_row else 0
+
+    channels = _safe_query(db, tenant_id, f"SELECT channel, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' GROUP BY channel ORDER BY cnt DESC")
+    live = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND event_type = 'live_sport'")
+    pre_scale = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND pre_scale_required = 1")
+
+    return {
+        "total_programs": total,
+        "channels": [{"channel": r["channel"], "programs": r["cnt"]} for r in channels],
+        "live_sport_count": live[0]["cnt"] if live else 0,
+        "pre_scale_needed": pre_scale[0]["cnt"] if pre_scale else 0,
+    }
+
+
+def get_churn_metrics(tenant_id: str) -> dict:
+    """CRM churn metrics from crm_subscriber_logs."""
+    db = _get_logs_db()
+    t = tenant_id.replace("-", "_")
+    table = f"{t}.crm_subscriber_logs"
+
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}'")
+    total = total_row[0]["cnt"] if total_row else 0
+    if total == 0:
+        return {"total_subscribers": 0, "avg_churn_risk": 0, "at_risk_count": 0, "tier_breakdown": {}}
+
+    avg_row = _safe_query(db, tenant_id, f"SELECT AVG(churn_risk) as avg_cr FROM {table} WHERE tenant_id = '{tenant_id}'")
+    at_risk = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND churn_risk > 0.7")
+    tiers = _safe_query(db, tenant_id, f"SELECT subscription_tier, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' GROUP BY subscription_tier")
+
+    return {
+        "total_subscribers": total,
+        "avg_churn_risk": round(avg_row[0]["avg_cr"] or 0, 3) if avg_row else 0,
+        "at_risk_count": at_risk[0]["cnt"] if at_risk else 0,
+        "tier_breakdown": {r["subscription_tier"]: r["cnt"] for r in tiers},
+    }
+
+
+def get_billing_summary(tenant_id: str, hours: int = 720) -> dict:
+    """Billing summary from billing_logs (default 30 days)."""
+    db = _get_logs_db()
+    t = tenant_id.replace("-", "_")
+    table = f"{t}.billing_logs"
+    since = _hours_ago(hours)
+
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+    total = total_row[0]["cnt"] if total_row else 0
+    if total == 0:
+        return {"total_transactions": 0, "total_revenue_tl": 0, "failed_count": 0, "event_types": {}}
+
+    rev = _safe_query(db, tenant_id, f"SELECT SUM(amount) as total FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND payment_status = 'success'")
+    failed = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND payment_status = 'failed'")
+    types = _safe_query(db, tenant_id, f"SELECT event_type, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY event_type ORDER BY cnt DESC")
+
+    return {
+        "total_transactions": total,
+        "total_revenue_tl": round(rev[0]["total"] or 0, 2) if rev else 0,
+        "failed_count": failed[0]["cnt"] if failed else 0,
+        "event_types": {r["event_type"]: r["cnt"] for r in types},
+    }
+
+
+def get_data_source_stats(tenant_id: str) -> dict:
+    """Row counts per table in logs.duckdb for admin dashboard."""
+    db = _get_logs_db()
+    t = tenant_id.replace("-", "_")
+    sources = [
+        "medianova", "origin_server", "widevine_drm", "fairplay_drm",
+        "player_events", "npaw_analytics", "api_logs", "newrelic_apm",
+        "crm_subscriber", "epg", "billing", "push_notifications", "app_reviews",
+    ]
+    stats: dict[str, int] = {}
+    total = 0
+    for src in sources:
+        rows = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {t}.{src}_logs")
+        cnt = rows[0]["cnt"] if rows else 0
+        stats[src] = cnt
+        total += cnt
+    return {"sources": stats, "total_rows": total}

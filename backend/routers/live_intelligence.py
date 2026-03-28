@@ -45,14 +45,24 @@ async def dashboard(
 
     timeline = [{"hour": f"{h:02d}:00", "count": 0} for h in range(24)]
 
+    try:
+        from shared.ingest.log_queries import get_drm_status, get_epg_schedule
+        drm = get_drm_status(tid, hours=24)
+        epg = get_epg_schedule(tid)
+        drm_issues_count = sum(1 for d in ["widevine", "fairplay"] if drm[d]["error_rate_pct"] > 5)
+    except Exception:
+        drm = {}; epg = {"total_programs": 0}; drm_issues_count = 0
+
     return {
         "live_now_count": live_now,
         "upcoming_24h_count": upcoming,
         "total_events_7d": total,
         "pre_scale_pending": pre_scale_pending,
-        "drm_issues": 0,
+        "drm_issues": drm_issues_count,
         "peak_viewers_today": peak,
         "events_timeline": timeline,
+        "drm_status": drm,
+        "epg_summary": epg,
     }
 
 

@@ -8,6 +8,15 @@
 
 ---
 
+### S-DI-04 — 2026-03-28
+- shared/ingest/log_queries.py: 5 yeni helper (get_app_reviews, get_epg_schedule, get_churn_metrics, get_billing_summary, get_data_source_stats)
+- backend/routers: 7 P1/P2 modül logs.duckdb'den gerçek veri okur (viewer_experience, live_intelligence, growth_retention, capacity_cost, admin_governance, devops_assistant)
+- frontend: 8 sayfadan empty state kaldırıldı, gerçek veri akışı aktif
+- Tüm modüller artık logs.duckdb üzerinden çalışıyor
+- Tests: 14 passed (test_log_queries.py)
+
+---
+
 ### S-DI-03 — 2026-03-28
 - shared/ingest/log_queries.py: 7 query helper (get_cdn_metrics, get_cdn_anomalies, get_drm_status, get_api_health, get_infrastructure_health, get_player_qoe, detect_incidents_from_logs)
 - backend/routers/ops_center.py: dashboard CDN/QoE/infra kartları logs.duckdb'den, chat context zenginleştirildi

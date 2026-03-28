@@ -101,6 +101,15 @@ async def dashboard(
     dev_rows = duck.fetch_all("SELECT device_type, COUNT(*) as cnt FROM shared_analytics.qoe_metrics WHERE tenant_id = ? GROUP BY device_type", [tid])
     device_breakdown = {r["device_type"]: r["cnt"] for r in dev_rows}
 
+    # Log-based enrichment
+    try:
+        from shared.ingest.log_queries import get_player_qoe, get_app_reviews
+        qoe_live = get_player_qoe(tid, hours=24)
+        reviews = get_app_reviews(tid, hours=168)
+    except Exception:
+        qoe_live = {"avg_qoe_score": 0, "sessions_total": 0, "qoe_by_device": []}
+        reviews = {"total_reviews": 0, "avg_rating": 0, "sentiment_breakdown": {}}
+
     return {
         "avg_qoe_score": avg_qoe,
         "sessions_below_threshold": below,
@@ -109,6 +118,8 @@ async def dashboard(
         "qoe_trend_24h": trend,
         "score_distribution": dist,
         "device_breakdown": device_breakdown,
+        "qoe_live": qoe_live,
+        "app_reviews": reviews,
     }
 
 

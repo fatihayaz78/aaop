@@ -66,6 +66,16 @@ async def dashboard(
     except Exception:
         pass
 
+    try:
+        from shared.ingest.log_queries import get_infrastructure_health, get_api_health, get_cdn_metrics
+        infra_live = get_infrastructure_health(tid, hours=24)
+        api_live = get_api_health(tid, hours=24)
+        cdn_live = get_cdn_metrics(tid, hours=24)
+    except Exception:
+        infra_live = {"services": [], "avg_apdex": 0}
+        api_live = {"total_requests": 0}
+        cdn_live = {"total_requests": 0, "bandwidth_gb": 0}
+
     return {
         "services_at_warning": warning,
         "services_at_critical": critical,
@@ -74,6 +84,9 @@ async def dashboard(
         "cost_estimate_monthly": round(2400 + random.uniform(-200, 200), 2),
         "utilization_by_service": by_svc,
         "utilization_trend_24h": trend,
+        "infra_live": infra_live,
+        "api_live": api_live,
+        "cdn_live": cdn_live,
     }
 
 

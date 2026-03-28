@@ -54,6 +54,14 @@ async def dashboard(
     for r in seg_rows:
         seg_breakdown[r["segment"]] = r["cnt"]
 
+    try:
+        from shared.ingest.log_queries import get_churn_metrics, get_billing_summary
+        crm = get_churn_metrics(tid)
+        billing = get_billing_summary(tid)
+    except Exception:
+        crm = {"total_subscribers": 0, "avg_churn_risk": 0, "at_risk_count": 0}
+        billing = {"total_transactions": 0, "total_revenue_tl": 0}
+
     return {
         "total_users": total,
         "at_risk_users": at_risk,
@@ -65,6 +73,8 @@ async def dashboard(
             {"reason": "qoe_drop", "count": 34}, {"reason": "cdn_issues", "count": 22},
             {"reason": "inactivity", "count": 18}, {"reason": "price", "count": 12},
         ],
+        "crm_live": crm,
+        "billing_live": billing,
     }
 
 
