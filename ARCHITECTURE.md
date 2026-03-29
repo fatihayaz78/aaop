@@ -387,3 +387,35 @@ pytest tests/ -v --cov=. --cov-report=term-missing --cov-fail-under=80
 ❌ tenant_id'siz tool çağrısı → tüm tool'lar tenant_id alır
 ❌ Dokümansız ADR             → ARCHITECTURE.md güncelle
 ```
+
+---
+
+## 10. MULTI-TENANT HİYERARŞİSİ (S-MT-01)
+
+### 3 Katman
+```
+super_admin → tenant → service
+```
+
+- **Tenant** = fatura/sözleşme birimi (Tel Co, OTT Co, Airline Co)
+- **Service** = log kaynağı ve dashboard birimi (TV Plus, Sport Stream, Music Stream, Fly Entertainment)
+- **DuckDB Schema** = service_id ile eşleşir (sport_stream, tv_plus, music_stream, fly_ent)
+
+### Tenant / Service Tablosu
+
+| tenant_id | Tenant Name | service_id | Service Name | DuckDB Schema |
+|---|---|---|---|---|
+| ott_co | OTT Co | sport_stream | Sport Stream | sport_stream |
+| tel_co | Tel Co | tv_plus | TV Plus | tv_plus |
+| tel_co | Tel Co | music_stream | Music Stream | music_stream |
+| airline_co | Airline Co | fly_ent | Fly Entertainment | fly_ent |
+
+### SQLite Tabloları
+- `tenants`: id, name, plan, sector, status
+- `services`: id, tenant_id, name, duckdb_schema, sector_override, status
+- `users`: tenant_id, role, service_ids (JSON array), active_service_id
+
+### Migration Notu
+- Eski `aaop_company` DuckDB schema'sı korunuyor (backward compat)
+- Yeni `sport_stream` schema: aaop_company'nin tam kopyası (45.6M satır)
+- ServiceContextMiddleware: stub — S-MT-02'de tam JWT+DB implementasyonu

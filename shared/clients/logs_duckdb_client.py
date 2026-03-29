@@ -32,15 +32,15 @@ class LogsDuckDBClient:
             self._conn.close()
             self._conn = None
 
-    def ensure_tenant_schema(self, tenant_id: str) -> None:
+    def ensure_tenant_schema(self, tenant_id: str, *, schema_name: str | None = None) -> None:
         conn = self.get_connection()
-        safe_id = tenant_id.replace("-", "_").replace(" ", "_")
+        safe_id = (schema_name or tenant_id).replace("-", "_").replace(" ", "_")
         conn.execute(f"CREATE SCHEMA IF NOT EXISTS {safe_id}")
-        logger.info("tenant_schema_ensured", tenant_id=safe_id)
+        logger.info("tenant_schema_ensured", schema=safe_id)
 
-    def ensure_source_table(self, tenant_id: str, source: str, create_sql: str) -> None:
+    def ensure_source_table(self, tenant_id: str, source: str, create_sql: str, *, schema_name: str | None = None) -> None:
         conn = self.get_connection()
-        safe_tid = tenant_id.replace("-", "_").replace(" ", "_")
+        safe_tid = (schema_name or tenant_id).replace("-", "_").replace(" ", "_")
         table_name = f"{safe_tid}.{source}_logs"
         full_sql = create_sql.replace("{TABLE_NAME}", table_name)
         conn.execute(full_sql)
@@ -53,11 +53,11 @@ class LogsDuckDBClient:
         rows = rel.fetchall()
         return [dict(zip(columns, row, strict=False)) for row in rows]
 
-    def insert_batch(self, tenant_id: str, source: str, records: list[dict]) -> int:
+    def insert_batch(self, tenant_id: str, source: str, records: list[dict], *, schema_name: str | None = None) -> int:
         if not records:
             return 0
         conn = self.get_connection()
-        safe_tid = tenant_id.replace("-", "_").replace(" ", "_")
+        safe_tid = (schema_name or tenant_id).replace("-", "_").replace(" ", "_")
         table_name = f"{safe_tid}.{source}_logs"
 
         columns = list(records[0].keys())
@@ -71,9 +71,9 @@ class LogsDuckDBClient:
 
         return len(records)
 
-    def delete_older_than(self, tenant_id: str, source: str, days: int = 30) -> int:
+    def delete_older_than(self, tenant_id: str, source: str, days: int = 30, *, schema_name: str | None = None) -> int:
         conn = self.get_connection()
-        safe_tid = tenant_id.replace("-", "_").replace(" ", "_")
+        safe_tid = (schema_name or tenant_id).replace("-", "_").replace(" ", "_")
         table_name = f"{safe_tid}.{source}_logs"
 
         count_sql = f"SELECT COUNT(*) as cnt FROM {table_name} WHERE ingested_at < NOW() - INTERVAL '{days} days'"

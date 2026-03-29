@@ -61,10 +61,13 @@ class SQLiteClient:
             CREATE TABLE IF NOT EXISTS tenants (
                 id          TEXT PRIMARY KEY,
                 name        TEXT NOT NULL,
-                plan        TEXT NOT NULL,
+                plan        TEXT NOT NULL DEFAULT 'starter',
+                sector      TEXT NOT NULL DEFAULT 'ott',
                 timezone    TEXT DEFAULT 'Europe/Istanbul',
+                status      TEXT NOT NULL DEFAULT 'active',
                 is_active   INTEGER DEFAULT 1,
-                created_at  TEXT DEFAULT (datetime('now'))
+                created_at  TEXT DEFAULT (datetime('now')),
+                updated_at  TEXT DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS users (
@@ -86,6 +89,17 @@ class SQLiteClient:
                 config_json TEXT,
                 updated_at  TEXT DEFAULT (datetime('now')),
                 UNIQUE(tenant_id, module_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS services (
+                id              TEXT PRIMARY KEY,
+                tenant_id       TEXT NOT NULL REFERENCES tenants(id),
+                name            TEXT NOT NULL,
+                duckdb_schema   TEXT NOT NULL,
+                sector_override TEXT,
+                status          TEXT NOT NULL DEFAULT 'active',
+                created_at      TEXT DEFAULT (datetime('now')),
+                updated_at      TEXT DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS audit_log (
@@ -117,4 +131,28 @@ class SQLiteClient:
             """
         )
         await self.conn.commit()
+
+        # Migration: add columns if missing (SQLite has no ADD COLUMN IF NOT EXISTS)
+        await self._migrate_columns()
+
         logger.info("sqlite_tables_initialized")
+
+    async def _migrate_columns(self) -> None:
+        """Add columns introduced in S-MT-01 if they don't exist yet."""
+        # SQLite ALTER TABLE ADD COLUMN requires constant defaults only
+        for table, column, default in [
+            ("tenants", "sector", "'ott'"),
+            ("tenants", "status", "'active'"),
+            ("tenants", "updated_at", "NULL"),
+            ("users", "service_ids", "'[]'"),
+            ("users", "active_service_id", "NULL"),
+        ]:
+            try:
+                await self.conn.execute(f"SELECT {column} FROM {table} LIMIT 1")
+            except Exception:
+                try:
+                    await self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT DEFAULT {default}")
+                    logger.info("sqlite_column_added", table=table, column=column)
+                except Exception as alter_err:
+                    logger.debug("sqlite_column_add_skipped", table=table, column=column, error=str(alter_err))
+        await self.conn.commit()

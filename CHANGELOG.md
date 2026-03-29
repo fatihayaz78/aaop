@@ -8,6 +8,20 @@
 
 ---
 
+### S-MT-01 — 2026-03-29
+- Multi-tenant 3-katman hiyerarşi: super_admin → tenant → service
+- SQLite: tenants tablosu (3 kayıt: ott_co, tel_co, airline_co) + services tablosu (4 kayıt: sport_stream, tv_plus, music_stream, fly_ent)
+- SQLite migration: sector, status, updated_at (tenants), service_ids, active_service_id (users)
+- DuckDB: sport_stream schema oluşturuldu (aaop_company kopyası, 13 tablo, 45.6M satır)
+- shared/models/tenant_models.py: TenantBase, ServiceBase, TenantWithServices Pydantic modelleri
+- backend/middleware/service_context.py: ServiceContextMiddleware stub (tenant → default service mapping)
+- shared/clients/logs_duckdb_client.py: schema_name parametresi eklendi (backward compat)
+- backend/dependencies.py: _seed_tenant_hierarchy() idempotent seed
+- aaop_company schema korundu (silinmedi)
+- Tests: 148 passed, 0 failure
+
+---
+
 ### S-EB-01 — 2026-03-29
 - shared/event_bus.py: queue recreation on start() (cross-loop fix)
 - backend/main.py: lifespan'da Event Bus başlatma/durdurma + _wire_event_subscriptions()

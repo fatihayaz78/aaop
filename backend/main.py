@@ -115,6 +115,10 @@ app.add_middleware(
 from backend.middleware.rate_limit import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware)
 
+# Service context — multi-tenant service resolution (S-MT-01 stub)
+from backend.middleware.service_context import ServiceContextMiddleware
+app.add_middleware(ServiceContextMiddleware)
+
 # Auth
 app.include_router(auth_router)
 
