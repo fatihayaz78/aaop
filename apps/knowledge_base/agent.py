@@ -16,6 +16,7 @@ from apps.knowledge_base.tools import ingest_document
 import apps.knowledge_base.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
 from shared.event_bus import EventType
+from shared.schemas.base_event import BaseEvent
 
 logger = structlog.get_logger(__name__)
 
@@ -49,6 +50,20 @@ class KnowledgeBaseAgent(BaseAgent):
         self._config = KnowledgeBaseConfig()
         self._chroma = chroma
         super().__init__(**kwargs)
+
+    def subscribe_events(self) -> None:
+        """Register: incident_created, rca_completed (auto-index)."""
+        self.event_bus.subscribe(EventType.INCIDENT_CREATED, self._on_event)
+        self.event_bus.subscribe(EventType.RCA_COMPLETED, self._on_event)
+
+    async def _on_event(self, event: BaseEvent) -> None:
+        try:
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            payload["event_type"] = event.event_type
+            payload["event_payload"] = payload.copy()
+            await self.invoke(tenant_id=event.tenant_id or "aaop_company", input_data=payload)
+        except Exception as exc:
+            logger.error("event_handler_error", app=self.app_name, event=event.event_type, error=str(exc))
 
     def get_tools(self) -> list[dict[str, Any]]:
         return [

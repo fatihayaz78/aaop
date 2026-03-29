@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -32,11 +33,68 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("startup_begin")
     await init_clients()
+
+    # Start Event Bus dispatch loop
+    from shared.event_bus import get_event_bus
+    bus = get_event_bus()
+    await bus.start()
+    _wire_event_subscriptions(bus)
+
     logger.info("startup_complete")
     yield
     logger.info("shutdown_begin")
+    await bus.stop()
     await shutdown_clients()
     logger.info("shutdown_complete")
+
+
+def _wire_event_subscriptions(bus: Any) -> None:
+    """Create singleton agent instances and register Event Bus subscriptions."""
+    from shared.event_bus import EventBus
+
+    try:
+        from apps.ops_center.agent import IncidentAgent
+        agent = IncidentAgent(event_bus=bus)
+        agent.subscribe_events()
+    except Exception as exc:
+        logger.warning("event_bus_wire_failed", agent="IncidentAgent", error=str(exc))
+
+    try:
+        from apps.alert_center.agent import AlertRouterAgent
+        agent = AlertRouterAgent(event_bus=bus)
+        agent.subscribe_events()
+    except Exception as exc:
+        logger.warning("event_bus_wire_failed", agent="AlertRouterAgent", error=str(exc))
+
+    try:
+        from apps.viewer_experience.agent import QoEAgent
+        agent = QoEAgent(event_bus=bus)
+        agent.subscribe_events()
+    except Exception as exc:
+        logger.warning("event_bus_wire_failed", agent="QoEAgent", error=str(exc))
+
+    try:
+        from apps.growth_retention.agent import GrowthAgent
+        agent = GrowthAgent(event_bus=bus)
+        agent.subscribe_events()
+    except Exception as exc:
+        logger.warning("event_bus_wire_failed", agent="GrowthAgent", error=str(exc))
+
+    try:
+        from apps.capacity_cost.agent import CapacityAgent
+        agent = CapacityAgent(event_bus=bus)
+        agent.subscribe_events()
+    except Exception as exc:
+        logger.warning("event_bus_wire_failed", agent="CapacityAgent", error=str(exc))
+
+    try:
+        from apps.knowledge_base.agent import KnowledgeBaseAgent
+        agent = KnowledgeBaseAgent(event_bus=bus)
+        agent.subscribe_events()
+    except Exception as exc:
+        logger.warning("event_bus_wire_failed", agent="KnowledgeBaseAgent", error=str(exc))
+
+    logger.info("event_bus_subscriptions_wired")
 
 
 app = FastAPI(

@@ -331,7 +331,7 @@ class BaseAgent:
 
 > Detaylı şemalar ve DuckDB tablo yapısı: `docs/DATA_FLOW.md`
 
-> ⚠️ **Mevcut Durum (Mart 2026):** shared/event_bus.py tanımlı ve 9 event type spec'te mevcut. Ancak hiçbir app runtime'da subscribe/publish yapmıyor. Event Bus wiring: S-EB-01 sprint'inde yapılacak.
+> ✅ **Mevcut Durum (Nisan 2026):** Event Bus runtime wiring aktif (S-EB-01). 8 agent subscribe, publish handler'lar _memory_update_node'da çalışıyor. Dispatch döngüsü backend/main.py lifespan'ında başlatılıyor.
 
 ---
 

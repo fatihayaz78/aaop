@@ -59,6 +59,19 @@ class CapacityAgent(BaseAgent):
         self._config = CapacityCostConfig()
         super().__init__(**kwargs)
 
+    def subscribe_events(self) -> None:
+        """Register: live_event_starting (pre-scale calculation)."""
+        self.event_bus.subscribe(EventType.LIVE_EVENT_STARTING, self._on_event)
+
+    async def _on_event(self, event: BaseEvent) -> None:
+        try:
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            payload["_source_event"] = event.event_type
+            payload["live_event"] = payload  # pass as live_event context
+            await self.invoke(tenant_id=event.tenant_id or "aaop_company", input_data=payload)
+        except Exception as exc:
+            logger.error("event_handler_error", app=self.app_name, event=event.event_type, error=str(exc))
+
     def get_tools(self) -> list[dict[str, Any]]:
         return [
             {"name": "get_current_metrics", "risk_level": "LOW", "func": _get_current_metrics},

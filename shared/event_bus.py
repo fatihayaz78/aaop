@@ -85,6 +85,8 @@ class EventBus:
 
     async def start(self) -> None:
         self._running = True
+        # Recreate queue for the current event loop (avoids cross-loop errors in tests)
+        self._queue = asyncio.Queue()
         self._task = asyncio.create_task(self._process())
         logger.info("event_bus_started")
 

@@ -15,7 +15,8 @@ from apps.alert_center.config import AlertCenterConfig
 from apps.alert_center.prompts import SYSTEM_PROMPT
 import apps.alert_center.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
-from shared.schemas.base_event import SeverityLevel
+from shared.event_bus import EventType
+from shared.schemas.base_event import BaseEvent, SeverityLevel
 
 logger = structlog.get_logger(__name__)
 
@@ -103,6 +104,25 @@ class AlertRouterAgent(BaseAgent):
     def __init__(self, **kwargs: Any) -> None:
         self._config = AlertCenterConfig()
         super().__init__(**kwargs)
+
+    def subscribe_events(self) -> None:
+        """Register all 7 event subscriptions."""
+        for et in (EventType.CDN_ANOMALY_DETECTED, EventType.INCIDENT_CREATED,
+                    EventType.RCA_COMPLETED, EventType.QOE_DEGRADATION,
+                    EventType.LIVE_EVENT_STARTING, EventType.CHURN_RISK_DETECTED,
+                    EventType.SCALE_RECOMMENDATION):
+            self.event_bus.subscribe(et, self._on_event)
+
+    async def _on_event(self, event: BaseEvent) -> None:
+        try:
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            payload["_source_event"] = event.event_type
+            payload["severity"] = getattr(event, "severity", "P3")
+            payload["source_app"] = getattr(event, "source_app", "")
+            payload["title"] = payload.get("title", f"Alert: {event.event_type}")
+            await self.invoke(tenant_id=event.tenant_id or "aaop_company", input_data=payload)
+        except Exception as exc:
+            logger.error("event_handler_error", app=self.app_name, event=event.event_type, error=str(exc))
 
     def get_tools(self) -> list[dict[str, Any]]:
         return [

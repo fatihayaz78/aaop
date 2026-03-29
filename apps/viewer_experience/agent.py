@@ -67,6 +67,19 @@ class QoEAgent(BaseAgent):
         self._config = ViewerExperienceConfig()
         super().__init__(**kwargs)
 
+    def subscribe_events(self) -> None:
+        """Register: analysis_complete, live_event_starting."""
+        self.event_bus.subscribe(EventType.ANALYSIS_COMPLETE, self._on_event)
+        self.event_bus.subscribe(EventType.LIVE_EVENT_STARTING, self._on_event)
+
+    async def _on_event(self, event: BaseEvent) -> None:
+        try:
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            payload["_source_event"] = event.event_type
+            await self.invoke(tenant_id=event.tenant_id or "aaop_company", input_data=payload)
+        except Exception as exc:
+            logger.error("event_handler_error", app=self.app_name, event=event.event_type, error=str(exc))
+
     def get_tools(self) -> list[dict[str, Any]]:
         return [
             {"name": "score_qoe_session", "risk_level": "LOW", "func": _score_qoe_session},

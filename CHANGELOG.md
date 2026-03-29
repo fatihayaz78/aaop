@@ -8,6 +8,21 @@
 
 ---
 
+### S-EB-01 — 2026-03-29
+- shared/event_bus.py: queue recreation on start() (cross-loop fix)
+- backend/main.py: lifespan'da Event Bus başlatma/durdurma + _wire_event_subscriptions()
+- 8 agent'a subscribe_events() + _on_event handler eklendi:
+  - ops_center IncidentAgent: cdn_anomaly, qoe_degradation, live_event, scale_recommendation, external_data (5)
+  - alert_center AlertRouterAgent: cdn_anomaly, incident, rca, qoe, live_event, churn, scale (7)
+  - viewer_experience QoEAgent: analysis_complete, live_event_starting (2)
+  - growth_retention GrowthAgent: external_data_updated, analysis_complete (2)
+  - capacity_cost CapacityAgent: live_event_starting (1)
+  - knowledge_base KnowledgeBaseAgent: incident_created, rca_completed (2)
+- ARCHITECTURE.md: Event Bus ⚠️ → ✅ güncellendi
+- Tests: 148 passed, 0 failure
+
+---
+
 ### S-AGENT-05 — 2026-03-29
 - apps/ai_lab/agent.py: ExperimentationAgent + ModelGovernanceAgent concrete implementation
   - ExperimentationAgent: A/B test statistical significance, Sonnet

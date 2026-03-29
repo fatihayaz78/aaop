@@ -109,6 +109,21 @@ class IncidentAgent(BaseAgent):
         self._config = OpsCenterConfig()
         super().__init__(**kwargs)
 
+    def subscribe_events(self) -> None:
+        """Register Event Bus subscriptions: cdn_anomaly, qoe, live_event, scale, external."""
+        for et in (EventType.CDN_ANOMALY_DETECTED, EventType.QOE_DEGRADATION,
+                    EventType.LIVE_EVENT_STARTING, EventType.SCALE_RECOMMENDATION,
+                    EventType.EXTERNAL_DATA_UPDATED):
+            self.event_bus.subscribe(et, self._on_event)
+
+    async def _on_event(self, event: BaseEvent) -> None:
+        try:
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            payload["_source_event"] = event.event_type
+            await self.invoke(tenant_id=event.tenant_id or "aaop_company", input_data=payload)
+        except Exception as exc:
+            logger.error("event_handler_error", app=self.app_name, event=event.event_type, error=str(exc))
+
     def get_tools(self) -> list[dict[str, Any]]:
         return [
             {"name": "get_incident_history", "risk_level": "LOW", "func": _get_incident_history},
