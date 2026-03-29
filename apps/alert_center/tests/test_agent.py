@@ -35,12 +35,12 @@ async def test_route_p0_slack_pagerduty(mock_llm: LLMGateway, event_bus: EventBu
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["error"] is None
-    decision = result["decision"]
-    assert decision["action"] == "route"
-    assert "slack" in decision["channels"]
-    assert "pagerduty" in decision["channels"]
-    assert decision["approval_required"] is True
+    assert result.get("error") is None
+    output = result["output"]
+    assert output["action"] == "route"
+    assert "slack" in output["channels"]
+    assert "pagerduty" in output["channels"]
+    assert output["approval_required"] is True
 
 
 @pytest.mark.asyncio
@@ -52,8 +52,8 @@ async def test_route_p1_slack_only(mock_llm: LLMGateway, event_bus: EventBus):
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["channels"] == ["slack"]
-    assert result["decision"]["approval_required"] is False
+    assert result["output"]["channels"] == ["slack"]
+    assert result["output"]["approval_required"] is False
 
 
 @pytest.mark.asyncio
@@ -65,7 +65,7 @@ async def test_route_p2_slack(mock_llm: LLMGateway, event_bus: EventBus):
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["channels"] == ["slack"]
+    assert result["output"]["channels"] == ["slack"]
 
 
 @pytest.mark.asyncio
@@ -77,7 +77,7 @@ async def test_route_p3_email(mock_llm: LLMGateway, event_bus: EventBus):
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["channels"] == ["email"]
+    assert result["output"]["channels"] == ["email"]
 
 
 @pytest.mark.asyncio
@@ -89,7 +89,7 @@ async def test_dedup_drops_alert(mock_llm: LLMGateway, event_bus: EventBus):
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "dedup_drop"
+    assert result["output"]["action"] == "dedup_drop"
 
 
 @pytest.mark.asyncio
@@ -107,5 +107,19 @@ async def test_storm_detection(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.stop()
 
     # The 11th (or later) should trigger storm
-    assert result["decision"]["action"] == "storm_summary"
-    assert result["decision"]["approval_required"] is True
+    assert result["output"]["action"] == "storm_summary"
+    assert result["output"]["approval_required"] is True
+
+
+@pytest.mark.asyncio
+async def test_model_routing_p0_sonnet(mock_llm: LLMGateway, event_bus: EventBus):
+    """P0 should use Sonnet for message generation."""
+    agent = AlertRouterAgent(llm_gateway=mock_llm, event_bus=event_bus)
+    assert agent.get_llm_model("P0") == "claude-sonnet-4-20250514"
+
+
+@pytest.mark.asyncio
+async def test_model_routing_p3_haiku(mock_llm: LLMGateway, event_bus: EventBus):
+    """P3 should use Haiku for routing."""
+    agent = AlertRouterAgent(llm_gateway=mock_llm, event_bus=event_bus)
+    assert agent.get_llm_model("P3") == "claude-haiku-4-5-20251001"

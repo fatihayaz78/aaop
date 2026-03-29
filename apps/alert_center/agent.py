@@ -1,4 +1,9 @@
-"""AlertRouterAgent — routes alerts based on severity, dedup, storm detection."""
+"""AlertRouterAgent — concrete BaseAgent with routing pipeline.
+
+Pipeline: dedup → suppression → storm detection → severity-based routing.
+Model routing: P0/P1 → Sonnet, P2/P3 → Haiku.
+HIGH risk: route_to_pagerduty (P0), suppress_alert_storm.
+"""
 
 from __future__ import annotations
 
@@ -7,8 +12,8 @@ from typing import Any
 import structlog
 
 from apps.alert_center.config import AlertCenterConfig
-from apps.alert_center.schemas import Alert, compute_fingerprint
-from apps.alert_center.tools import check_suppression, detect_alert_storm
+from apps.alert_center.prompts import SYSTEM_PROMPT
+import apps.alert_center.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
 from shared.schemas.base_event import SeverityLevel
 
@@ -26,137 +31,159 @@ SUBSCRIBED_EVENTS = [
 ]
 
 
+# ── BaseAgent-compatible tool wrappers ──────────────────────────
+
+
+async def _check_dedup(tenant_id: str, source_app: str = "", event_type: str = "",
+                       severity: str = "P3", **_: Any) -> dict:
+    try:
+        from backend.dependencies import _redis
+        if _redis and _redis._client:
+            hit = await tools.check_dedup(tenant_id, source_app, event_type, severity, _redis)
+            return {"dedup_hit": hit}
+    except Exception:
+        pass
+    return {"dedup_hit": False}
+
+
+async def _get_routing_rules(tenant_id: str, event_type: str = "",
+                             severity: str = "P3", **_: Any) -> dict:
+    return await tools.get_routing_rules(tenant_id, event_type, severity)
+
+
+async def _check_suppression(tenant_id: str, **_: Any) -> dict:
+    suppressed = await tools.check_suppression(tenant_id)
+    return {"suppressed": suppressed}
+
+
+async def _detect_alert_storm(tenant_id: str, **_: Any) -> dict:
+    is_storm = await tools.detect_alert_storm(tenant_id)
+    return {"is_storm": is_storm}
+
+
+async def _set_dedup_cache(tenant_id: str, source_app: str = "", event_type: str = "",
+                           severity: str = "P3", **_: Any) -> dict:
+    try:
+        from backend.dependencies import _redis
+        if _redis and _redis._client:
+            await tools.set_dedup_cache(tenant_id, source_app, event_type, severity, _redis)
+    except Exception:
+        pass
+    return {"status": "set"}
+
+
+async def _route_to_slack(tenant_id: str, channel: str = "#ops-alerts", **_: Any) -> dict:
+    return {"status": "sent", "channel": "slack", "target": channel}
+
+
+async def _route_to_email(tenant_id: str, recipient: str = "ops@example.com", **_: Any) -> dict:
+    return {"status": "sent", "channel": "email", "target": recipient}
+
+
+async def _write_alert_to_db(tenant_id: str, **_: Any) -> dict:
+    return {"status": "written", "tenant_id": tenant_id}
+
+
+async def _route_to_pagerduty(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required", "channel": "pagerduty"}
+
+
+async def _suppress_alert_storm(tenant_id: str, summary_message: str = "", **_: Any) -> dict:
+    return await tools.suppress_alert_storm(tenant_id, summary_message)
+
+
+# ── AlertRouterAgent ────────────────────────────────────────────
+
+
 class AlertRouterAgent(BaseAgent):
     """M13 — Alert routing with dedup, storm detection, severity-based channels."""
 
     app_name = "alert_center"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = AlertCenterConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        """Load event data and build routing context."""
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "event_type": input_data.get("event_type", ""),
-            "severity": input_data.get("severity", "P3"),
-            "source_app": input_data.get("source_app", ""),
-            "title": input_data.get("title", ""),
-            "payload": input_data.get("payload", {}),
-            "dedup_hit": input_data.get("dedup_hit", False),
-        }
-        logger.info("alert_context_loaded", tenant_id=tenant_id, event_type=context["event_type"])
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "check_dedup", "risk_level": "LOW", "func": _check_dedup},
+            {"name": "get_routing_rules", "risk_level": "LOW", "func": _get_routing_rules},
+            {"name": "check_suppression", "risk_level": "LOW", "func": _check_suppression},
+            {"name": "detect_alert_storm", "risk_level": "LOW", "func": _detect_alert_storm},
+            {"name": "set_dedup_cache", "risk_level": "LOW", "func": _set_dedup_cache},
+            {"name": "route_to_slack", "risk_level": "MEDIUM", "func": _route_to_slack},
+            {"name": "route_to_email", "risk_level": "MEDIUM", "func": _route_to_email},
+            {"name": "write_alert_to_db", "risk_level": "MEDIUM", "func": _write_alert_to_db},
+            {"name": "route_to_pagerduty", "risk_level": "HIGH", "func": _route_to_pagerduty},
+            {"name": "suppress_alert_storm", "risk_level": "HIGH", "func": _suppress_alert_storm},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        """Determine routing decision: dedup, suppress, storm, or route."""
-        ctx = state.get("context_data", {})
-        tenant_id = ctx.get("tenant_id", "")
-        severity_str = ctx.get("severity", "P3")
-        severity = SeverityLevel(severity_str) if severity_str in ("P0", "P1", "P2", "P3") else SeverityLevel.P3
+    def get_system_prompt(self) -> str:
+        return SYSTEM_PROMPT
+
+    def get_llm_model(self, severity: str | None = None) -> str:
+        if severity in ("P0", "P1"):
+            return "claude-sonnet-4-20250514"
+        return "claude-haiku-4-5-20251001"
+
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Routing pipeline: dedup → suppression → storm → graph."""
+        severity = input_data.get("severity", "P3")
 
         # Step 1: Dedup check
-        if ctx.get("dedup_hit", False):
-            return {"action": "dedup_drop", "reason": "Duplicate alert within dedup window"}
-
-        # Step 2: Suppression check
-        suppressed = await check_suppression(tenant_id)
-        if suppressed:
-            return {"action": "suppress_drop", "reason": "Alert suppressed during maintenance window"}
-
-        # Step 3: Storm detection
-        is_storm = await detect_alert_storm(tenant_id)
-        if is_storm:
+        if input_data.get("dedup_hit", False):
             return {
-                "action": "storm_summary",
-                "reason": f"Alert storm detected (>{self._config.storm_threshold_count} in {self._config.storm_window_seconds}s)",
-                "approval_required": True,
+                "app": self.app_name, "tenant_id": tenant_id,
+                "action": "dedup_drop", "reason": "Duplicate alert within dedup window",
+                "channels": [], "approval_required": False, "severity": severity,
             }
 
-        # Step 4: Route based on severity
+        # Step 2: Suppression check
+        suppressed = await tools.check_suppression(tenant_id)
+        if suppressed:
+            return {
+                "app": self.app_name, "tenant_id": tenant_id,
+                "action": "suppress_drop", "reason": "Alert suppressed during maintenance window",
+                "channels": [], "approval_required": False, "severity": severity,
+            }
+
+        # Step 3: Storm detection
+        is_storm = await tools.detect_alert_storm(tenant_id)
+        if is_storm:
+            return {
+                "app": self.app_name, "tenant_id": tenant_id,
+                "action": "storm_summary",
+                "reason": f"Alert storm detected (>{self._config.storm_threshold_count} in {self._config.storm_window_seconds}s)",
+                "channels": [], "approval_required": True, "severity": severity,
+            }
+
+        # Step 4: Normal routing — run full LangGraph cycle
+        return await super().invoke(tenant_id, input_data)
+
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        """Add routing decision fields (channels, approval_required, severity)."""
+        result = await super()._memory_update_node(state)
+
+        input_data = state.get("input", {})
+        severity = input_data.get("severity", "P3")
+
+        # Determine channels based on severity
         channels: list[str] = []
         approval_required = False
 
-        if severity == SeverityLevel.P0:
+        sev = SeverityLevel(severity) if severity in ("P0", "P1", "P2", "P3") else SeverityLevel.P3
+        if sev == SeverityLevel.P0:
             channels = ["slack", "pagerduty"]
             approval_required = True
-        elif severity == SeverityLevel.P1 or severity == SeverityLevel.P2:
+        elif sev in (SeverityLevel.P1, SeverityLevel.P2):
             channels = ["slack"]
         else:
             channels = ["email"]
 
-        # Use Haiku for routing decision, Sonnet for message generation
-        response = await self.llm.invoke(
-            f"Route alert: {ctx.get('title', '')} [{severity_str}] from {ctx.get('source_app', '')}",
-            severity=SeverityLevel.P3,  # Haiku for routing
-        )
+        output = result.get("output", {})
+        output["action"] = "route"
+        output["channels"] = channels
+        output["approval_required"] = approval_required
+        output["severity"] = severity
 
-        return {
-            "action": "route",
-            "channels": channels,
-            "approval_required": approval_required,
-            "severity": severity_str,
-            "llm_summary": response["content"],
-            "model_used": response["model"],
-        }
-
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        """Build alert and routing results."""
-        ctx = state.get("context_data", {})
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "route")
-
-        if action in ("dedup_drop", "suppress_drop"):
-            return [{"tool": action, "risk_level": "LOW", "result": "dropped"}]
-
-        if action == "storm_summary":
-            return [{"tool": "suppress_alert_storm", "risk_level": "HIGH", "result": "approval_required"}]
-
-        # Build alert
-        severity_str = ctx.get("severity", "P3")
-        severity = SeverityLevel(severity_str) if severity_str in ("P0", "P1", "P2", "P3") else SeverityLevel.P3
-        channels = llm_resp.get("channels", ["email"])
-
-        alert = Alert(
-            tenant_id=ctx.get("tenant_id", ""),
-            source_app=ctx.get("source_app", ""),
-            event_type=ctx.get("event_type", ""),
-            severity=severity,
-            title=ctx.get("title", ""),
-            message=llm_resp.get("llm_summary", ""),
-            channels_routed=channels,
-            fingerprint=compute_fingerprint(
-                ctx.get("tenant_id", ""),
-                ctx.get("source_app", ""),
-                ctx.get("event_type", ""),
-                severity_str,
-            ),
-        )
-
-        results: list[dict[str, Any]] = []
-        for ch in channels:
-            risk = "HIGH" if ch == "pagerduty" else "MEDIUM"
-            results.append({"tool": f"route_to_{ch}", "risk_level": risk, "alert_id": alert.alert_id})
-
-        results.append({"tool": "write_alert_to_db", "risk_level": "MEDIUM", "alert_id": alert.alert_id})
-
-        state["context_data"]["alert"] = alert.model_dump()
-        return results
-
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        """Return routing decision summary."""
-        ctx = state.get("context_data", {})
-        llm_resp = state.get("llm_response", {})
-        alert_data = ctx.get("alert", {})
-
-        return {
-            "action": llm_resp.get("action", "route"),
-            "alert_id": alert_data.get("alert_id", ""),
-            "channels": llm_resp.get("channels", []),
-            "approval_required": llm_resp.get("approval_required", False),
-            "severity": ctx.get("severity", "P3"),
-            "reason": llm_resp.get("reason", ""),
-        }
+        return {**result, "output": output}

@@ -42,8 +42,8 @@ async def test_agent_run_no_data(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx)
     await event_bus.stop()
-    assert result["error"] is None
-    assert result["llm_response"]["action"] == "no_data"
+    assert result.get("error") is None
+    assert result["output"]["action"] == "no_data"
 
 
 @pytest.mark.asyncio
@@ -63,8 +63,8 @@ async def test_agent_run_with_metrics(mock_llm: LLMGateway, event_bus: EventBus)
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["error"] is None
-    assert result["decision"]["anomaly_count"] == 1
+    assert result.get("error") is None
+    assert result["output"]["anomaly_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -100,3 +100,25 @@ async def test_agent_publishes_events(mock_llm: LLMGateway, event_bus: EventBus)
     event_types = [e.event_type for e in received]
     assert "analysis_complete" in event_types
     assert "cdn_anomaly_detected" in event_types
+
+
+@pytest.mark.asyncio
+async def test_agent_model_routing_p0(mock_llm: LLMGateway, event_bus: EventBus):
+    """P0 should use Opus."""
+    agent = LogAnalyzerAgent(llm_gateway=mock_llm, event_bus=event_bus)
+    assert agent.get_llm_model("P0") == "claude-opus-4-20250514"
+
+
+@pytest.mark.asyncio
+async def test_agent_model_routing_p3(mock_llm: LLMGateway, event_bus: EventBus):
+    """P3 should use Haiku."""
+    agent = LogAnalyzerAgent(llm_gateway=mock_llm, event_bus=event_bus)
+    assert agent.get_llm_model("P3") == "claude-haiku-4-5-20251001"
+
+
+@pytest.mark.asyncio
+async def test_agent_model_routing_default(mock_llm: LLMGateway, event_bus: EventBus):
+    """Default should use Sonnet."""
+    agent = LogAnalyzerAgent(llm_gateway=mock_llm, event_bus=event_bus)
+    assert agent.get_llm_model("P2") == "claude-sonnet-4-20250514"
+    assert agent.get_llm_model(None) == "claude-sonnet-4-20250514"

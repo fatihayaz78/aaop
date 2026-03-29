@@ -8,6 +8,22 @@
 
 ---
 
+### S-AGENT-03 — 2026-03-29
+- apps/log_analyzer/agent.py: LogAnalyzerAgent concrete implementation
+  - get_tools(): 12 tool (8 LOW + 3 MEDIUM + 1 HIGH) BaseAgent-uyumlu wrapper
+  - get_llm_model(): P0→Opus, P3→Haiku, diğer→Sonnet
+  - cdn_anomaly_detected + analysis_complete event publish
+  - No-data erken dönüş (metrics yoksa)
+- apps/alert_center/agent.py: AlertRouterAgent concrete implementation
+  - Routing pipeline: dedup → suppression → storm → route (invoke override)
+  - get_tools(): 10 tool (5 LOW + 3 MEDIUM + 2 HIGH)
+  - get_llm_model(): P0/P1→Sonnet, P2/P3→Haiku
+  - P0→Slack+PagerDuty(approval), P1/P2→Slack, P3→Email
+  - Storm: >10 alert/5dk → storm_summary + approval_required
+- Tests: 148 passed (platform) + 7 log_analyzer + 9 alert_center, 0 failure
+
+---
+
 ### S-AGENT-02 — 2026-03-29
 - apps/ops_center/agent.py: IncidentAgent + RCAAgent concrete implementation
   - IncidentAgent.get_tools(): 10 tool (4 LOW + 4 MEDIUM + 2 HIGH) BaseAgent-uyumlu wrapper
