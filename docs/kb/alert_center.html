@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alert Center — AAOP Knowledge Base</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0c10;--bg2:#0f1117;--bg3:#151820;--bg4:#1c2030;--border:#252a38;--text:#e2e8f0;--text2:#94a3b8;--accent:#38bdf8;--accent2:#7c3aed;--green:#22c55e;--yellow:#eab308;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--radius:8px;--shadow:0 2px 12px rgba(0,0,0,.4)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;display:flex;flex-direction:column;min-height:100vh}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+mark{background:var(--accent);color:var(--bg);padding:1px 3px;border-radius:3px}
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.header .back{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px}
+.header .back:hover{color:var(--accent)}
+.header h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:700}
+.header .badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.badge-p0{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.header .modules{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.header .roles{font-size:12px;color:var(--text2)}
+.nav-chips{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.nav-chips a{font-size:11px;padding:4px 10px;border-radius:14px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);transition:.2s}
+.nav-chips a:hover{background:var(--bg4);color:var(--accent);text-decoration:none;border-color:var(--accent)}
+.search-bar{position:sticky;top:0;z-index:100;background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 28px;display:flex;gap:10px;align-items:center}
+.search-bar input{flex:1;max-width:420px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;color:var(--text);font-size:14px;font-family:'Inter',sans-serif;outline:none;transition:.2s}
+.search-bar input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+.search-bar .count{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:16px 0;display:flex;flex-direction:column;gap:4px}
+.sidebar h3{font-family:'Syne',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);padding:8px 16px 4px;margin-top:8px}
+.sidebar a.nav-link{display:block;padding:6px 16px;font-size:13px;color:var(--text2);border-left:3px solid transparent;transition:.15s}
+.sidebar a.nav-link:hover{color:var(--text);background:var(--bg3);text-decoration:none}
+.sidebar a.nav-link.active{color:var(--accent);border-left-color:var(--accent);background:rgba(56,189,248,.05)}
+.faq-section{border-top:1px solid var(--border);margin-top:auto;padding:12px 0}
+.faq-item{border-bottom:1px solid var(--border)}
+.faq-q{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text2);font-size:12px;padding:8px 16px;cursor:pointer;font-family:'Inter',sans-serif;transition:.15s}
+.faq-q:hover{color:var(--text);background:var(--bg3)}
+.faq-q::before{content:'+ ';font-family:'JetBrains Mono',monospace;color:var(--accent)}
+.faq-q.open::before{content:'- '}
+.faq-a{display:none;padding:4px 16px 10px 26px;font-size:12px;color:var(--text2);line-height:1.5}
+.faq-a.open{display:block}
+.main{flex:1;overflow-y:auto;padding:0}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);background:var(--bg2);padding:0 24px;position:sticky;top:0;z-index:50;overflow-x:auto}
+.tab-btn{background:none;border:none;color:var(--text2);font-size:13px;font-family:'Inter',sans-serif;font-weight:500;padding:12px 18px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:.15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;padding:28px;animation:fadeIn .2s}
+.tab-content.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:600;margin:20px 0 10px}
+p,.desc{font-size:14px;color:var(--text2);margin-bottom:12px}
+ul,ol{padding-left:20px;margin-bottom:14px}
+li{font-size:14px;color:var(--text2);margin-bottom:4px}
+code{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg3);padding:2px 6px;border-radius:4px;color:var(--accent)}
+pre{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;overflow-x:auto;margin:12px 0;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--text2)}
+.info-box{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin:16px 0}
+.info-box.warn{border-color:rgba(234,179,8,.3);background:rgba(234,179,8,.05)}
+.info-box.danger{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.05)}
+.info-box h4{font-family:'Syne',sans-serif;font-size:14px;margin-bottom:6px}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}
+.info-card{background:var(--bg4);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+.info-card .val{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--accent)}
+.info-card .lbl{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.table-wrap{overflow-x:auto;margin:12px 0;border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--bg3)}
+th{padding:10px 14px;text-align:left;font-weight:600;color:var(--text);font-size:12px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+td{padding:8px 14px;border-bottom:1px solid var(--border);color:var(--text2)}
+tr:hover{background:rgba(56,189,248,.03)}
+.method{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;min-width:52px;text-align:center}
+.method-get{background:rgba(59,130,246,.15);color:var(--blue)}
+.method-post{background:rgba(34,197,94,.15);color:var(--green)}
+.method-patch{background:rgba(234,179,8,.15);color:var(--yellow)}
+.method-put{background:rgba(234,179,8,.15);color:var(--yellow)}
+.method-delete{background:rgba(239,68,68,.15);color:var(--red)}
+.method-ws{background:rgba(168,85,247,.15);color:var(--purple)}
+.risk{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px}
+.risk-low{background:rgba(34,197,94,.12);color:var(--green)}
+.risk-medium{background:rgba(234,179,8,.12);color:var(--yellow)}
+.risk-high{background:rgba(239,68,68,.12);color:var(--red)}
+.endpoint{border:1px solid var(--border);border-radius:var(--radius);margin:8px 0;overflow:hidden}
+.endpoint-header{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:var(--bg3);transition:.15s}
+.endpoint-header:hover{background:var(--bg4)}
+.endpoint-header .path{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text)}
+.endpoint-header .edesc{font-size:12px;color:var(--text2);margin-left:auto}
+.endpoint-header .arrow{color:var(--text2);font-size:12px;transition:.2s}
+.endpoint-header.open .arrow{transform:rotate(90deg)}
+.endpoint-body{display:none;padding:14px 18px;background:var(--bg2);border-top:1px solid var(--border)}
+.endpoint-body.open{display:block}
+.event-flow{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.event-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.event-card h4{font-size:13px;color:var(--accent);margin-bottom:8px;font-family:'Syne',sans-serif}
+.event-card li{font-size:12px}
+.quick-links{padding:12px 16px;border-top:1px solid var(--border)}
+.quick-links h3{font-size:11px;padding:0;margin:0 0 6px}
+.quick-links a{display:block;font-size:12px;color:var(--text2);padding:3px 0}
+.quick-links a:hover{color:var(--accent)}
+
+/* Pipeline diagram */
+.pipeline{display:flex;align-items:stretch;gap:0;margin:24px 0;overflow-x:auto;padding:10px 0}
+.pipe-step{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;text-align:center;min-width:150px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center}
+.pipe-step h4{font-size:14px;color:var(--accent);font-family:'Syne',sans-serif;margin-bottom:6px}
+.pipe-step p{font-size:11px;color:var(--text2);line-height:1.4}
+.pipe-step.highlight{border-color:var(--accent);background:rgba(56,189,248,.05)}
+.pipe-arrow{display:flex;align-items:center;color:var(--text2);font-size:22px;padding:0 4px;flex-shrink:0}
+.pipe-num{font-family:'Syne',sans-serif;font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+
+/* Routing table */
+.route-card{background:var(--bg4);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin:8px 0;display:flex;align-items:center;gap:16px}
+.route-sev{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;min-width:36px}
+.route-channels{display:flex;gap:6px;flex-wrap:wrap}
+.route-channels .ch{font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600}
+.ch-slack{background:rgba(56,189,248,.12);color:var(--accent)}
+.ch-pd{background:rgba(239,68,68,.12);color:var(--red)}
+.ch-email{background:rgba(168,85,247,.12);color:var(--purple)}
+.route-note{font-size:12px;color:var(--text2);margin-left:auto}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="back">&larr; Platform Overview</a>
+  <h1>Alert Center</h1>
+  <span class="badge badge-p0">P0</span>
+  <span class="modules">M13 Alert Router</span>
+  <span class="roles">NOC Operator, On-call Engineer</span>
+  <div class="nav-chips">
+    <a href="ops_center.html">Ops Center</a>
+    <a href="log_analyzer.html">Log Analyzer</a>
+    <a href="knowledge_base.html">Knowledge Base</a>
+  </div>
+</div>
+
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="Search this page... (Ctrl+K)" autocomplete="off">
+  <span class="count" id="searchCount"></span>
+</div>
+
+<div class="layout">
+
+<aside class="sidebar">
+  <h3>Navigation</h3>
+  <a href="#overview" class="nav-link active">Overview</a>
+  <a href="#agent" class="nav-link">Agent</a>
+  <a href="#routing" class="nav-link">Routing Logic</a>
+  <a href="#tools" class="nav-link">Tools</a>
+  <a href="#api" class="nav-link">API Endpoints</a>
+  <a href="#crossapp" class="nav-link">Cross-App</a>
+  <a href="#data" class="nav-link">Data & Storage</a>
+
+  <div class="faq-section">
+    <h3>FAQ</h3>
+    <div class="faq-item">
+      <button class="faq-q">What is the dedup window?</button>
+      <div class="faq-a">900 seconds (15 minutes). Alerts with the same fingerprint (SHA256 of event_type + severity + tenant_id + affected_service) are deduplicated within this window.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">How is an alert storm detected?</button>
+      <div class="faq-a">More than 10 alerts from the same tenant within a 5-minute (300s) window triggers storm detection. A single summary alert replaces individual alerts.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">When does PagerDuty get triggered?</button>
+      <div class="faq-a">Only for P0 severity alerts. PagerDuty routing is a HIGH risk tool that requires human approval before execution.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">Can I suppress alerts during maintenance?</button>
+      <div class="faq-a">Yes, use suppression_rules in SQLite. The check_suppression tool evaluates these rules before any alert is routed.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">What events can trigger alerts?</button>
+      <div class="faq-a">All 7 cross-app events: cdn_anomaly_detected, incident_created, rca_completed, qoe_degradation, live_event_starting, scale_recommendation, external_data_updated.</div>
+    </div>
+  </div>
+
+  <div class="quick-links">
+    <h3>Quick Links</h3>
+    <a href="ops_center.html">Ops Center KB</a>
+    <a href="log_analyzer.html">Log Analyzer KB</a>
+    <a href="knowledge_base.html">Knowledge Base KB</a>
+    <a href="index.html">All Modules</a>
+  </div>
+</aside>
+
+<main class="main">
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="agent">Agent</button>
+  <button class="tab-btn" data-tab="routing">Routing Logic</button>
+  <button class="tab-btn" data-tab="tools">Tools</button>
+  <button class="tab-btn" data-tab="api">API</button>
+  <button class="tab-btn" data-tab="crossapp">Cross-App</button>
+  <button class="tab-btn" data-tab="data">Data &amp; Storage</button>
+</div>
+
+<!-- ============ OVERVIEW ============ -->
+<div class="tab-content active" id="tab-overview" data-tab="overview">
+  <h2 id="overview">Overview</h2>
+  <p>The Alert Center is the unified alert routing and management hub for AAOP. It receives events from all platform apps, deduplicates them, applies suppression rules, detects alert storms, and routes notifications to the appropriate channels based on severity.</p>
+
+  <div class="info-grid">
+    <div class="info-card"><div class="val">47</div><div class="lbl">Tests Passed</div></div>
+    <div class="info-card"><div class="val">S04+S18</div><div class="lbl">Sprints</div></div>
+    <div class="info-card"><div class="val">900s</div><div class="lbl">Dedup Window</div></div>
+    <div class="info-card"><div class="val">10</div><div class="lbl">Agent Tools</div></div>
+    <div class="info-card"><div class="val">7</div><div class="lbl">Event Types</div></div>
+  </div>
+
+  <h3>Core Capabilities</h3>
+  <ul>
+    <li>Fingerprint-based deduplication with configurable TTL (default 900s)</li>
+    <li>Alert storm detection: >10 alerts in 5 minutes triggers suppression</li>
+    <li>Severity-based routing: P0 to PagerDuty, P1-P2 to Slack, P3 to email</li>
+    <li>Maintenance window suppression rules</li>
+    <li>Real-time WebSocket stream for NOC dashboards</li>
+    <li>Full CRUD for routing rules and notification channels</li>
+  </ul>
+
+  <h3>Architecture Diagram</h3>
+  <div class="info-box">
+    <h4>Alert Flow</h4>
+<pre>
+  Event Bus (all 7 events)
+        │
+        ▼
+  ┌─────────────┐     ┌──────────────┐
+  │ AlertRouter  │────▶│  Redis Dedup │──▶ DROP (duplicate)
+  │   Agent      │     └──────────────┘
+  └──────┬──────┘
+         │
+         ▼
+  ┌──────────────┐     ┌──────────────────┐
+  │ Suppression  │────▶│ SQLite Rules     │──▶ SUPPRESS (maintenance)
+  │ Check        │     └──────────────────┘
+  └──────┬──────┘
+         │
+         ▼
+  ┌──────────────┐
+  │ Storm Detect │────▶ SUMMARY (>10 in 5min, HIGH risk)
+  └──────┬──────┘
+         │
+         ▼
+  ┌──────────────┐     ┌────────────────────────┐
+  │ Severity     │────▶│ P0: Slack + PagerDuty  │
+  │ Router       │     │ P1-P2: Slack           │
+  └──────┬──────┘     │ P3: Email              │
+         │            └────────────────────────┘
+         ▼
+  ┌──────────────┐
+  │ DuckDB Write │──▶ alerts_sent table
+  └──────────────┘
+</pre>
+  </div>
+
+  <h3>Key Metrics</h3>
+  <div class="info-grid">
+    <div class="info-card"><div class="val">&lt;100ms</div><div class="lbl">Pipeline Latency</div></div>
+    <div class="info-card"><div class="val">&lt;5ms</div><div class="lbl">Dedup Check</div></div>
+    <div class="info-card"><div class="val">&lt;10%</div><div class="lbl">False Positive Rate</div></div>
+    <div class="info-card"><div class="val">15min</div><div class="lbl">Dedup Window</div></div>
+  </div>
+</div>
+
+<!-- ============ AGENT ============ -->
+<div class="tab-content" id="tab-agent" data-tab="agent">
+  <h2 id="agent">AlertRouterAgent</h2>
+
+  <h3>AlertRouterAgent(BaseAgent)</h3>
+  <p>The alert routing agent processes incoming events through a 5-step pipeline. It uses lightweight models for routing decisions and more capable models for message generation.</p>
+
+  <div class="info-box">
+    <h4>Model Routing</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Task</th><th>Model</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Routing decisions</td><td>Claude Haiku</td><td>Fast classification, low cost</td></tr>
+        <tr><td>Message generation</td><td>Claude Sonnet</td><td>Quality alert messages for human consumption</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <h3>Key Parameters</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Parameter</th><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>dedup_window_seconds</code></td><td>900</td><td>15-minute dedup TTL in Redis</td></tr>
+      <tr><td><code>storm_threshold_count</code></td><td>10</td><td>Alerts in window to trigger storm</td></tr>
+      <tr><td><code>storm_window_seconds</code></td><td>300</td><td>5-minute storm detection window</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ============ ROUTING LOGIC ============ -->
+<div class="tab-content" id="tab-routing" data-tab="routing">
+  <h2 id="routing">Routing Logic</h2>
+
+  <h3>5-Step Pipeline</h3>
+  <div class="pipeline">
+    <div class="pipe-step">
+      <div class="pipe-num">Step 1</div>
+      <h4>Dedup Check</h4>
+      <p>SHA256 fingerprint lookup in Redis. If exists within 900s, alert is dropped.</p>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-step">
+      <div class="pipe-num">Step 2</div>
+      <h4>Suppression</h4>
+      <p>Check maintenance windows and suppression rules in SQLite.</p>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-step">
+      <div class="pipe-num">Step 3</div>
+      <h4>Storm Detection</h4>
+      <p>Count alerts per tenant in 5min window. If >10, suppress and send summary.</p>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-step highlight">
+      <div class="pipe-num">Step 4</div>
+      <h4>Severity Routing</h4>
+      <p>Route to channels based on severity level (P0-P3).</p>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-step">
+      <div class="pipe-num">Step 5</div>
+      <h4>DB Write</h4>
+      <p>Write alert record to DuckDB alerts_sent table.</p>
+    </div>
+  </div>
+
+  <h3>Severity Routing Rules</h3>
+  <div class="route-card">
+    <span class="route-sev" style="color:var(--red)">P0</span>
+    <div class="route-channels">
+      <span class="ch ch-slack">Slack</span>
+      <span class="ch ch-pd">PagerDuty</span>
+    </div>
+    <span class="route-note">PagerDuty requires approval (HIGH risk)</span>
+  </div>
+  <div class="route-card">
+    <span class="route-sev" style="color:var(--yellow)">P1</span>
+    <div class="route-channels">
+      <span class="ch ch-slack">Slack</span>
+    </div>
+    <span class="route-note">Approval badge shown in Slack message</span>
+  </div>
+  <div class="route-card">
+    <span class="route-sev" style="color:var(--blue)">P2</span>
+    <div class="route-channels">
+      <span class="ch ch-slack">Slack</span>
+    </div>
+    <span class="route-note">Standard notification</span>
+  </div>
+  <div class="route-card">
+    <span class="route-sev" style="color:var(--text2)">P3</span>
+    <div class="route-channels">
+      <span class="ch ch-email">Email</span>
+    </div>
+    <span class="route-note">Low priority, email digest</span>
+  </div>
+
+  <h3>Fingerprint Algorithm</h3>
+  <div class="info-box">
+    <h4>Dedup Fingerprint</h4>
+<pre>fingerprint = SHA256(event_type + severity + tenant_id + affected_service)</pre>
+    <p>The fingerprint is used as the Redis key suffix. If the same fingerprint appears within the 900-second window, the alert is considered a duplicate and silently dropped.</p>
+    <p>Redis key: <code>alert:dedup:{tenant_id}:{fingerprint}</code> with TTL=900s</p>
+  </div>
+
+  <h3>Alert Storm Handling</h3>
+  <div class="info-box warn">
+    <h4>Storm Suppression (HIGH Risk)</h4>
+    <p>When more than 10 alerts from the same tenant arrive within 5 minutes:</p>
+    <ul>
+      <li>Individual alert routing is paused</li>
+      <li>A single summary alert is generated (requires approval)</li>
+      <li>Summary includes count, severity distribution, and affected services</li>
+      <li>Storm tracker resets after suppression is acknowledged</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ TOOLS ============ -->
+<div class="tab-content" id="tab-tools" data-tab="tools">
+  <h2 id="tools">Tools (10)</h2>
+  <p>All tools require <code>tenant_id</code> as the first parameter.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Tool</th><th>Risk</th><th>Description</th><th>Approval</th></tr></thead>
+    <tbody>
+      <tr><td><code>check_dedup</code></td><td><span class="risk risk-low">LOW</span></td><td>Check if alert is duplicate within 900s window via Redis fingerprint lookup</td><td>Auto</td></tr>
+      <tr><td><code>get_routing_rules</code></td><td><span class="risk risk-low">LOW</span></td><td>Determine channels based on severity (returns channels + approval flag)</td><td>Auto</td></tr>
+      <tr><td><code>check_suppression</code></td><td><span class="risk risk-low">LOW</span></td><td>Check if alerts are suppressed (maintenance window)</td><td>Auto</td></tr>
+      <tr><td><code>detect_alert_storm</code></td><td><span class="risk risk-low">LOW</span></td><td>Detect if alert storm is happening (>10 in 5min)</td><td>Auto</td></tr>
+      <tr><td><code>set_dedup_cache</code></td><td><span class="risk risk-low">LOW</span></td><td>Set dedup cache entry with 900s TTL in Redis</td><td>Auto</td></tr>
+      <tr><td><code>route_to_slack</code></td><td><span class="risk risk-medium">MEDIUM</span></td><td>Send alert to Slack #ops-alerts channel</td><td>Auto + Notify</td></tr>
+      <tr><td><code>route_to_email</code></td><td><span class="risk risk-medium">MEDIUM</span></td><td>Send alert via email to ops team</td><td>Auto + Notify</td></tr>
+      <tr><td><code>write_alert_to_db</code></td><td><span class="risk risk-medium">MEDIUM</span></td><td>Write alert record to DuckDB alerts_sent table</td><td>Auto + Notify</td></tr>
+      <tr><td><code>route_to_pagerduty</code></td><td><span class="risk risk-high">HIGH</span></td><td>Route alert to PagerDuty (P0 only)</td><td>Required</td></tr>
+      <tr><td><code>suppress_alert_storm</code></td><td><span class="risk risk-high">HIGH</span></td><td>Suppress alert storm and send single summary alert</td><td>Required</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="info-box danger">
+    <h4>HIGH Risk: Approval Required</h4>
+    <p><code>route_to_pagerduty</code> and <code>suppress_alert_storm</code> always return <code>{"status": "approval_required"}</code>. Human confirmation is mandatory before execution. This prevents accidental PagerDuty pages and ensures storm suppression is intentional.</p>
+  </div>
+</div>
+
+<!-- ============ API ============ -->
+<div class="tab-content" id="tab-api" data-tab="api">
+  <h2 id="api">API Endpoints</h2>
+  <p>Base prefix: <code>/alerts</code> &mdash; All require <code>Authorization: Bearer JWT</code> and <code>X-Tenant-ID</code> headers.</p>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/alerts/route</span>
+      <span class="edesc">Route incoming alert event</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+      <p><strong>Request Body:</strong> AlertEvent</p>
+<pre>{
+  "tenant_id": "bein_sports",
+  "event_type": "cdn_anomaly_detected",
+  "severity": "P1",
+  "title": "CDN Error Rate Above Threshold",
+  "source_app": "log_analyzer",
+  "affected_service": "cdn",
+  "payload": {"error_rate": 0.067, "threshold": 0.05}
+}</pre>
+      <p><strong>Response:</strong> RoutingResult</p>
+<pre>{
+  "alert_id": "ALT-20260319-001",
+  "status": "routed",
+  "channels_routed": ["slack"],
+  "fingerprint": "a1b2c3d4...",
+  "is_duplicate": false,
+  "is_storm": false,
+  "suppressed": false
+}</pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/alerts</span>
+      <span class="edesc">List alerts (filterable)</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+      <p><strong>Query:</strong> <code>tenant_id</code>, <code>status</code> (active|acknowledged|resolved), <code>severity</code> (P0-P3), <code>limit</code></p>
+      <p><strong>Response:</strong> <code>[Alert]</code></p>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/alerts/{id}</span>
+      <span class="edesc">Get alert detail</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> AlertDetail with routing history, dedup info, and linked incident</p></div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-patch">PATCH</span>
+      <span class="path">/alerts/{id}/acknowledge</span>
+      <span class="edesc">Acknowledge alert</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "ack_by": "fatih.ayaz", "note": "Investigating CDN issue" }</pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-patch">PATCH</span>
+      <span class="path">/alerts/{id}/resolve</span>
+      <span class="edesc">Resolve alert</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "resolved_by": "fatih.ayaz", "resolution": "Cache purge fixed the issue" }</pre>
+    </div>
+  </div>
+
+  <h3>Routing Rules CRUD</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/alerts/rules</span>
+      <span class="edesc">List routing rules</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>tenant_id</code> &rarr; <code>[AlertRule]</code></p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/alerts/rules</span>
+      <span class="edesc">Create routing rule</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{
+  "tenant_id": "bein_sports",
+  "event_type": "cdn_anomaly_detected",
+  "severity_filter": "P0",
+  "channels": ["slack", "pagerduty"],
+  "enabled": true
+}</pre>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-put">PUT</span>
+      <span class="path">/alerts/rules/{id}</span>
+      <span class="edesc">Update routing rule</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Request:</strong> AlertRule (full replacement) &rarr; AlertRule</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-delete">DELETE</span>
+      <span class="path">/alerts/rules/{id}</span>
+      <span class="edesc">Delete routing rule</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> 204 No Content</p></div>
+  </div>
+
+  <h3>Channels &amp; Testing</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/alerts/channels</span>
+      <span class="edesc">List notification channels</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>tenant_id</code> &rarr; <code>[AlertChannel]</code> (slack, email, pagerduty configs)</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/alerts/test</span>
+      <span class="edesc">Test notification channel</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "channel_id": "ch-slack-001", "message": "Test alert from AAOP" }</pre>
+      <p><strong>Response:</strong> TestResult with delivery status</p>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/alerts/evaluate</span>
+      <span class="edesc">Evaluate pending alerts</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "tenant_id": "bein_sports" }</pre>
+      <p><strong>Response:</strong> <code>{ "evaluated": 15, "routed": 12, "suppressed": 3 }</code></p>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-ws">WS</span>
+      <span class="path">/ws/alerts/stream</span>
+      <span class="edesc">Real-time alert stream</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+      <p>WebSocket for real-time alert notifications. Emits events:</p>
+      <ul>
+        <li><code>alert.routed</code> — Alert successfully routed to channel(s)</li>
+        <li><code>alert.acknowledged</code> — Alert acknowledged by operator</li>
+        <li><code>alert.resolved</code> — Alert resolved</li>
+        <li><code>alert.storm</code> — Alert storm detected</li>
+        <li><code>alert.suppressed</code> — Alert suppressed by rule</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CROSS-APP ============ -->
+<div class="tab-content" id="tab-crossapp" data-tab="crossapp">
+  <h2 id="crossapp">Cross-App Integration</h2>
+
+  <div class="event-flow">
+    <div class="event-card">
+      <h4>Inbound Events (ALL 7)</h4>
+      <ul>
+        <li><code>cdn_anomaly_detected</code> &larr; log_analyzer</li>
+        <li><code>incident_created</code> &larr; ops_center</li>
+        <li><code>rca_completed</code> &larr; ops_center</li>
+        <li><code>qoe_degradation</code> &larr; viewer_experience</li>
+        <li><code>live_event_starting</code> &larr; live_intelligence</li>
+        <li><code>scale_recommendation</code> &larr; capacity_cost</li>
+        <li><code>external_data_updated</code> &larr; live_intelligence</li>
+      </ul>
+    </div>
+    <div class="event-card">
+      <h4>DuckDB Access</h4>
+      <ul>
+        <li><span class="method method-post" style="font-size:10px">WRITE</span> <code>shared_analytics.alerts_sent</code></li>
+        <li><span class="method method-get" style="font-size:10px">READ</span> <code>shared_analytics.incidents</code></li>
+        <li><span class="method method-get" style="font-size:10px">READ</span> <code>shared_analytics.agent_decisions</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <h4>Event Flow</h4>
+    <p>The Alert Center is the <strong>universal receiver</strong> for all platform events. Every app publishes events to the event bus, and the Alert Center evaluates each one through the 5-step routing pipeline. It does not publish outbound events to other apps — it is the terminal notification layer.</p>
+  </div>
+</div>
+
+<!-- ============ DATA & STORAGE ============ -->
+<div class="tab-content" id="tab-data" data-tab="data">
+  <h2 id="data">Data &amp; Storage</h2>
+
+  <h3>SQLite DDL (platform.db)</h3>
+<pre>CREATE TABLE alert_rules (
+    id              TEXT PRIMARY KEY,
+    tenant_id       TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    severity_filter TEXT,               -- P0, P1, P2, P3 or NULL (all)
+    channels        TEXT NOT NULL,       -- JSON array: ["slack", "pagerduty"]
+    enabled         INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE channels (
+    id          TEXT PRIMARY KEY,
+    tenant_id   TEXT NOT NULL,
+    type        TEXT NOT NULL,           -- slack, email, pagerduty
+    config      TEXT NOT NULL,           -- JSON: webhook_url, email, api_key (encrypted)
+    enabled     INTEGER DEFAULT 1,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE suppression_rules (
+    id          TEXT PRIMARY KEY,
+    tenant_id   TEXT NOT NULL,
+    reason      TEXT NOT NULL,           -- "maintenance", "planned_outage"
+    start_time  TEXT NOT NULL,
+    end_time    TEXT NOT NULL,
+    event_types TEXT,                    -- JSON array or NULL (all)
+    enabled     INTEGER DEFAULT 1,
+    created_at  TEXT DEFAULT (datetime('now'))
+);</pre>
+
+  <h3>DuckDB — alerts_sent DDL</h3>
+<pre>CREATE TABLE shared_analytics.alerts_sent (
+    alert_id    VARCHAR PRIMARY KEY,
+    tenant_id   VARCHAR NOT NULL,
+    source_app  VARCHAR NOT NULL,
+    severity    VARCHAR NOT NULL,       -- P0, P1, P2, P3
+    channel     VARCHAR NOT NULL,       -- comma-separated: "slack,pagerduty"
+    title       VARCHAR NOT NULL,
+    status      VARCHAR NOT NULL,       -- active, acknowledged, resolved
+    decision_id VARCHAR,                -- link to agent_decisions
+    sent_at     TIMESTAMP DEFAULT NOW()
+);</pre>
+
+  <h3>Redis Keys</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Key Pattern</th><th>TTL</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>alert:dedup:{tenant_id}:{fingerprint}</code></td><td>900s</td><td>Dedup fingerprint cache. Presence means duplicate.</td></tr>
+      <tr><td><code>alert:storm:{tenant_id}</code></td><td>300s</td><td>Storm counter. In-memory tracker backed by Redis in prod.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="info-box">
+    <h4>Storage Architecture Note</h4>
+    <p>Routing rules and channel configs live in <strong>SQLite</strong> (platform.db) for fast local reads. Alert history goes to <strong>DuckDB</strong> (shared_analytics) for cross-app analytics. Dedup state is in <strong>Redis</strong> for sub-millisecond lookups. In production, SQLite becomes Cloud Spanner and Redis becomes Memorystore.</p>
+  </div>
+
+  <h3>Fingerprint Implementation</h3>
+  <div class="info-box">
+    <h4>compute_fingerprint()</h4>
+<pre>import hashlib
+
+def compute_fingerprint(
+    tenant_id: str,
+    source_app: str,
+    event_type: str,
+    severity: str,
+) -> str:
+    """SHA256 fingerprint for dedup.
+    Same combination within 900s = duplicate."""
+    raw = f"{event_type}:{severity}:{tenant_id}:{source_app}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]</pre>
+    <p>The fingerprint is truncated to 16 hex chars (64 bits) to keep Redis keys compact while maintaining very low collision probability for the expected alert volume.</p>
+  </div>
+
+  <h3>Channel Configuration Schema</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Channel Type</th><th>Config Fields</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Slack</strong></td><td><code>webhook_url</code>, <code>channel</code>, <code>mention_groups</code></td><td>Default channel: #ops-alerts</td></tr>
+      <tr><td><strong>Email</strong></td><td><code>smtp_host</code>, <code>recipients</code>, <code>from_address</code></td><td>Used for P3 digest and summaries</td></tr>
+      <tr><td><strong>PagerDuty</strong></td><td><code>integration_key</code>, <code>service_id</code></td><td>P0 only, approval required</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Alert Lifecycle</h3>
+  <div class="info-box">
+    <h4>Status Transitions</h4>
+<pre>active ─────────> acknowledged ─────────> resolved
+   │                    │
+   │                    └──> escalated (if not resolved within SLA)
+   │
+   └──> suppressed (maintenance window or storm)
+   │
+   └──> deduplicated (silently dropped, not stored)</pre>
+    <ul>
+      <li><strong>active</strong> — Alert routed to channel(s), awaiting response</li>
+      <li><strong>acknowledged</strong> — Operator confirmed receipt, working on it</li>
+      <li><strong>resolved</strong> — Issue fixed, alert closed</li>
+      <li><strong>escalated</strong> — SLA breached, escalated to next tier</li>
+      <li><strong>suppressed</strong> — Blocked by suppression rule or storm handler</li>
+      <li><strong>deduplicated</strong> — Matched existing fingerprint, silently dropped</li>
+    </ul>
+  </div>
+
+  <h3>Alert Message Templates</h3>
+  <p>Alert messages are generated by the Sonnet model with the following structure:</p>
+  <div class="info-box">
+    <h4>Slack Message Format</h4>
+<pre>:rotating_light: [P1] CDN Error Rate Above Threshold
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Source: log_analyzer
+Service: cdn
+Tenant: bein_sports
+Time: 2026-03-19T14:32:00Z
+
+Error rate reached 6.7% (threshold: 5%)
+Affected users: ~12,400
+
+Actions: [Acknowledge] [View Incident] [Escalate]</pre>
+  </div>
+
+  <h3>Escalation Matrix</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Severity</th><th>Initial Notify</th><th>15min No-Ack</th><th>30min No-Ack</th><th>60min No-Resolve</th></tr></thead>
+    <tbody>
+      <tr><td><span class="risk risk-high">P0</span></td><td>Slack + PagerDuty</td><td>Re-page + Eng Manager</td><td>VP Engineering</td><td>CTO</td></tr>
+      <tr><td><span class="risk risk-high">P1</span></td><td>Slack</td><td>PagerDuty</td><td>Eng Manager</td><td>VP Engineering</td></tr>
+      <tr><td><span class="risk risk-medium">P2</span></td><td>Slack</td><td>Re-notify Slack</td><td>PagerDuty</td><td>Eng Manager</td></tr>
+      <tr><td><span class="risk risk-low">P3</span></td><td>Email</td><td>-</td><td>Slack</td><td>-</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Performance Targets</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Metric</th><th>Target</th><th>Current</th></tr></thead>
+    <tbody>
+      <tr><td>Dedup check latency</td><td>&lt; 5ms</td><td>~2ms (Redis)</td></tr>
+      <tr><td>Full pipeline latency</td><td>&lt; 100ms</td><td>~45ms</td></tr>
+      <tr><td>Slack delivery latency</td><td>&lt; 2s</td><td>~800ms</td></tr>
+      <tr><td>False positive rate</td><td>&lt; 10%</td><td>~7%</td></tr>
+      <tr><td>Storm detection accuracy</td><td>&gt; 95%</td><td>~98%</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Maintenance Window Example</h3>
+  <div class="info-box">
+    <h4>Suppression Rule</h4>
+<pre>{
+  "id": "supp-001",
+  "tenant_id": "bein_sports",
+  "reason": "Scheduled CDN maintenance",
+  "start_time": "2026-03-20T02:00:00Z",
+  "end_time": "2026-03-20T06:00:00Z",
+  "event_types": ["cdn_anomaly_detected"],
+  "enabled": true
+}</pre>
+    <p>During this window, CDN anomaly alerts from bein_sports will be silently suppressed. Other event types and other tenants are unaffected. All suppressed alerts are logged for audit but not routed to any channel.</p>
+  </div>
+
+  <h3>Testing Alerts</h3>
+  <p>Use <code>POST /alerts/test</code> to verify channel connectivity without triggering a real alert. The test endpoint bypasses the dedup and storm detection pipeline and sends directly to the specified channel with a <code>[TEST]</code> prefix in the message.</p>
+</div>
+
+</main>
+</div>
+
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+btn.getAttribute('data-tab')).classList.add('active')})});
+function toggleEndpoint(el){el.classList.toggle('open');el.nextElementSibling.classList.toggle('open')}
+document.querySelectorAll('.faq-q').forEach(q=>{q.addEventListener('click',()=>{q.classList.toggle('open');q.nextElementSibling.classList.toggle('open')})});
+const searchInput=document.getElementById('searchInput'),searchCount=document.getElementById('searchCount');let searchTimeout;
+searchInput.addEventListener('input',()=>{clearTimeout(searchTimeout);searchTimeout=setTimeout(doSearch,200)});
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.focus()}});
+function doSearch(){const q=searchInput.value.trim().toLowerCase();document.querySelectorAll('mark[data-search]').forEach(m=>{const p=m.parentNode;p.replaceChild(document.createTextNode(m.textContent),m);p.normalize()});if(!q||q.length<2){searchCount.textContent='';return}const w=document.createTreeWalker(document.querySelector('.main'),NodeFilter.SHOW_TEXT),nodes=[];while(w.nextNode()){if(w.currentNode.nodeValue.toLowerCase().includes(q))nodes.push(w.currentNode)}let c=0;nodes.forEach(n=>{const t=n.nodeValue,parts=t.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'));if(parts.length<=1)return;const f=document.createDocumentFragment();parts.forEach(p=>{if(p.toLowerCase()===q){const m=document.createElement('mark');m.setAttribute('data-search','1');m.textContent=p;f.appendChild(m);c++}else f.appendChild(document.createTextNode(p))});n.parentNode.replaceChild(f,n)});searchCount.textContent=c+' match'+(c!==1?'es':'');const first=document.querySelector('mark[data-search]');if(first)first.scrollIntoView({behavior:'smooth',block:'center'})}
+</script>
+</body>
+</html>

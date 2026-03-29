@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capacity &amp; Cost — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10; --bg2: #0f1117; --bg3: #151820;
+  --text: #e2e8f0; --text2: #94a3b8;
+  --accent: #38bdf8; --accent2: #7c3aed;
+  --low: #10b981; --medium: #f59e0b; --high: #ef4444;
+  --border: #1e2433; --border2: #2a3244;
+  --radius: 10px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); } .breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chip-bar { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 32px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.chip { padding: 4px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 140px); }
+.sidebar { width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 6px 20px 6px 28px; font-size: 0.85rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-links { padding: 8px 20px; }
+.quick-link { display: block; padding: 5px 0 5px 8px; font-size: 0.82rem; color: var(--text2); transition: color 0.15s; }
+.quick-link:hover { color: var(--accent); }
+.quick-link::before { content: "# "; color: var(--accent2); font-weight: 600; }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.88rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card-grid .card { margin-bottom: 0; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.badge-get { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-post { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem; }
+.data-table th { text-align: left; padding: 10px 14px; background: var(--bg3); color: var(--text2); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; color: var(--text2); }
+code.inline { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 0.84rem; color: var(--accent); }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.info-box strong { color: var(--accent); }
+.warn-box { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-left: 3px solid var(--high); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.warn-box strong { color: var(--high); }
+
+.accordion { margin: 16px 0; }
+.accordion-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.accordion-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg3); cursor: pointer; transition: background 0.2s; font-weight: 500; font-size: 0.9rem; }
+.accordion-header:hover { background: var(--bg2); }
+.accordion-header .ep-meta { display: flex; align-items: center; gap: 8px; }
+.accordion-header .arrow-acc { transition: transform 0.2s; color: var(--text2); }
+.accordion-header.open .arrow-acc { transform: rotate(180deg); }
+.accordion-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--bg2); }
+.accordion-body-inner { padding: 16px; }
+
+.flow-diagram { display: flex; align-items: center; gap: 0; margin: 20px 0; overflow-x: auto; padding: 10px 0; }
+.flow-step { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; min-width: 130px; text-align: center; flex-shrink: 0; }
+.flow-step:hover { border-color: var(--accent); }
+.flow-step .step-num { font-size: 0.7rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.flow-step .step-title { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+.flow-step .step-desc { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+.flow-arrow { color: var(--text2); font-size: 1.2rem; margin: 0 8px; flex-shrink: 0; }
+
+.section-title { font-size: 1.3rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.section-subtitle { color: var(--text2); font-size: 0.92rem; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="breadcrumb">
+      <a href="index.html">&larr; Platform Overview</a>
+      <span class="sep">/</span> Capacity &amp; Cost
+    </div>
+    <h1><span style="font-size:1.3rem;">&#9881;</span> Capacity &amp; Cost</h1>
+    <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+      <span class="badge badge-accent">M16 Capacity + M04 Automation</span>
+      <span class="badge badge-purple">P1</span>
+      <span class="badge" style="background:rgba(16,185,129,0.12);color:var(--low);">DevOps Muhendisi</span>
+    </div>
+  </div>
+  <div style="text-align:right; font-size:0.8rem; color:var(--text2);">
+    <div>Sprint S07 + S20</div>
+    <div><strong style="color:var(--low);">47 tests</strong></div>
+  </div>
+</div>
+
+<!-- SEARCH BAR -->
+<div class="search-bar">
+  <span style="color:var(--text2);font-size:1.1rem;">&#128269;</span>
+  <input type="text" id="globalSearch" placeholder="Search Capacity &amp; Cost docs...">
+  <span class="search-no-result" id="searchNoResult">No results found</span>
+</div>
+
+<!-- QUICK NAV CHIPS -->
+<div class="chip-bar">
+  <span class="chip" onclick="switchTab('overview')">Overview</span>
+  <span class="chip" onclick="switchTab('capacity')">Capacity Agent</span>
+  <span class="chip" onclick="switchTab('automation')">Automation Agent</span>
+  <span class="chip" onclick="switchTab('tools')">Tools</span>
+  <span class="chip" onclick="switchTab('api')">API</span>
+  <span class="chip" onclick="switchTab('crossapp')">Cross-App</span>
+  <span class="chip" onclick="switchTab('data')">Data</span>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" onclick="toggleSection(this)">Navigation <span class="arrow">&#9660;</span></div>
+    <div class="sidebar-section-content">
+      <a class="sidebar-link" href="#" onclick="switchTab('overview')">Overview</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('capacity')">Capacity Agent</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('automation')">Automation Agent</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('tools')">Tools Reference</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('api')">API Endpoints</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('crossapp')">Cross-App Events</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('data')">Data Model</a>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" onclick="toggleSection(this)">FAQ <span class="arrow">&#9660;</span></div>
+    <div class="sidebar-section-content">
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">How does daily forecasting work?</button>
+        <div class="faq-a">Capacity Agent runs a daily forecast using historical traffic patterns, scheduled live events, and growth trends. It produces a 24-hour capacity plan with hourly granularity.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">What triggers auto-scaling?</button>
+        <div class="faq-a">Two triggers: (1) live_event_starting event from Live Intelligence causes pre-scale, (2) hourly threshold checks compare actual usage against capacity thresholds.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">How are automation jobs structured?</button>
+        <div class="faq-a">AutomationAgent uses Haiku LLM and defines multi-step workflows. Each step has a type (scale, notify, check), target, and rollback action. Jobs are stored in SQLite.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">What happens if scaling fails?</button>
+        <div class="faq-a">Each automation job has a rollback action. If a scale action fails, the rollback is executed automatically and an alert is sent to OpsCenter.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">Can I set custom capacity thresholds?</button>
+        <div class="faq-a">Yes, via the capacity_thresholds SQLite table. Each tenant can define CPU, memory, bandwidth, and connection thresholds per region.</div>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" onclick="toggleSection(this)">Quick Links <span class="arrow">&#9660;</span></div>
+    <div class="sidebar-section-content quick-links">
+      <a class="quick-link" href="index.html">Platform Overview</a>
+      <a class="quick-link" href="live_intelligence.html">Live Intelligence</a>
+      <a class="quick-link" href="admin_governance.html">Admin &amp; Governance</a>
+      <a class="quick-link" href="viewer_experience.html">Viewer Experience</a>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+  <button class="tab-btn" onclick="switchTab('capacity')">Capacity Agent</button>
+  <button class="tab-btn" onclick="switchTab('automation')">Automation Agent</button>
+  <button class="tab-btn" onclick="switchTab('tools')">Tools</button>
+  <button class="tab-btn" onclick="switchTab('api')">API</button>
+  <button class="tab-btn" onclick="switchTab('crossapp')">Cross-App</button>
+  <button class="tab-btn" onclick="switchTab('data')">Data</button>
+</div>
+
+<!-- ==================== OVERVIEW ==================== -->
+<div class="tab-content active" id="tab-overview">
+  <h2 class="section-title">Capacity &amp; Cost Overview</h2>
+  <p class="section-subtitle">Infrastructure capacity forecasting, auto-scaling, and automation workflow management.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>Capacity Agent (M16)</h4>
+      <p>Daily capacity forecasts with hourly granularity. Monitors resource usage against thresholds and triggers scale recommendations. Reacts to live_event_starting events for pre-scaling.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-high">1 HIGH tool</span></div>
+    </div>
+    <div class="card">
+      <h4>Automation Agent (M04)</h4>
+      <p>Multi-step workflow engine for infrastructure automation. Uses Haiku LLM for fast, cost-efficient task planning. Supports rollback on failure.</p>
+      <div style="margin-top:10px;"><span class="badge badge-purple">Haiku LLM</span> <span class="badge badge-high">1 HIGH tool</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>Scaling Pipeline:</strong> Daily forecast runs at 00:00 UTC. Hourly checks compare actual load vs thresholds. When <code class="inline">live_event_starting</code> is received, pre-scaling initiates immediately for the target region.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Capacity Planning Flow</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Daily</div><div class="step-title">Forecast</div><div class="step-desc">24h capacity plan</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Hourly</div><div class="step-title">Check</div><div class="step-desc">Usage vs threshold</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Event</div><div class="step-title">Pre-Scale</div><div class="step-desc">live_event_starting</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Execute</div><div class="step-title">Scale Action</div><div class="step-desc">Auto or manual</div></div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Capacity Thresholds</h3>
+  <table class="data-table">
+    <thead><tr><th>Metric</th><th>Warning</th><th>Critical</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>CPU Usage</td><td><code class="inline">70%</code></td><td><code class="inline">85%</code></td><td>Scale up compute</td></tr>
+      <tr><td>Memory Usage</td><td><code class="inline">75%</code></td><td><code class="inline">90%</code></td><td>Scale up memory</td></tr>
+      <tr><td>Bandwidth</td><td><code class="inline">60%</code></td><td><code class="inline">80%</code></td><td>Add CDN capacity</td></tr>
+      <tr><td>Connections</td><td><code class="inline">10K</code></td><td><code class="inline">15K</code></td><td>Add connection pool</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== CAPACITY AGENT ==================== -->
+<div class="tab-content" id="tab-capacity">
+  <h2 class="section-title">Capacity Agent (M16)</h2>
+  <p class="section-subtitle">Daily forecasting, hourly monitoring, and scale recommendation engine.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (default)</td></tr>
+      <tr><td style="color:var(--text2);">Base Class</td><td><code class="inline">BaseAgent</code> (LangGraph 4-step)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/capacity_cost/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>5 tools (3 LOW, 1 MEDIUM, 1 HIGH)</td></tr>
+      <tr><td style="color:var(--text2);">Primary DB</td><td>DuckDB (analytics) + SQLite (thresholds)</td></tr>
+    </table>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Forecast Model</h3>
+  <pre class="code-block"># Daily capacity forecast algorithm:
+# 1. Load 30-day historical traffic (same day-of-week)
+# 2. Apply seasonal adjustment (weekend/weekday, holiday)
+# 3. Add live event uplift from scheduled events
+# 4. Apply growth trend multiplier
+# 5. Generate hourly capacity targets with 20% headroom
+
+for hour in range(24):
+    base = historical_avg[dow][hour]
+    adjusted = base * seasonal_factor * growth_trend
+    if live_events_at(hour):
+        adjusted += predicted_viewers * per_viewer_resource
+    forecast[hour] = adjusted * 1.20  # 20% headroom</pre>
+</div>
+
+<!-- ==================== AUTOMATION AGENT ==================== -->
+<div class="tab-content" id="tab-automation">
+  <h2 class="section-title">Automation Agent (M04)</h2>
+  <p class="section-subtitle">Multi-step workflow engine with rollback support, powered by Haiku LLM.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Haiku (batch, cost-efficient)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/capacity_cost/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>3 tools (1 LOW, 1 MEDIUM, 1 HIGH)</td></tr>
+      <tr><td style="color:var(--text2);">Workflow Storage</td><td>SQLite (platform.db)</td></tr>
+    </table>
+  </div>
+
+  <div class="info-box">
+    <strong>Multi-Step Workflows:</strong> Each automation job consists of ordered steps. Each step has a type (scale, notify, check, wait), target resource, and a rollback action that executes if the step fails.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Workflow Structure</h3>
+  <pre class="code-block">{
+  "job_id": "auto_job_2026_03_28_001",
+  "trigger": "live_event_starting",
+  "steps": [
+    {
+      "order": 1,
+      "type": "scale",
+      "target": "cdn_origin_pool",
+      "action": "scale_up",
+      "params": { "instances": 4 },
+      "rollback": { "action": "scale_down", "instances": 4 }
+    },
+    {
+      "order": 2,
+      "type": "check",
+      "target": "health_endpoint",
+      "timeout_seconds": 60
+    },
+    {
+      "order": 3,
+      "type": "notify",
+      "target": "ops_team",
+      "message": "Pre-scale complete for live event"
+    }
+  ]
+}</pre>
+
+  <div class="warn-box">
+    <strong>HIGH Risk Tools:</strong> Both <code class="inline">create_automation_job</code> and <code class="inline">execute_scale_action</code> require admin approval. Automation jobs that modify infrastructure are logged to the audit trail.
+  </div>
+</div>
+
+<!-- ==================== TOOLS ==================== -->
+<div class="tab-content" id="tab-tools">
+  <h2 class="section-title">Tools Reference</h2>
+  <p class="section-subtitle">8 tools total: 4 LOW, 2 MEDIUM, 2 HIGH risk.</p>
+
+  <table class="data-table">
+    <thead><tr><th>Tool Name</th><th>Risk</th><th>Agent</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">get_capacity_dashboard</code></td><td><span class="badge badge-low">LOW</span></td><td>Capacity</td><td>Current resource usage and capacity metrics</td></tr>
+      <tr><td><code class="inline">get_capacity_forecast</code></td><td><span class="badge badge-low">LOW</span></td><td>Capacity</td><td>24-hour capacity forecast by region</td></tr>
+      <tr><td><code class="inline">get_threshold_status</code></td><td><span class="badge badge-low">LOW</span></td><td>Capacity</td><td>Current threshold violations and warnings</td></tr>
+      <tr><td><code class="inline">update_thresholds</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Capacity</td><td>Modify capacity thresholds for a region</td></tr>
+      <tr><td><code class="inline">execute_scale_action</code></td><td><span class="badge badge-high">HIGH</span></td><td>Capacity</td><td>Execute infrastructure scale action (approval required)</td></tr>
+      <tr><td><code class="inline">get_automation_jobs</code></td><td><span class="badge badge-low">LOW</span></td><td>Automation</td><td>List automation jobs with status</td></tr>
+      <tr><td><code class="inline">create_automation_job</code></td><td><span class="badge badge-high">HIGH</span></td><td>Automation</td><td>Create multi-step automation workflow (approval required)</td></tr>
+      <tr><td><code class="inline">get_job_execution_log</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Automation</td><td>Detailed execution log for an automation job</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== API ==================== -->
+<div class="tab-content" id="tab-api">
+  <h2 class="section-title">API Endpoints</h2>
+  <p class="section-subtitle">Router prefix: <code class="inline">/capacity</code> &mdash; 6 REST endpoints.</p>
+
+  <div class="accordion">
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/capacity/dashboard</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Current infrastructure capacity: CPU, memory, bandwidth, connections by region.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">region</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/capacity/forecast</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>24-hour capacity forecast with hourly granularity.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">region</code>, <code class="inline">date</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/capacity/scale</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Execute a scaling action. Requires admin approval.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ tenant_id, region, resource, direction, amount }</code></p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/capacity/automation/jobs</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>List automation jobs with filtering by status and trigger type.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">status</code>, <code class="inline">page</code>, <code class="inline">limit</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/capacity/automation/jobs</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Create a new automation job with multi-step workflow. Requires admin approval.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ tenant_id, trigger, steps[] }</code></p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/capacity/automation/jobs/{id}/log</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Detailed step-by-step execution log for an automation job including rollback actions.</p>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CROSS-APP ==================== -->
+<div class="tab-content" id="tab-crossapp">
+  <h2 class="section-title">Cross-App Events</h2>
+  <p class="section-subtitle">Event Bus integration for inter-app communication.</p>
+
+  <h3 style="margin:20px 0 12px;">OUTPUT Events (Published)</h3>
+  <div class="card">
+    <h4>scale_recommendation</h4>
+    <p>Emitted when capacity forecast or hourly check identifies a scaling need.</p>
+    <pre class="code-block">{
+  "event_type": "scale_recommendation",
+  "region": "europe-west1",
+  "resource": "cdn_origin",
+  "direction": "scale_up",
+  "current_usage_pct": 78,
+  "recommended_change": "+4 instances",
+  "urgency": "medium",
+  "timestamp": "2026-03-28T14:00:00Z"
+}</pre>
+    <p style="margin-top:8px;"><strong>Consumers:</strong> OpsCenter (visibility), Alert Center (notification), Admin &amp; Governance (cost tracking)</p>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">INPUT Events (Consumed)</h3>
+  <div class="card">
+    <h4>live_event_starting</h4>
+    <p>From Live Intelligence. When received, Capacity Agent immediately evaluates the predicted viewer count and triggers pre-scaling if thresholds are exceeded.</p>
+    <pre class="code-block"># On live_event_starting:
+if event.predicted_viewers > 50000:
+    scale_amount = calculate_required_resources(event.predicted_viewers)
+    create_prescale_job(event.event_id, scale_amount)
+    # Job executes automatically or waits for approval based on scale size</pre>
+  </div>
+</div>
+
+<!-- ==================== DATA ==================== -->
+<div class="tab-content" id="tab-data">
+  <h2 class="section-title">Data Model</h2>
+  <p class="section-subtitle">SQLite for automation jobs and thresholds, DuckDB for capacity analytics.</p>
+
+  <div class="card">
+    <h4>automation_jobs (SQLite: platform.db)</h4>
+    <pre class="code-block">CREATE TABLE automation_jobs (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    trigger_type    VARCHAR NOT NULL,  -- manual|live_event|threshold|schedule
+    trigger_ref     VARCHAR,
+    status          VARCHAR DEFAULT 'pending',  -- pending|approved|running|completed|failed|rolled_back
+    steps_json      TEXT NOT NULL,  -- JSON array of workflow steps
+    created_at      TIMESTAMP NOT NULL,
+    approved_at     TIMESTAMP,
+    started_at      TIMESTAMP,
+    completed_at    TIMESTAMP,
+    error_message   TEXT
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>capacity_thresholds (SQLite: platform.db)</h4>
+    <pre class="code-block">CREATE TABLE capacity_thresholds (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    region          VARCHAR NOT NULL,
+    metric          VARCHAR NOT NULL,  -- cpu|memory|bandwidth|connections
+    warning_value   DOUBLE NOT NULL,
+    critical_value  DOUBLE NOT NULL,
+    unit            VARCHAR NOT NULL,  -- percent|count|gbps
+    updated_at      TIMESTAMP NOT NULL,
+    UNIQUE(tenant_id, region, metric)
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>capacity_metrics (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE capacity_metrics (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    region          VARCHAR NOT NULL,
+    metric          VARCHAR NOT NULL,
+    value           DOUBLE NOT NULL,
+    forecast_value  DOUBLE,
+    recorded_at     TIMESTAMP NOT NULL
+);</pre>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  var target = document.getElementById('tab-' + name);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    var attr = b.getAttribute('onclick');
+    if (attr && attr.indexOf("'" + name + "'") !== -1) b.classList.add('active');
+  });
+}
+function toggleSection(el) { el.classList.toggle('collapsed'); var c = el.nextElementSibling; if (c) c.classList.toggle('collapsed'); }
+function toggleFaq(btn) { btn.nextElementSibling.classList.toggle('open'); }
+function toggleAccordion(header) {
+  var body = header.nextElementSibling;
+  header.classList.toggle('open');
+  body.style.maxHeight = header.classList.contains('open') ? body.scrollHeight + 'px' : '0';
+}
+
+var searchInput = document.getElementById('globalSearch');
+var noResultMsg = document.getElementById('searchNoResult');
+var mainContent = document.querySelector('.main-content');
+function clearMarks() {
+  mainContent.querySelectorAll('mark.search-highlight').forEach(function(m) {
+    var p = m.parentNode; p.replaceChild(document.createTextNode(m.textContent), m); p.normalize();
+  });
+}
+function searchInTextNodes(node, term, results) {
+  if (node.nodeType === 3) {
+    var idx = node.textContent.toLowerCase().indexOf(term.toLowerCase());
+    if (idx >= 0) {
+      var span = document.createElement('mark'); span.className = 'search-highlight';
+      var after = node.splitText(idx); var matched = after.splitText(term.length);
+      span.appendChild(after.cloneNode(true)); after.parentNode.replaceChild(span, after);
+      results.push(span); searchInTextNodes(matched, term, results);
+    }
+  } else if (node.nodeType === 1 && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE' && !node.classList.contains('search-highlight')) {
+    Array.prototype.slice.call(node.childNodes).forEach(function(c) { searchInTextNodes(c, term, results); });
+  }
+}
+searchInput.addEventListener('keyup', function() {
+  clearMarks(); var term = searchInput.value.trim();
+  if (term.length < 2) { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; return; }
+  var results = []; searchInTextNodes(mainContent, term, results);
+  if (results.length === 0) { searchInput.classList.add('no-results'); noResultMsg.style.display = 'inline'; }
+  else { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; results[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+});
+</script>
+</body>
+</html>

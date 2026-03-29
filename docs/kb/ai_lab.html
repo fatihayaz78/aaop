@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Lab — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #7c3aed;
+  --low: #10b981;
+  --medium: #f59e0b;
+  --high: #ef4444;
+  --border: #1e2433;
+  --border2: #2a3244;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+
+mark {
+  background: var(--accent2);
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* HEADER */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.header h1 span.icon { font-size: 1.3rem; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+/* SEARCH BAR */
+.search-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.search-bar input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-bar .search-icon { color: var(--text2); font-size: 1.1rem; }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+/* CHIPS */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 32px 0; }
+.chip {
+  padding: 4px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* LAYOUT */
+.layout { display: flex; min-height: calc(100vh - 120px); }
+
+/* SIDEBAR */
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+  position: sticky;
+  top: 58px;
+  height: calc(100vh - 58px);
+  overflow-y: auto;
+}
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px;
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text2); cursor: pointer; user-select: none; transition: color 0.2s;
+}
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link {
+  display: block;
+  padding: 6px 20px 6px 28px;
+  font-size: 0.85rem;
+  color: var(--text2);
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+.sidebar-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(56,189,248,0.08); }
+
+/* FAQ */
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q {
+  display: block; width: 100%; padding: 10px 20px 10px 28px;
+  font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left;
+  background: none; border: none; font-family: 'Inter', sans-serif;
+  transition: all 0.15s; line-height: 1.4;
+}
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a {
+  max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5;
+  background: rgba(56,189,248,0.02);
+}
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+/* QUICK LINKS */
+.quick-link {
+  display: block;
+  padding: 5px 20px 5px 28px;
+  font-size: 0.82rem;
+  color: var(--text2);
+  transition: all 0.15s;
+}
+.quick-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+
+/* MAIN CONTENT */
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+
+/* TAB BAR */
+.tab-bar {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+  overflow-x: auto;
+}
+.tab-btn {
+  padding: 10px 24px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text2); font-size: 0.9rem; font-weight: 500;
+  font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* CARDS */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); transform: translateY(-1px); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card-grid .card { margin-bottom: 0; }
+
+/* BADGES */
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-p2 { background: rgba(56,189,248,0.12); color: var(--accent); }
+
+/* TABLES */
+.data-table {
+  width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem;
+}
+.data-table th {
+  text-align: left; padding: 10px 14px; background: var(--bg3);
+  color: var(--text2); font-weight: 600; font-size: 0.8rem;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  color: var(--text); vertical-align: top;
+}
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+.data-table code {
+  background: var(--bg3); padding: 2px 6px; border-radius: 4px;
+  font-size: 0.82rem; color: var(--accent);
+}
+
+/* INFO BOXES */
+.info-box {
+  background: rgba(56,189,248,0.06);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin: 16px 0;
+  font-size: 0.88rem;
+}
+.info-box .label { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.warning-box {
+  background: rgba(245,158,11,0.06);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin: 16px 0;
+  font-size: 0.88rem;
+}
+.warning-box .label { font-weight: 600; color: var(--medium); margin-bottom: 4px; }
+.danger-box {
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin: 16px 0;
+  font-size: 0.88rem;
+}
+.danger-box .label { font-weight: 600; color: var(--high); margin-bottom: 4px; }
+
+/* CODE BLOCKS */
+pre.code-block {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  margin: 12px 0;
+  color: var(--text2);
+}
+
+/* SECTION TITLE */
+.section-title {
+  font-size: 1.25rem;
+  margin: 28px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title:first-child { margin-top: 0; }
+
+/* METHOD BADGES */
+.method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.method-get { background: rgba(16,185,129,0.15); color: var(--low); }
+.method-post { background: rgba(56,189,248,0.15); color: var(--accent); }
+.method-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.method-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+
+/* FLOW DIAGRAM */
+.flow-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 16px 0; padding: 12px; background: var(--bg3);
+  border-radius: var(--radius); border: 1px solid var(--border);
+}
+.flow-step {
+  padding: 8px 16px; border-radius: 8px;
+  font-size: 0.82rem; font-weight: 600;
+  background: rgba(56,189,248,0.12); color: var(--accent);
+  border: 1px solid rgba(56,189,248,0.25);
+}
+.flow-arrow { color: var(--text2); font-size: 1.1rem; }
+.flow-step.highlight { background: rgba(124,58,237,0.15); color: var(--accent2); border-color: rgba(124,58,237,0.3); }
+
+/* STAT ROW */
+.stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.stat-item {
+  flex: 1; min-width: 140px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; text-align: center;
+}
+.stat-item .stat-val { font-size: 1.4rem; font-weight: 700; color: var(--accent); font-family: 'Syne', sans-serif; }
+.stat-item .stat-label { font-size: 0.78rem; color: var(--text2); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1><span class="icon">&#x1F9EA;</span> AI Lab</h1>
+  <div class="breadcrumb">
+    <a href="index.html">&larr; Platform Overview</a>
+    <span class="sep">/</span>
+    <span>AI Lab</span>
+  </div>
+</div>
+
+<!-- SEARCH -->
+<div class="search-bar">
+  <span class="search-icon">&#x1F50D;</span>
+  <input type="text" id="searchInput" placeholder="Search AI Lab documentation..." />
+  <span class="search-no-result" id="noResult">No results found</span>
+</div>
+
+<!-- CHIPS -->
+<div class="chips">
+  <span class="chip" onclick="activateTab('tab-overview')">Overview</span>
+  <span class="chip" onclick="activateTab('tab-experiment')">Experiment Agent</span>
+  <span class="chip" onclick="activateTab('tab-mlgov')">ML Governance</span>
+  <span class="chip" onclick="activateTab('tab-tools')">Tools</span>
+  <span class="chip" onclick="activateTab('tab-api')">API</span>
+  <span class="chip" onclick="activateTab('tab-data')">Data</span>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">
+        Navigation <span class="arrow">&#x25BC;</span>
+      </div>
+      <div class="sidebar-section-content">
+        <a class="sidebar-link active" onclick="activateTab('tab-overview')">Overview</a>
+        <a class="sidebar-link" onclick="activateTab('tab-experiment')">Experiment Agent</a>
+        <a class="sidebar-link" onclick="activateTab('tab-mlgov')">ML Governance Agent</a>
+        <a class="sidebar-link" onclick="activateTab('tab-tools')">Tools Reference</a>
+        <a class="sidebar-link" onclick="activateTab('tab-api')">API Endpoints</a>
+        <a class="sidebar-link" onclick="activateTab('tab-data')">Data &amp; Schemas</a>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">
+        FAQ <span class="arrow">&#x25BC;</span>
+      </div>
+      <div class="sidebar-section-content">
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How does A/B testing work for prompts?</button>
+          <div class="faq-a">Experiments split traffic by tenant or user segment. Each variant gets a unique prompt version. The agent tracks response quality, latency, and token cost, then calculates statistical significance using p-value &lt; 0.05 and 95% confidence intervals.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What triggers the token budget warning?</button>
+          <div class="faq-a">When any experiment exceeds 80% of its allocated token budget, the system emits a <code>budget_alert</code> event via Event Bus and flags the experiment dashboard with a yellow warning. At 95% the experiment is automatically paused.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How is model drift detected?</button>
+          <div class="faq-a">The ML Governance agent runs a scheduled drift detection pipeline every 6 hours. It compares current model output distributions against baseline snapshots using KL-divergence and PSI metrics. Drift above threshold triggers a P1 alert.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Can I roll back a model deployment?</button>
+          <div class="faq-a">Yes. The model registry maintains versioned snapshots. Use the <code>rollback_model</code> tool with the target version ID. This is a HIGH risk action requiring approval from a platform lead.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">
+        Quick Links <span class="arrow">&#x25BC;</span>
+      </div>
+      <div class="sidebar-section-content">
+        <a class="quick-link" href="index.html">Platform Overview</a>
+        <a class="quick-link" href="architecture.html">Architecture</a>
+        <a class="quick-link" href="api_reference.html">API Reference</a>
+        <a class="quick-link" href="knowledge_base.html">Knowledge Base App</a>
+        <a class="quick-link" href="devops_assistant.html">DevOps Assistant</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content" id="mainContent">
+
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-overview">Overview</button>
+      <button class="tab-btn" data-tab="tab-experiment">Experiment Agent</button>
+      <button class="tab-btn" data-tab="tab-mlgov">ML Governance Agent</button>
+      <button class="tab-btn" data-tab="tab-tools">Tools</button>
+      <button class="tab-btn" data-tab="tab-api">API</button>
+      <button class="tab-btn" data-tab="tab-data">Data</button>
+    </div>
+
+    <!-- =================== OVERVIEW TAB =================== -->
+    <div class="tab-content active" id="tab-overview">
+      <h2 class="section-title">AI Lab Overview</h2>
+
+      <div class="stat-row">
+        <div class="stat-item"><div class="stat-val">M10 + M14</div><div class="stat-label">Modules</div></div>
+        <div class="stat-item"><div class="stat-val">P2</div><div class="stat-label">Priority</div></div>
+        <div class="stat-item"><div class="stat-val">8</div><div class="stat-label">Tools</div></div>
+        <div class="stat-item"><div class="stat-val">42</div><div class="stat-label">Tests</div></div>
+        <div class="stat-item"><div class="stat-val">S08+S22</div><div class="stat-label">Sprints</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Purpose</h3>
+        <p>The AI Lab is the experimentation and governance hub for all AI/ML workloads in AAOP. It enables AI/ML engineers to run prompt A/B tests, track LLM costs per experiment, manage model lifecycles, and ensure production model quality through drift detection and compliance auditing.</p>
+      </div>
+
+      <div class="card">
+        <h3>Key Capabilities</h3>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
+          <div class="info-box"><div class="label">Prompt A/B Testing</div>Test multiple prompt variants with statistical significance tracking (p-value, confidence intervals).</div>
+          <div class="info-box"><div class="label">Cost Tracking</div>Per-experiment LLM token usage and cost monitoring with budget alerts at &gt;80% threshold.</div>
+          <div class="info-box"><div class="label">Model Registry</div>Versioned model snapshots with metadata, performance baselines, and rollback capability.</div>
+          <div class="info-box"><div class="label">Drift Detection</div>Automated model performance drift monitoring using KL-divergence and PSI metrics every 6 hours.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Target Persona</h3>
+        <p><span class="badge badge-purple">AI/ML Engineer</span> &mdash; Data scientists and ML engineers who design, test, and deploy AI models and prompts across the AAOP platform. They need controlled experimentation, cost visibility, and governance guardrails.</p>
+      </div>
+
+      <div class="card">
+        <h3>Agent Architecture</h3>
+        <div class="flow-row">
+          <div class="flow-step">User Request</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">ExperimentAgent / MLGovAgent</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Tool Selection</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">DuckDB + ChromaDB</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Response + Event Bus</div>
+        </div>
+        <p style="margin-top:8px; color:var(--text2); font-size:0.88rem;">Both agents extend <code>BaseAgent</code> and follow the LangGraph 4-step loop: Plan &rarr; Act &rarr; Observe &rarr; Respond.</p>
+      </div>
+    </div>
+
+    <!-- =================== EXPERIMENT AGENT TAB =================== -->
+    <div class="tab-content" id="tab-experiment">
+      <h2 class="section-title">Experiment Agent (M10)</h2>
+
+      <div class="card">
+        <h3>Agent Profile</h3>
+        <table class="data-table">
+          <tr><td style="width:180px;font-weight:600;">Class</td><td><code>ExperimentAgent(BaseAgent)</code></td></tr>
+          <tr><td style="font-weight:600;">Default LLM</td><td>Claude Sonnet (fallback: Haiku for batch operations)</td></tr>
+          <tr><td style="font-weight:600;">Module</td><td>M10 &mdash; Experimentation</td></tr>
+          <tr><td style="font-weight:600;">Location</td><td><code>apps/ai_lab/agent.py</code></td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Prompt A/B Testing Flow</h3>
+        <div class="flow-row">
+          <div class="flow-step">Define Variants</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Assign Traffic Split</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Collect Metrics</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Statistical Analysis</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Declare Winner</div>
+        </div>
+        <div style="margin-top:16px;">
+          <h4>Statistical Significance</h4>
+          <ul style="margin:8px 0 0 20px; color:var(--text2); font-size:0.88rem;">
+            <li><strong>p-value threshold:</strong> &lt; 0.05 (configurable per experiment)</li>
+            <li><strong>Confidence interval:</strong> 95% CI computed via bootstrap sampling</li>
+            <li><strong>Minimum sample size:</strong> 100 responses per variant before significance testing begins</li>
+            <li><strong>Metrics tracked:</strong> response quality score, latency (p50/p95/p99), token count, user satisfaction</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>LLM Cost Tracking</h3>
+        <p>Each experiment has an assigned token budget. The agent tracks input/output token consumption per variant and calculates cost using per-model pricing tables.</p>
+        <div class="warning-box" style="margin-top:12px;">
+          <div class="label">Budget Warning at &gt;80%</div>
+          When token usage exceeds 80% of the experiment budget, a <code>budget_alert</code> event is emitted to the Event Bus. At 95%, the experiment is auto-paused to prevent runaway costs.
+        </div>
+        <table class="data-table" style="margin-top:12px;">
+          <thead><tr><th>Model</th><th>Input $/1M tokens</th><th>Output $/1M tokens</th><th>Typical Use</th></tr></thead>
+          <tbody>
+            <tr><td>Haiku</td><td>$0.25</td><td>$1.25</td><td>Batch processing, classification</td></tr>
+            <tr><td>Sonnet</td><td>$3.00</td><td>$15.00</td><td>Default agent responses</td></tr>
+            <tr><td>Opus</td><td>$15.00</td><td>$75.00</td><td>P0/P1 critical decisions only</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Experiment Lifecycle</h3>
+        <table class="data-table">
+          <thead><tr><th>Status</th><th>Description</th><th>Transitions</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-accent">DRAFT</span></td><td>Experiment created, variants defined, not yet running</td><td>&rarr; RUNNING</td></tr>
+            <tr><td><span class="badge badge-low">RUNNING</span></td><td>Actively collecting data, traffic split applied</td><td>&rarr; PAUSED, COMPLETED</td></tr>
+            <tr><td><span class="badge badge-medium">PAUSED</span></td><td>Temporarily halted (manual or budget trigger)</td><td>&rarr; RUNNING, CANCELLED</td></tr>
+            <tr><td><span class="badge badge-purple">COMPLETED</span></td><td>Statistical significance reached, winner declared</td><td>Terminal</td></tr>
+            <tr><td><span class="badge badge-high">CANCELLED</span></td><td>Experiment aborted without conclusion</td><td>Terminal</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- =================== ML GOVERNANCE TAB =================== -->
+    <div class="tab-content" id="tab-mlgov">
+      <h2 class="section-title">ML Governance Agent (M14)</h2>
+
+      <div class="card">
+        <h3>Agent Profile</h3>
+        <table class="data-table">
+          <tr><td style="width:180px;font-weight:600;">Class</td><td><code>MLGovernanceAgent(BaseAgent)</code></td></tr>
+          <tr><td style="font-weight:600;">Default LLM</td><td>Claude Sonnet</td></tr>
+          <tr><td style="font-weight:600;">Module</td><td>M14 &mdash; ML Governance</td></tr>
+          <tr><td style="font-weight:600;">Location</td><td><code>apps/ai_lab/agent.py</code></td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Model Registry</h3>
+        <p>The model registry is the single source of truth for all deployed AI models across the platform. Each entry includes:</p>
+        <ul style="margin:10px 0 0 20px; color:var(--text2); font-size:0.88rem;">
+          <li><strong>Version ID:</strong> Semver-like (e.g., <code>v2.3.1</code>) with immutable snapshot</li>
+          <li><strong>Baseline metrics:</strong> Quality score, latency, token efficiency at time of registration</li>
+          <li><strong>Deployment status:</strong> STAGING, CANARY, PRODUCTION, RETIRED</li>
+          <li><strong>Audit trail:</strong> Who deployed, when, approval chain, rollback history</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Drift Detection Pipeline</h3>
+        <div class="flow-row">
+          <div class="flow-step">Scheduled Trigger (6h)</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Collect Output Samples</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">KL-Divergence + PSI</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Compare vs Baseline</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Alert / Auto-Rollback</div>
+        </div>
+        <table class="data-table" style="margin-top:12px;">
+          <thead><tr><th>Metric</th><th>Threshold</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>KL-Divergence</td><td>&gt; 0.15</td><td>P2 alert &rarr; investigate</td></tr>
+            <tr><td>KL-Divergence</td><td>&gt; 0.30</td><td>P1 alert &rarr; auto-rollback candidate</td></tr>
+            <tr><td>PSI (Population Stability Index)</td><td>&gt; 0.20</td><td>P1 alert &rarr; manual review required</td></tr>
+            <tr><td>Quality score drop</td><td>&gt; 10%</td><td>P0 alert &rarr; immediate escalation</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Compliance &amp; Audit</h3>
+        <p>Every model deployment, configuration change, and rollback is logged in an immutable audit trail stored in DuckDB. The governance agent can generate compliance reports on demand, covering:</p>
+        <ul style="margin:10px 0 0 20px; color:var(--text2); font-size:0.88rem;">
+          <li>Model lineage and provenance</li>
+          <li>Data source attestation</li>
+          <li>Approval chain verification</li>
+          <li>Performance SLA adherence</li>
+          <li>Cost compliance per budget allocation</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =================== TOOLS TAB =================== -->
+    <div class="tab-content" id="tab-tools">
+      <h2 class="section-title">Tools Reference</h2>
+      <p style="color:var(--text2); margin-bottom:16px;">8 tools total: <span class="badge badge-low">5 LOW</span> <span class="badge badge-medium">1 MEDIUM</span> <span class="badge badge-high">2 HIGH</span></p>
+
+      <table class="data-table">
+        <thead><tr><th>Tool</th><th>Risk</th><th>Description</th><th>Approval</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>list_experiments</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>List all experiments with optional status/date filters</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>get_experiment_results</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>Retrieve statistical results and metrics for a specific experiment</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>list_models</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>List all registered models with version and deployment status</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>get_model_drift_report</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>Retrieve the latest drift analysis report for a specific model</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>get_cost_breakdown</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>Token usage and cost breakdown per experiment or model</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>create_experiment</code></td>
+            <td><span class="badge badge-medium">MEDIUM</span></td>
+            <td>Create a new A/B experiment with variants and traffic allocation</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>update_model_config</code></td>
+            <td><span class="badge badge-high">HIGH</span></td>
+            <td>Modify model hyperparameters, thresholds, or routing rules</td>
+            <td><strong>Yes</strong></td>
+          </tr>
+          <tr>
+            <td><code>switch_model_production</code></td>
+            <td><span class="badge badge-high">HIGH</span></td>
+            <td>Promote a model version to production or rollback to a previous version</td>
+            <td><strong>Yes</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="danger-box" style="margin-top:16px;">
+        <div class="label">HIGH Risk Tools</div>
+        <code>update_model_config</code> and <code>switch_model_production</code> require explicit human approval (<code>approval_required=True</code>). The agent will pause execution and wait for confirmation before proceeding. All HIGH risk invocations are logged to the audit trail.
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h4>Tool Schema Example: create_experiment</h4>
+<pre class="code-block">{
+  "name": "create_experiment",
+  "risk_level": "MEDIUM",
+  "parameters": {
+    "experiment_name": "string",
+    "description": "string",
+    "variants": [
+      {
+        "name": "control",
+        "prompt_template_id": "string",
+        "traffic_pct": 50
+      },
+      {
+        "name": "variant_a",
+        "prompt_template_id": "string",
+        "traffic_pct": 50
+      }
+    ],
+    "token_budget": 500000,
+    "min_sample_size": 100,
+    "p_value_threshold": 0.05,
+    "tenant_id": "string"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <!-- =================== API TAB =================== -->
+    <div class="tab-content" id="tab-api">
+      <h2 class="section-title">API Endpoints</h2>
+      <p style="color:var(--text2); margin-bottom:16px;">All endpoints are under the <code>/ai-lab</code> prefix. 7 endpoints total.</p>
+
+      <table class="data-table">
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method method-get">GET</span></td>
+            <td><code>/ai-lab/experiments</code></td>
+            <td>List all experiments with pagination and filters</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-post">POST</span></td>
+            <td><code>/ai-lab/experiments</code></td>
+            <td>Create a new experiment</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-get">GET</span></td>
+            <td><code>/ai-lab/experiments/{id}</code></td>
+            <td>Get experiment details and results</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-put">PUT</span></td>
+            <td><code>/ai-lab/experiments/{id}/status</code></td>
+            <td>Update experiment status (run, pause, cancel)</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-get">GET</span></td>
+            <td><code>/ai-lab/models</code></td>
+            <td>List registered models with version info</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-get">GET</span></td>
+            <td><code>/ai-lab/models/{id}/drift</code></td>
+            <td>Get drift detection report for a model</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-post">POST</span></td>
+            <td><code>/ai-lab/models/{id}/deploy</code></td>
+            <td>Deploy or rollback a model version</td>
+            <td>JWT + Approval</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="card" style="margin-top:20px;">
+        <h4>Example: Create Experiment</h4>
+<pre class="code-block">POST /ai-lab/experiments
+Content-Type: application/json
+Authorization: Bearer &lt;JWT&gt;
+X-Tenant-ID: tenant_001
+
+{
+  "name": "prompt-v3-vs-v4",
+  "description": "Compare v3 baseline prompt with v4 chain-of-thought variant",
+  "variants": [
+    { "name": "control", "prompt_template_id": "pt_v3", "traffic_pct": 50 },
+    { "name": "variant_a", "prompt_template_id": "pt_v4", "traffic_pct": 50 }
+  ],
+  "token_budget": 500000,
+  "config": { "min_sample_size": 100, "p_value_threshold": 0.05 }
+}</pre>
+<pre class="code-block">// Response 201
+{
+  "id": "exp_abc123",
+  "status": "DRAFT",
+  "created_at": "2026-03-15T10:30:00Z",
+  "variants": [ ... ],
+  "token_usage": { "total": 0, "budget": 500000, "pct": 0.0 }
+}</pre>
+      </div>
+    </div>
+
+    <!-- =================== DATA TAB =================== -->
+    <div class="tab-content" id="tab-data">
+      <h2 class="section-title">Data &amp; Schemas</h2>
+
+      <div class="card">
+        <h3>Storage Architecture</h3>
+        <table class="data-table">
+          <thead><tr><th>Store</th><th>Purpose</th><th>GCP Equivalent</th></tr></thead>
+          <tbody>
+            <tr><td><code>analytics.duckdb</code></td><td>Experiment results, cost aggregations, drift metrics</td><td>BigQuery</td></tr>
+            <tr><td><code>platform.db</code> (SQLite)</td><td>Experiment metadata, model registry, approval chains</td><td>Spanner</td></tr>
+            <tr><td>ChromaDB</td><td>Prompt template embeddings for similarity search</td><td>Vertex AI Vector Search</td></tr>
+            <tr><td>Redis</td><td>Active experiment state cache, real-time counters</td><td>Memorystore</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>DuckDB Schema: experiments</h3>
+<pre class="code-block">CREATE TABLE experiments (
+  id            VARCHAR PRIMARY KEY,
+  tenant_id     VARCHAR NOT NULL,
+  name          VARCHAR NOT NULL,
+  description   TEXT,
+  status        VARCHAR DEFAULT 'DRAFT',  -- DRAFT|RUNNING|PAUSED|COMPLETED|CANCELLED
+  variants      JSON NOT NULL,
+  token_budget  INTEGER NOT NULL,
+  token_used    INTEGER DEFAULT 0,
+  p_value       FLOAT,
+  ci_lower      FLOAT,
+  ci_upper      FLOAT,
+  winner        VARCHAR,
+  created_at    TIMESTAMP DEFAULT now(),
+  updated_at    TIMESTAMP DEFAULT now()
+);</pre>
+      </div>
+
+      <div class="card">
+        <h3>DuckDB Schema: model_registry</h3>
+<pre class="code-block">CREATE TABLE model_registry (
+  id              VARCHAR PRIMARY KEY,
+  tenant_id       VARCHAR NOT NULL,
+  model_name      VARCHAR NOT NULL,
+  version         VARCHAR NOT NULL,     -- e.g., v2.3.1
+  status          VARCHAR DEFAULT 'STAGING',  -- STAGING|CANARY|PRODUCTION|RETIRED
+  baseline_score  FLOAT NOT NULL,
+  current_score   FLOAT,
+  kl_divergence   FLOAT,
+  psi             FLOAT,
+  drift_status    VARCHAR DEFAULT 'STABLE',  -- STABLE|WARNING|CRITICAL
+  deployed_by     VARCHAR,
+  deployed_at     TIMESTAMP,
+  created_at      TIMESTAMP DEFAULT now()
+);</pre>
+      </div>
+
+      <div class="card">
+        <h3>Event Bus Integration</h3>
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Direction</th><th>Payload</th></tr></thead>
+          <tbody>
+            <tr><td><code>experiment_completed</code></td><td>Published</td><td>experiment_id, winner, p_value, token_cost</td></tr>
+            <tr><td><code>model_drift_detected</code></td><td>Published</td><td>model_id, kl_divergence, psi, severity</td></tr>
+            <tr><td><code>budget_alert</code></td><td>Published</td><td>experiment_id, usage_pct, remaining_tokens</td></tr>
+            <tr><td><code>incident_created</code></td><td>Subscribed</td><td>Monitors for AI-related incidents affecting model performance</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-box">
+        <div class="label">Sprint &amp; Test Info</div>
+        Developed in <strong>S08</strong> (initial) + <strong>S22</strong> (governance enhancements). Test suite: <strong>42 tests</strong> across <code>apps/ai_lab/tests/</code>. Coverage target: &ge; 80%.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+/* ─── TAB SWITCHING ─── */
+function activateTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const content = document.getElementById(tabId);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+
+/* ─── SIDEBAR TOGGLE ─── */
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+  const content = el.nextElementSibling;
+  if (content) content.classList.toggle('collapsed');
+}
+
+/* ─── FAQ ─── */
+function toggleFaq(el) {
+  const answer = el.nextElementSibling;
+  answer.classList.toggle('open');
+}
+
+/* ─── SEARCH WITH MARK HIGHLIGHT ─── */
+const searchInput = document.getElementById('searchInput');
+const mainContent = document.getElementById('mainContent');
+const noResult = document.getElementById('noResult');
+
+searchInput.addEventListener('input', function() {
+  const query = this.value.trim().toLowerCase();
+  clearMarks();
+  noResult.style.display = 'none';
+  searchInput.classList.remove('no-results');
+
+  if (query.length < 2) return;
+
+  let found = false;
+  const walker = document.createTreeWalker(mainContent, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(node => {
+    const text = node.textContent;
+    const idx = text.toLowerCase().indexOf(query);
+    if (idx === -1) return;
+    found = true;
+    const span = document.createElement('span');
+    const before = document.createTextNode(text.substring(0, idx));
+    const mark = document.createElement('mark');
+    mark.textContent = text.substring(idx, idx + query.length);
+    const after = document.createTextNode(text.substring(idx + query.length));
+    span.appendChild(before);
+    span.appendChild(mark);
+    span.appendChild(after);
+    node.parentNode.replaceChild(span, node);
+  });
+
+  if (!found) {
+    searchInput.classList.add('no-results');
+    noResult.style.display = 'inline';
+  } else {
+    const firstMark = mainContent.querySelector('mark');
+    if (firstMark) {
+      // Show the tab containing the first match
+      const tabContent = firstMark.closest('.tab-content');
+      if (tabContent && !tabContent.classList.contains('active')) {
+        activateTab(tabContent.id);
+      }
+      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+});
+
+function clearMarks() {
+  mainContent.querySelectorAll('mark').forEach(mark => {
+    const parent = mark.parentNode;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  });
+  // Clean up wrapper spans
+  mainContent.querySelectorAll('span').forEach(span => {
+    if (span.childNodes.length && !span.className && !span.id) {
+      const frag = document.createDocumentFragment();
+      while (span.firstChild) frag.appendChild(span.firstChild);
+      if (span.parentNode) span.parentNode.replaceChild(frag, span);
+    }
+  });
+}
+</script>
+</body>
+</html>

@@ -116,3 +116,9 @@ Senaryolar: CAPACITY_BREACH (eşik aşımı → event) | Pre-scale (live_event �
 - Frontend: 5 tabs
 - Tests: 47 passed, 0 failures
 - Status: ✅ Complete
+
+---
+## Sprint Progress — S-DI-04 (2026-03-28)
+### logs.duckdb Entegrasyonu
+- GET /capacity/dashboard: infra_live (newrelic_apm_logs), api_live (api_logs_logs), cdn_live (medianova_logs)
+- DuckDB OKUMA: logs.duckdb aaop_company schema (newrelic_apm_logs, api_logs_logs, medianova_logs)

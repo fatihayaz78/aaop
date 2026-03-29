@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin &amp; Governance — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10; --bg2: #0f1117; --bg3: #151820;
+  --text: #e2e8f0; --text2: #94a3b8;
+  --accent: #38bdf8; --accent2: #7c3aed;
+  --low: #10b981; --medium: #f59e0b; --high: #ef4444;
+  --border: #1e2433; --border2: #2a3244;
+  --radius: 10px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); } .breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chip-bar { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 32px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.chip { padding: 4px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 140px); }
+.sidebar { display: none; width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 6px 20px 6px 28px; font-size: 0.85rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-links { padding: 8px 20px; }
+.quick-link { display: block; padding: 5px 0 5px 8px; font-size: 0.82rem; color: var(--text2); transition: color 0.15s; }
+.quick-link:hover { color: var(--accent); }
+.quick-link::before { content: "# "; color: var(--accent2); font-weight: 600; }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.88rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card-grid .card { margin-bottom: 0; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.badge-get { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-post { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem; }
+.data-table th { text-align: left; padding: 10px 14px; background: var(--bg3); color: var(--text2); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; color: var(--text2); }
+code.inline { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 0.84rem; color: var(--accent); }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.info-box strong { color: var(--accent); }
+.warn-box { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-left: 3px solid var(--high); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.warn-box strong { color: var(--high); }
+
+.accordion { margin: 16px 0; }
+.accordion-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.accordion-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg3); cursor: pointer; transition: background 0.2s; font-weight: 500; font-size: 0.9rem; }
+.accordion-header:hover { background: var(--bg2); }
+.accordion-header .ep-meta { display: flex; align-items: center; gap: 8px; }
+.accordion-header .arrow-acc { transition: transform 0.2s; color: var(--text2); }
+.accordion-header.open .arrow-acc { transform: rotate(180deg); }
+.accordion-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--bg2); }
+.accordion-body-inner { padding: 16px; }
+
+.flow-diagram { display: flex; align-items: center; gap: 0; margin: 20px 0; overflow-x: auto; padding: 10px 0; }
+.flow-step { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; min-width: 130px; text-align: center; flex-shrink: 0; }
+.flow-step:hover { border-color: var(--accent); }
+.flow-step .step-num { font-size: 0.7rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.flow-step .step-title { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+.flow-step .step-desc { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+.flow-arrow { color: var(--text2); font-size: 1.2rem; margin: 0 8px; flex-shrink: 0; }
+
+.section-title { font-size: 1.3rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.section-subtitle { color: var(--text2); font-size: 0.92rem; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<!-- QUICK NAV CHIPS -->
+<div class="chip-bar">
+  <span class="chip" onclick="switchTab('overview')">Overview</span>
+  <span class="chip" onclick="switchTab('tenant')">Tenant Agent</span>
+  <span class="chip" onclick="switchTab('compliance')">Compliance Agent</span>
+  <span class="chip" onclick="switchTab('tools')">Tools</span>
+  <span class="chip" onclick="switchTab('api')">API</span>
+  <span class="chip" onclick="switchTab('data')">Data</span>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+
+
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+  <button class="tab-btn" onclick="switchTab('tenant')">Tenant Agent</button>
+  <button class="tab-btn" onclick="switchTab('compliance')">Compliance Agent</button>
+  <button class="tab-btn" onclick="switchTab('tools')">Tools</button>
+  <button class="tab-btn" onclick="switchTab('api')">API</button>
+  <button class="tab-btn" onclick="switchTab('data')">Data</button>
+</div>
+
+<!-- ==================== OVERVIEW ==================== -->
+<div class="tab-content active" id="tab-overview">
+  <h2 class="section-title">Admin &amp; Governance Overview</h2>
+  <p class="section-subtitle">Multi-tenant management, compliance scanning, audit logging, and API key governance.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>Tenant Agent (M12)</h4>
+      <p>CRUD operations for tenant lifecycle management. Config-driven module enablement (no if/else). API key management with AES-256 encryption. Admin role required.</p>
+      <div style="margin-top:10px;"><span class="badge badge-purple">Haiku LLM</span> <span class="badge badge-high">3 HIGH tools</span></div>
+    </div>
+    <div class="card">
+      <h4>Compliance Agent (M17)</h4>
+      <p>Automated weekly compliance scans. Generates compliance reports covering data retention, access control, PII handling, and security posture.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-low">All LOW/MEDIUM tools</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>Config-Driven Architecture:</strong> Module access is controlled by a JSON configuration per tenant. No conditional logic in code &mdash; the middleware reads <code class="inline">module_config</code> and gates access dynamically. Adding a new module requires only a config update.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Tenant Lifecycle</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Phase 1</div><div class="step-title">Create</div><div class="step-desc">Tenant + API key</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Phase 2</div><div class="step-title">Configure</div><div class="step-desc">Module enablement</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Phase 3</div><div class="step-title">Operate</div><div class="step-desc">Active + audited</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Phase 4</div><div class="step-title">Offboard</div><div class="step-desc">Soft delete + 30d</div></div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">API Key Security</h3>
+  <table class="data-table">
+    <thead><tr><th>Property</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Encryption</td><td>AES-256-GCM at rest</td></tr>
+      <tr><td>Response Format</td><td>Masked: <code class="inline">aaop_****...****1234</code></td></tr>
+      <tr><td>Full Key Visibility</td><td>Only at creation (one-time display)</td></tr>
+      <tr><td>Rotation</td><td>Via rotate_api_key tool (HIGH risk)</td></tr>
+      <tr><td>Expiration</td><td>Configurable per tenant (default: 90 days)</td></tr>
+      <tr><td>Storage</td><td>Local: .env / Prod: GCP Secret Manager</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== TENANT AGENT ==================== -->
+<div class="tab-content" id="tab-tenant">
+  <h2 class="section-title">Tenant Agent (M12)</h2>
+  <p class="section-subtitle">Multi-tenant CRUD, module configuration, and API key management.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Haiku (fast, admin tasks)</td></tr>
+      <tr><td style="color:var(--text2);">Base Class</td><td><code class="inline">BaseAgent</code> (LangGraph 4-step)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/admin_governance/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>6 tools (2 LOW, 1 MEDIUM, 3 HIGH)</td></tr>
+      <tr><td style="color:var(--text2);">Access Control</td><td>Admin role required for all operations</td></tr>
+    </table>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Module Configuration Example</h3>
+  <pre class="code-block">{
+  "tenant_id": "tenant_acme",
+  "module_config": {
+    "ops_center": { "enabled": true, "tier": "premium" },
+    "log_analyzer": { "enabled": true, "tier": "standard" },
+    "alert_center": { "enabled": true, "tier": "standard" },
+    "viewer_experience": { "enabled": true, "tier": "premium" },
+    "live_intelligence": { "enabled": false },
+    "growth_retention": { "enabled": true, "tier": "standard" },
+    "capacity_cost": { "enabled": false },
+    "ai_lab": { "enabled": false },
+    "knowledge_base": { "enabled": true, "tier": "basic" },
+    "devops_assistant": { "enabled": false },
+    "admin_governance": { "enabled": true, "tier": "admin" }
+  }
+}</pre>
+
+  <div class="info-box">
+    <strong>No If/Else Pattern:</strong> The middleware reads <code class="inline">module_config[module_name].enabled</code> at request time. If disabled, it returns 403 Forbidden. No module-specific conditional code exists in the router layer.
+  </div>
+
+  <div class="warn-box">
+    <strong>HIGH Risk Tools (3):</strong>
+    <ul style="margin:8px 0 0 20px; list-style:disc;">
+      <li><code class="inline">rotate_api_key</code> &mdash; Invalidates current key and generates new one</li>
+      <li><code class="inline">delete_tenant</code> &mdash; Soft-deletes tenant, 30-day grace period</li>
+      <li><code class="inline">export_audit_log</code> &mdash; Exports full audit trail (may contain sensitive actions)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ==================== COMPLIANCE AGENT ==================== -->
+<div class="tab-content" id="tab-compliance">
+  <h2 class="section-title">Compliance Agent (M17)</h2>
+  <p class="section-subtitle">Automated compliance scanning, report generation, and security posture assessment.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (compliance analysis requires reasoning)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/admin_governance/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>4 tools (2 LOW, 2 MEDIUM)</td></tr>
+      <tr><td style="color:var(--text2);">Schedule</td><td>Weekly automated scan (configurable)</td></tr>
+    </table>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Weekly Compliance Scan Checks</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h4>Data Retention</h4>
+      <p>Verifies that data older than the retention policy is properly archived or deleted. Checks DuckDB, SQLite, and Redis TTLs.</p>
+    </div>
+    <div class="card">
+      <h4>Access Control</h4>
+      <p>Audits role assignments, detects over-privileged accounts, and verifies admin access patterns against baselines.</p>
+    </div>
+    <div class="card">
+      <h4>PII Handling</h4>
+      <p>Scans for PII leakage in logs, analytics tables, and LLM call history. Verifies pii_scrubber effectiveness.</p>
+    </div>
+    <div class="card">
+      <h4>API Key Expiration</h4>
+      <p>Identifies expired or soon-to-expire API keys. Flags tenants with keys older than rotation policy.</p>
+    </div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Compliance Report Structure</h3>
+  <pre class="code-block">{
+  "report_id": "comp_2026_w13",
+  "scan_date": "2026-03-28",
+  "tenant_id": "tenant_acme",
+  "overall_score": 92,
+  "checks": [
+    { "name": "data_retention", "status": "pass", "details": "All data within policy" },
+    { "name": "access_control", "status": "pass", "details": "No over-privileged accounts" },
+    { "name": "pii_handling", "status": "pass", "details": "No PII leakage detected" },
+    { "name": "api_key_expiry", "status": "warn", "details": "2 keys expire within 14 days" },
+    { "name": "module_config", "status": "pass", "details": "Config consistent" }
+  ],
+  "recommendations": [
+    "Rotate API keys for integrations: webhook_prod, cdn_api"
+  ]
+}</pre>
+</div>
+
+<!-- ==================== TOOLS ==================== -->
+<div class="tab-content" id="tab-tools">
+  <h2 class="section-title">Tools Reference</h2>
+  <p class="section-subtitle">10 tools total: 4 LOW, 3 MEDIUM, 3 HIGH risk.</p>
+
+  <table class="data-table">
+    <thead><tr><th>Tool Name</th><th>Risk</th><th>Agent</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">list_tenants</code></td><td><span class="badge badge-low">LOW</span></td><td>Tenant</td><td>List all tenants with status and module config</td></tr>
+      <tr><td><code class="inline">get_tenant_details</code></td><td><span class="badge badge-low">LOW</span></td><td>Tenant</td><td>Full tenant details including config and key metadata</td></tr>
+      <tr><td><code class="inline">create_tenant</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Tenant</td><td>Create new tenant with initial module configuration</td></tr>
+      <tr><td><code class="inline">update_tenant_config</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Tenant</td><td>Update tenant module configuration</td></tr>
+      <tr><td><code class="inline">rotate_api_key</code></td><td><span class="badge badge-high">HIGH</span></td><td>Tenant</td><td>Rotate API key (invalidates current, approval required)</td></tr>
+      <tr><td><code class="inline">delete_tenant</code></td><td><span class="badge badge-high">HIGH</span></td><td>Tenant</td><td>Soft-delete tenant with 30-day retention (approval required)</td></tr>
+      <tr><td><code class="inline">export_audit_log</code></td><td><span class="badge badge-high">HIGH</span></td><td>Tenant</td><td>Export audit trail to file (approval required)</td></tr>
+      <tr><td><code class="inline">get_compliance_report</code></td><td><span class="badge badge-low">LOW</span></td><td>Compliance</td><td>Retrieve latest compliance report</td></tr>
+      <tr><td><code class="inline">run_compliance_scan</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Compliance</td><td>Trigger ad-hoc compliance scan</td></tr>
+      <tr><td><code class="inline">get_compliance_history</code></td><td><span class="badge badge-low">LOW</span></td><td>Compliance</td><td>Historical compliance scores and trends</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== API ==================== -->
+<div class="tab-content" id="tab-api">
+  <h2 class="section-title">API Endpoints</h2>
+  <p class="section-subtitle">Router prefix: <code class="inline">/admin</code> &mdash; 9 REST endpoints.</p>
+
+  <div class="accordion">
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/admin/tenants</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>List all tenants with pagination and status filtering.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">status</code> (active|suspended|deleted), <code class="inline">page</code>, <code class="inline">limit</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/admin/tenants/{id}</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Full tenant details: configuration, masked API key, module access, creation date.</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/admin/tenants</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Create a new tenant. Returns tenant record with full API key (shown once only).</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ name, admin_email, plan, module_config }</code></p>
+        <p><strong>Response:</strong> 201 &mdash; Tenant object + <strong>one-time</strong> full API key</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-put">PUT</span> <code class="inline">/admin/tenants/{id}/config</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Update tenant module configuration. Changes take effect immediately.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ module_config }</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/admin/tenants/{id}/rotate-key</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Rotate API key. Old key is immediately invalidated. New key shown once.</p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True. Existing integrations will break until updated.</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-delete">DELETE</span> <code class="inline">/admin/tenants/{id}</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Soft-delete tenant. 30-day grace period before permanent deletion.</p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True. All tenant data will be deleted after grace period.</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/admin/audit-log</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Query audit log entries with filtering by actor, action type, and date range.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">actor</code>, <code class="inline">action</code>, <code class="inline">from</code>, <code class="inline">to</code>, <code class="inline">page</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/admin/compliance/latest</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Retrieve the latest compliance scan report for a tenant.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/admin/compliance/scan</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Trigger an ad-hoc compliance scan. Returns scan ID for status polling.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ tenant_id, checks[] }</code></p>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DATA ==================== -->
+<div class="tab-content" id="tab-data">
+  <h2 class="section-title">Data Model</h2>
+  <p class="section-subtitle">SQLite tables for tenant management, audit logging, and compliance.</p>
+
+  <div class="card">
+    <h4>tenants (SQLite: platform.db)</h4>
+    <pre class="code-block">CREATE TABLE tenants (
+    id              VARCHAR PRIMARY KEY,
+    name            VARCHAR NOT NULL,
+    admin_email     VARCHAR NOT NULL,
+    plan            VARCHAR DEFAULT 'standard',  -- basic|standard|premium
+    status          VARCHAR DEFAULT 'active',  -- active|suspended|deleted
+    module_config   TEXT NOT NULL,  -- JSON module enablement
+    api_key_hash    VARCHAR NOT NULL,  -- AES-256-GCM encrypted
+    api_key_masked  VARCHAR NOT NULL,  -- aaop_****...****XXXX
+    api_key_expires TIMESTAMP,
+    created_at      TIMESTAMP NOT NULL,
+    updated_at      TIMESTAMP NOT NULL,
+    deleted_at      TIMESTAMP
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>audit_log (SQLite: platform.db)</h4>
+    <pre class="code-block">CREATE TABLE audit_log (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    actor           VARCHAR NOT NULL,  -- user or system identifier
+    action          VARCHAR NOT NULL,  -- create_tenant|update_config|rotate_key|delete_tenant|...
+    resource_type   VARCHAR NOT NULL,
+    resource_id     VARCHAR,
+    before_state    TEXT,  -- JSON snapshot before change
+    after_state     TEXT,  -- JSON snapshot after change
+    ip_address      VARCHAR,
+    user_agent      VARCHAR,
+    created_at      TIMESTAMP NOT NULL
+);</pre>
+    <div class="info-box" style="margin-top:12px;">
+      <strong>Immutable:</strong> Audit log entries cannot be updated or deleted. The <code class="inline">export_audit_log</code> tool (HIGH risk) creates a read-only export file for compliance purposes.
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>compliance_reports (SQLite: platform.db)</h4>
+    <pre class="code-block">CREATE TABLE compliance_reports (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    scan_date       DATE NOT NULL,
+    overall_score   INTEGER NOT NULL,  -- 0-100
+    checks_json     TEXT NOT NULL,  -- JSON array of check results
+    recommendations TEXT,  -- JSON array of recommendations
+    created_at      TIMESTAMP NOT NULL
+);</pre>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  var target = document.getElementById('tab-' + name);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    var attr = b.getAttribute('onclick');
+    if (attr && attr.indexOf("'" + name + "'") !== -1) b.classList.add('active');
+  });
+}
+function toggleSection(el) { el.classList.toggle('collapsed'); var c = el.nextElementSibling; if (c) c.classList.toggle('collapsed'); }
+function toggleFaq(btn) { btn.nextElementSibling.classList.toggle('open'); }
+function toggleAccordion(header) {
+  var body = header.nextElementSibling;
+  header.classList.toggle('open');
+  body.style.maxHeight = header.classList.contains('open') ? body.scrollHeight + 'px' : '0';
+}
+
+var searchInput = document.getElementById('globalSearch');
+var noResultMsg = document.getElementById('searchNoResult');
+var mainContent = document.querySelector('.main-content');
+function clearMarks() {
+  mainContent.querySelectorAll('mark.search-highlight').forEach(function(m) {
+    var p = m.parentNode; p.replaceChild(document.createTextNode(m.textContent), m); p.normalize();
+  });
+}
+function searchInTextNodes(node, term, results) {
+  if (node.nodeType === 3) {
+    var idx = node.textContent.toLowerCase().indexOf(term.toLowerCase());
+    if (idx >= 0) {
+      var span = document.createElement('mark'); span.className = 'search-highlight';
+      var after = node.splitText(idx); var matched = after.splitText(term.length);
+      span.appendChild(after.cloneNode(true)); after.parentNode.replaceChild(span, after);
+      results.push(span); searchInTextNodes(matched, term, results);
+    }
+  } else if (node.nodeType === 1 && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE' && !node.classList.contains('search-highlight')) {
+    Array.prototype.slice.call(node.childNodes).forEach(function(c) { searchInTextNodes(c, term, results); });
+  }
+}
+searchInput.addEventListener('keyup', function() {
+  clearMarks(); var term = searchInput.value.trim();
+  if (term.length < 2) { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; return; }
+  var results = []; searchInTextNodes(mainContent, term, results);
+  if (results.length === 0) { searchInput.classList.add('no-results'); noResultMsg.style.display = 'inline'; }
+  else { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; results[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+});
+</script>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || !data.type) return;
+  if (data.type === 'showTab') {
+    var tabId = data.tabId;
+    var btn = document.querySelector('[data-tab="' + tabId + '"]') ||
+              document.querySelector('.chip[onclick*="' + tabId + '"]');
+    if (btn) { btn.click(); }
+    else if (typeof switchTab === 'function') { switchTab(tabId); }
+    else if (typeof activateTab === 'function') { activateTab(tabId); }
+  }
+  if (data.type === 'scrollTo') {
+    var el = document.getElementById(data.sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+</script>
+</body>
+</html>

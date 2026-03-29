@@ -107,3 +107,10 @@ Senaryolar: Tenant CRUD | Module config toggle | Compliance tarama | Audit trail
 - Frontend: 6 tabs
 - Tests: 54 passed, 0 failures
 - Status: ✅ Complete
+
+---
+## Sprint Progress — S-DI-01 + S-DI-04 (2026-03-28)
+### Data Sources Tab + logs.duckdb Entegrasyonu
+- Admin & Governance'a "Data Sources" tab eklendi (shared/ingest/ ile)
+- GET /admin/dashboard: data_source_stats (tüm logs.duckdb tabloları row count)
+- DuckDB OKUMA: logs.duckdb aaop_company schema (tüm tablolar, metadata only)

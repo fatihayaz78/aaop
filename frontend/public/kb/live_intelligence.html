@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Intelligence — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10; --bg2: #0f1117; --bg3: #151820;
+  --text: #e2e8f0; --text2: #94a3b8;
+  --accent: #38bdf8; --accent2: #7c3aed;
+  --low: #10b981; --medium: #f59e0b; --high: #ef4444;
+  --border: #1e2433; --border2: #2a3244;
+  --radius: 10px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chip-bar { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 32px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.chip { padding: 4px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 140px); }
+.sidebar { display: none; width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 6px 20px 6px 28px; font-size: 0.85rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-links { padding: 8px 20px; }
+.quick-link { display: block; padding: 5px 0 5px 8px; font-size: 0.82rem; color: var(--text2); transition: color 0.15s; }
+.quick-link:hover { color: var(--accent); }
+.quick-link::before { content: "# "; color: var(--accent2); font-weight: 600; }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.88rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card-grid .card { margin-bottom: 0; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.badge-get { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-post { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-ws { background: rgba(124,58,237,0.15); color: var(--accent2); }
+
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem; }
+.data-table th { text-align: left; padding: 10px 14px; background: var(--bg3); color: var(--text2); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; color: var(--text2); }
+code.inline { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 0.84rem; color: var(--accent); }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.info-box strong { color: var(--accent); }
+.warn-box { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-left: 3px solid var(--high); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.warn-box strong { color: var(--high); }
+
+.accordion { margin: 16px 0; }
+.accordion-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.accordion-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg3); cursor: pointer; transition: background 0.2s; font-weight: 500; font-size: 0.9rem; }
+.accordion-header:hover { background: var(--bg2); }
+.accordion-header .ep-meta { display: flex; align-items: center; gap: 8px; }
+.accordion-header .arrow-acc { transition: transform 0.2s; color: var(--text2); }
+.accordion-header.open .arrow-acc { transform: rotate(180deg); }
+.accordion-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--bg2); }
+.accordion-body-inner { padding: 16px; }
+
+.flow-diagram { display: flex; align-items: center; gap: 0; margin: 20px 0; overflow-x: auto; padding: 10px 0; }
+.flow-step { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; min-width: 130px; text-align: center; flex-shrink: 0; }
+.flow-step:hover { border-color: var(--accent); }
+.flow-step .step-num { font-size: 0.7rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.flow-step .step-title { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+.flow-step .step-desc { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+.flow-arrow { color: var(--text2); font-size: 1.2rem; margin: 0 8px; flex-shrink: 0; }
+
+.section-title { font-size: 1.3rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.section-subtitle { color: var(--text2); font-size: 0.92rem; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<!-- QUICK NAV CHIPS -->
+<div class="chip-bar">
+  <span class="chip" onclick="switchTab('overview')">Overview</span>
+  <span class="chip" onclick="switchTab('liveevent')">Live Event Agent</span>
+  <span class="chip" onclick="switchTab('external')">External Data Agent</span>
+  <span class="chip" onclick="switchTab('tools')">Tools</span>
+  <span class="chip" onclick="switchTab('api')">API</span>
+  <span class="chip" onclick="switchTab('crossapp')">Cross-App</span>
+  <span class="chip" onclick="switchTab('data')">Data</span>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+
+
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+  <button class="tab-btn" onclick="switchTab('liveevent')">Live Event Agent</button>
+  <button class="tab-btn" onclick="switchTab('external')">External Data Agent</button>
+  <button class="tab-btn" onclick="switchTab('tools')">Tools</button>
+  <button class="tab-btn" onclick="switchTab('api')">API</button>
+  <button class="tab-btn" onclick="switchTab('crossapp')">Cross-App</button>
+  <button class="tab-btn" onclick="switchTab('data')">Data</button>
+</div>
+
+<!-- ==================== OVERVIEW ==================== -->
+<div class="tab-content active" id="tab-overview">
+  <h2 class="section-title">Live Intelligence Overview</h2>
+  <p class="section-subtitle">Live event management, external data integration, and pre-scaling orchestration for broadcast operations.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>Live Event Agent (M05)</h4>
+      <p>Manages live event lifecycle from scheduling to completion. Emits pre-scale events T-30min before start, monitors concurrent viewers, and coordinates with Capacity Agent.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-high">1 HIGH tool</span></div>
+    </div>
+    <div class="card">
+      <h4>External Data Agent (M11)</h4>
+      <p>Polls external services (SportRadar, DRM, EPG) at configurable intervals. Enriches platform context with real-time sport scores, DRM health, and schedule data.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-high">1 HIGH tool</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>T-30 Minute Rule:</strong> When a live event is scheduled, at T-30 minutes the system emits a <code class="inline">live_event_starting</code> event. If predicted viewers exceed 50K, Capacity Agent automatically triggers pre-scaling to handle the surge.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Live Event Lifecycle</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Phase 1</div><div class="step-title">Scheduled</div><div class="step-desc">Event created</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Phase 2</div><div class="step-title">Pre-Scale</div><div class="step-desc">T-30min alert</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Phase 3</div><div class="step-title">Live</div><div class="step-desc">Active monitoring</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Phase 4</div><div class="step-title">Post-Event</div><div class="step-desc">Analytics &amp; scale-down</div></div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">External Data Polling Intervals</h3>
+  <table class="data-table">
+    <thead><tr><th>Source</th><th>Interval</th><th>Data Type</th><th>Circuit Breaker</th></tr></thead>
+    <tbody>
+      <tr><td>SportRadar</td><td><code class="inline">30s</code></td><td>Live scores, match events</td><td>3 failures &rarr; open</td></tr>
+      <tr><td>DRM License Server</td><td><code class="inline">60s</code></td><td>License health, error rates</td><td>3 failures &rarr; open</td></tr>
+      <tr><td>EPG Service</td><td><code class="inline">300s</code></td><td>Schedule, program metadata</td><td>5 failures &rarr; open</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== LIVE EVENT AGENT ==================== -->
+<div class="tab-content" id="tab-liveevent">
+  <h2 class="section-title">Live Event Agent (M05)</h2>
+  <p class="section-subtitle">Manages the full lifecycle of live broadcast events with predictive viewer estimation.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (default)</td></tr>
+      <tr><td style="color:var(--text2);">Base Class</td><td><code class="inline">BaseAgent</code> (LangGraph 4-step)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/live_intelligence/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>6 tools (4 LOW, 1 MEDIUM, 1 HIGH)</td></tr>
+      <tr><td style="color:var(--text2);">Primary DB</td><td>DuckDB (analytics.duckdb) + SQLite (platform.db)</td></tr>
+    </table>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Viewer Prediction Model</h3>
+  <div class="card">
+    <p>The agent predicts concurrent viewers using historical data combined with event metadata:</p>
+    <pre class="code-block"># Prediction factors:
+# 1. Historical average for same event type (e.g., football derby)
+# 2. Day-of-week and time-slot multiplier
+# 3. Team popularity index
+# 4. Season/tournament weight
+# 5. Recent growth trend (last 4 events)
+
+predicted_viewers = base_average * dow_multiplier * popularity * season_weight * trend
+# If predicted_viewers > 50,000 → trigger pre-scale</pre>
+  </div>
+
+  <div class="warn-box">
+    <strong>HIGH Risk Tool:</strong> <code class="inline">trigger_pre_scale</code> initiates infrastructure scaling based on predicted viewer count. Requires approval when predicted viewers exceed 100K.
+  </div>
+</div>
+
+<!-- ==================== EXTERNAL DATA AGENT ==================== -->
+<div class="tab-content" id="tab-external">
+  <h2 class="section-title">External Data Agent (M11)</h2>
+  <p class="section-subtitle">Polls external APIs, caches results in Redis, and enriches platform analytics.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (default)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/live_intelligence/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>5 tools (4 LOW, 1 HIGH)</td></tr>
+      <tr><td style="color:var(--text2);">Cache</td><td>Redis with TTL per source type</td></tr>
+    </table>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Polling Architecture</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Source</div><div class="step-title">External API</div><div class="step-desc">SportRadar / DRM / EPG</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Fetch</div><div class="step-title">Adapter</div><div class="step-desc">Circuit breaker</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Cache</div><div class="step-title">Redis</div><div class="step-desc">TTL per source</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Emit</div><div class="step-title">Event Bus</div><div class="step-desc">external_data_updated</div></div>
+  </div>
+
+  <div class="card">
+    <h4>Redis TTL Configuration</h4>
+    <table class="data-table">
+      <thead><tr><th>Key Pattern</th><th>TTL</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td><code class="inline">ext:sport:{match_id}</code></td><td>45s</td><td>SportRadar</td></tr>
+        <tr><td><code class="inline">ext:drm:health</code></td><td>90s</td><td>DRM Server</td></tr>
+        <tr><td><code class="inline">ext:epg:{channel_id}</code></td><td>600s</td><td>EPG Service</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="warn-box">
+    <strong>HIGH Risk Tool:</strong> <code class="inline">override_drm_fallback</code> switches the DRM provider to a fallback for a specified duration. This bypasses normal DRM routing and requires admin approval.
+  </div>
+</div>
+
+<!-- ==================== TOOLS ==================== -->
+<div class="tab-content" id="tab-tools">
+  <h2 class="section-title">Tools Reference</h2>
+  <p class="section-subtitle">11 tools total: 7 LOW, 2 MEDIUM, 2 HIGH risk.</p>
+
+  <table class="data-table">
+    <thead><tr><th>Tool Name</th><th>Risk</th><th>Agent</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">get_live_events</code></td><td><span class="badge badge-low">LOW</span></td><td>Live Event</td><td>List scheduled, active, and completed live events</td></tr>
+      <tr><td><code class="inline">get_event_details</code></td><td><span class="badge badge-low">LOW</span></td><td>Live Event</td><td>Full details for a specific event with viewer stats</td></tr>
+      <tr><td><code class="inline">get_viewer_count</code></td><td><span class="badge badge-low">LOW</span></td><td>Live Event</td><td>Real-time concurrent viewer count for an event</td></tr>
+      <tr><td><code class="inline">predict_viewers</code></td><td><span class="badge badge-low">LOW</span></td><td>Live Event</td><td>Predict peak concurrent viewers for upcoming event</td></tr>
+      <tr><td><code class="inline">update_event_status</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Live Event</td><td>Change event lifecycle status (scheduled/live/ended)</td></tr>
+      <tr><td><code class="inline">trigger_pre_scale</code></td><td><span class="badge badge-high">HIGH</span></td><td>Live Event</td><td>Initiate pre-scaling infrastructure for event (approval required)</td></tr>
+      <tr><td><code class="inline">get_sport_data</code></td><td><span class="badge badge-low">LOW</span></td><td>External</td><td>Fetch cached SportRadar data for a match</td></tr>
+      <tr><td><code class="inline">get_drm_health</code></td><td><span class="badge badge-low">LOW</span></td><td>External</td><td>Current DRM license server health status</td></tr>
+      <tr><td><code class="inline">get_epg_schedule</code></td><td><span class="badge badge-low">LOW</span></td><td>External</td><td>Fetch EPG schedule for a channel</td></tr>
+      <tr><td><code class="inline">refresh_external_cache</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>External</td><td>Force-refresh cache for a specific external source</td></tr>
+      <tr><td><code class="inline">override_drm_fallback</code></td><td><span class="badge badge-high">HIGH</span></td><td>External</td><td>Switch to fallback DRM provider (approval required)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== API ==================== -->
+<div class="tab-content" id="tab-api">
+  <h2 class="section-title">API Endpoints</h2>
+  <p class="section-subtitle">Router prefix: <code class="inline">/live</code> &mdash; 7 REST endpoints + 1 WebSocket.</p>
+
+  <div class="accordion">
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/live/events</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>List all live events with filtering by status (scheduled, live, completed).</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">status</code>, <code class="inline">date_from</code>, <code class="inline">date_to</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/live/events/{id}</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Get full event details including viewer prediction, actual viewers, and scaling status.</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/live/events</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Create a new live event with schedule, type, and expected viewers.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ tenant_id, title, event_type, start_time, expected_viewers, sport_match_id }</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/live/external/sport/{match_id}</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Get cached SportRadar data for a specific match. Returns live scores and events.</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/live/external/drm/health</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Current DRM license server health: latency, error rate, active provider.</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/live/events/{id}/pre-scale</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Manually trigger pre-scaling for an event. Requires admin approval.</p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/live/external/drm/fallback</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Override DRM to fallback provider for a duration. Requires admin approval.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ duration_minutes, reason }</code></p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-ws">WS</span> <code class="inline">/live/ws/events</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Real-time WebSocket stream of live event updates, viewer counts, and external data changes.</p>
+        <p style="margin-top:8px;"><strong>Events:</strong> <code class="inline">viewer_count_update</code>, <code class="inline">event_status_change</code>, <code class="inline">external_data_refresh</code></p>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CROSS-APP ==================== -->
+<div class="tab-content" id="tab-crossapp">
+  <h2 class="section-title">Cross-App Events</h2>
+  <p class="section-subtitle">Event Bus integration for inter-app communication.</p>
+
+  <h3 style="margin:20px 0 12px;">OUTPUT Events (Published)</h3>
+  <div class="card">
+    <h4>live_event_starting</h4>
+    <p>Emitted T-30 minutes before a scheduled live event. Triggers pre-scaling in Capacity Agent and threshold adjustments in QoE Agent.</p>
+    <pre class="code-block">{
+  "event_type": "live_event_starting",
+  "event_id": "evt_derby_2026_03_28",
+  "title": "Galatasaray vs Fenerbahce",
+  "predicted_viewers": 185000,
+  "start_time": "2026-03-28T20:00:00Z",
+  "pre_scale_required": true
+}</pre>
+    <p style="margin-top:8px;"><strong>Consumers:</strong> Capacity &amp; Cost (pre-scale), Viewer Experience (threshold adjustment), Alert Center (monitoring mode)</p>
+  </div>
+
+  <div class="card">
+    <h4>external_data_updated</h4>
+    <p>Emitted when external data sources provide significant updates (score change, DRM issue, schedule change).</p>
+    <pre class="code-block">{
+  "event_type": "external_data_updated",
+  "source": "sportRadar",
+  "match_id": "sr_match_12345",
+  "update_type": "goal_scored",
+  "data": { "score": "2-1", "minute": 73 }
+}</pre>
+    <p style="margin-top:8px;"><strong>Consumers:</strong> Growth &amp; Retention (engagement correlation), OpsCenter (context enrichment)</p>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">INPUT Events (None)</h3>
+  <div class="info-box">
+    <strong>Note:</strong> Live Intelligence is primarily an event producer. It does not consume events from other apps &mdash; it is the source of truth for live event and external data state.
+  </div>
+</div>
+
+<!-- ==================== DATA ==================== -->
+<div class="tab-content" id="tab-data">
+  <h2 class="section-title">Data Model</h2>
+  <p class="section-subtitle">DuckDB analytics + SQLite platform tables for live events and external data.</p>
+
+  <div class="card">
+    <h4>live_events (SQLite: platform.db)</h4>
+    <pre class="code-block">CREATE TABLE live_events (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    title           VARCHAR NOT NULL,
+    event_type      VARCHAR NOT NULL,  -- football|basketball|concert|other
+    status          VARCHAR DEFAULT 'scheduled',  -- scheduled|pre_scale|live|completed
+    start_time      TIMESTAMP NOT NULL,
+    end_time        TIMESTAMP,
+    predicted_viewers   INTEGER,
+    peak_viewers        INTEGER,
+    sport_match_id      VARCHAR,
+    pre_scale_triggered BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMP NOT NULL
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>external_data_cache (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE external_data_cache (
+    id          VARCHAR PRIMARY KEY,
+    tenant_id   VARCHAR NOT NULL,
+    source      VARCHAR NOT NULL,  -- sportRadar|drm|epg
+    source_id   VARCHAR NOT NULL,
+    data_json   TEXT NOT NULL,
+    fetched_at  TIMESTAMP NOT NULL,
+    stale       BOOLEAN DEFAULT FALSE
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>viewer_counts (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE viewer_counts (
+    id          VARCHAR PRIMARY KEY,
+    tenant_id   VARCHAR NOT NULL,
+    event_id    VARCHAR NOT NULL,
+    concurrent  INTEGER NOT NULL,
+    region      VARCHAR,
+    recorded_at TIMESTAMP NOT NULL
+);</pre>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  var target = document.getElementById('tab-' + name);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    var attr = b.getAttribute('onclick');
+    if (attr && attr.indexOf("'" + name + "'") !== -1) b.classList.add('active');
+  });
+}
+function toggleSection(el) { el.classList.toggle('collapsed'); var c = el.nextElementSibling; if (c) c.classList.toggle('collapsed'); }
+function toggleFaq(btn) { btn.nextElementSibling.classList.toggle('open'); }
+function toggleAccordion(header) {
+  var body = header.nextElementSibling;
+  header.classList.toggle('open');
+  body.style.maxHeight = header.classList.contains('open') ? body.scrollHeight + 'px' : '0';
+}
+
+var searchInput = document.getElementById('globalSearch');
+var noResultMsg = document.getElementById('searchNoResult');
+var mainContent = document.querySelector('.main-content');
+
+function clearMarks() {
+  mainContent.querySelectorAll('mark.search-highlight').forEach(function(m) {
+    var p = m.parentNode; p.replaceChild(document.createTextNode(m.textContent), m); p.normalize();
+  });
+}
+function searchInTextNodes(node, term, results) {
+  if (node.nodeType === 3) {
+    var idx = node.textContent.toLowerCase().indexOf(term.toLowerCase());
+    if (idx >= 0) {
+      var span = document.createElement('mark'); span.className = 'search-highlight';
+      var after = node.splitText(idx); var matched = after.splitText(term.length);
+      span.appendChild(after.cloneNode(true)); after.parentNode.replaceChild(span, after);
+      results.push(span); searchInTextNodes(matched, term, results);
+    }
+  } else if (node.nodeType === 1 && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE' && !node.classList.contains('search-highlight')) {
+    Array.prototype.slice.call(node.childNodes).forEach(function(c) { searchInTextNodes(c, term, results); });
+  }
+}
+searchInput.addEventListener('keyup', function() {
+  clearMarks(); var term = searchInput.value.trim();
+  if (term.length < 2) { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; return; }
+  var results = []; searchInTextNodes(mainContent, term, results);
+  if (results.length === 0) { searchInput.classList.add('no-results'); noResultMsg.style.display = 'inline'; }
+  else { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; results[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+});
+</script>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || !data.type) return;
+  if (data.type === 'showTab') {
+    var tabId = data.tabId;
+    var btn = document.querySelector('[data-tab="' + tabId + '"]') ||
+              document.querySelector('.chip[onclick*="' + tabId + '"]');
+    if (btn) { btn.click(); }
+    else if (typeof switchTab === 'function') { switchTab(tabId); }
+    else if (typeof activateTab === 'function') { activateTab(tabId); }
+  }
+  if (data.type === 'scrollTo') {
+    var el = document.getElementById(data.sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+</script>
+</body>
+</html>

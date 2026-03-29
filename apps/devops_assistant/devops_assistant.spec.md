@@ -89,3 +89,9 @@ pytest apps/devops_assistant/tests/ -v --cov=apps/devops_assistant --cov-fail-un
 - Frontend: 3 tabs (Chat as default)
 - Tests: 36 passed, 0 failures
 - Status: ✅ Complete
+
+---
+## Sprint Progress — S-DI-04 (2026-03-28)
+### logs.duckdb Entegrasyonu
+- GET /devops/dashboard: infra_health (newrelic_apm_logs), api_health (api_logs_logs)
+- DuckDB OKUMA: logs.duckdb aaop_company schema (newrelic_apm_logs, api_logs_logs)

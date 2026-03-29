@@ -57,7 +57,12 @@ const NAV_GROUPS: NavGroup[] = [
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [kbExpanded, setKbExpanded] = useState(false);
   const pathname = usePathname();
+
+  // Auto-expand KB when on knowledge-base page
+  const isKbPage = pathname?.startsWith("/knowledge-base");
+  const kbOpen = isKbPage || kbExpanded;
   const width = collapsed ? "var(--sidebar-collapsed)" : "var(--sidebar-width)";
 
   return (
@@ -123,6 +128,42 @@ export default function Sidebar() {
             )}
             {group.items.map((item) => {
               const isActive = pathname === item.href;
+              const isKb = item.href === "/knowledge-base";
+
+              if (isKb && !collapsed) {
+                return (
+                  <div key={item.href}>
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 rounded text-sm transition-colors cursor-pointer"
+                      style={{
+                        backgroundColor: isActive ? "var(--brand-glow)" : "transparent",
+                        color: isActive ? "var(--brand-primary)" : "var(--text-secondary)",
+                        borderRadius: "var(--radius-sm)",
+                      }}
+                      onClick={() => setKbExpanded(!kbOpen)}
+                    >
+                      <span>{item.icon}</span>
+                      <span className="flex-1">{item.label}</span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{kbOpen ? "−" : "+"}</span>
+                    </div>
+                    <div style={{ maxHeight: kbOpen ? "100px" : "0", overflow: "hidden", transition: "max-height 0.2s ease" }}>
+                      <Link href="/knowledge-base?view=faq"
+                        className="flex items-center gap-2 ml-6 px-3 py-1.5 rounded text-xs transition-colors"
+                        style={{
+                          backgroundColor: isKbPage && (pathname + (typeof window !== "undefined" ? window.location.search : "")).includes("view=faq") ? "rgba(31,111,235,0.1)" : "transparent",
+                          color: "var(--text-muted)",
+                        }}>FAQ</Link>
+                      <Link href="/knowledge-base?view=documents"
+                        className="flex items-center gap-2 ml-6 px-3 py-1.5 rounded text-xs transition-colors"
+                        style={{
+                          backgroundColor: isKbPage && (typeof window !== "undefined" && window.location.search.includes("view=documents")) ? "rgba(31,111,235,0.1)" : "transparent",
+                          color: "var(--text-muted)",
+                        }}>Documents</Link>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={item.href}

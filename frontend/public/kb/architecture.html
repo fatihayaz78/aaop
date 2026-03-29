@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Architecture — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #7c3aed;
+  --low: #10b981;
+  --medium: #f59e0b;
+  --high: #ef4444;
+  --border: #1e2433;
+  --border2: #2a3244;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.header h1 span.icon { font-size: 1.3rem; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-bar .search-icon { color: var(--text2); font-size: 1.1rem; }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 32px 0; }
+.chip { padding: 4px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; font-size: 0.78rem; color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 120px); }
+
+.sidebar { display: none; width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; transition: color 0.2s; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 6px 20px 6px 28px; font-size: 0.85rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; cursor: pointer; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+.sidebar-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(56,189,248,0.08); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-link { display: block; padding: 5px 20px 5px 28px; font-size: 0.82rem; color: var(--text2); transition: all 0.15s; }
+.quick-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.85rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); transform: translateY(-1px); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.85rem; }
+.data-table th { text-align: left; padding: 10px 12px; background: var(--bg3); color: var(--text2); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+.data-table code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; color: var(--accent); }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 0.88rem; }
+.info-box .label { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.warning-box { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 0.88rem; }
+.warning-box .label { font-weight: 600; color: var(--medium); margin-bottom: 4px; }
+.danger-box { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 0.88rem; }
+.danger-box .label { font-weight: 600; color: var(--high); margin-bottom: 4px; }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; margin: 12px 0; color: var(--text2); }
+
+.section-title { font-size: 1.25rem; margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.section-title:first-child { margin-top: 0; }
+
+.flow-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0; padding: 12px; background: var(--bg3); border-radius: var(--radius); border: 1px solid var(--border); }
+.flow-step { padding: 8px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; background: rgba(56,189,248,0.12); color: var(--accent); border: 1px solid rgba(56,189,248,0.25); }
+.flow-arrow { color: var(--text2); font-size: 1.1rem; }
+.flow-step.highlight { background: rgba(124,58,237,0.15); color: var(--accent2); border-color: rgba(124,58,237,0.3); }
+
+.tree-block { font-size: 0.8rem; line-height: 1.65; color: var(--text2); }
+.tree-block .dir { color: var(--accent); font-weight: 500; }
+.tree-block .file { color: var(--text); }
+.tree-block .comment { color: var(--text2); opacity: 0.7; }
+
+.env-var { color: var(--medium); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">Navigation <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <a class="sidebar-link active" onclick="activateTab('tab-adr')">ADR Decisions</a>
+        <a class="sidebar-link" onclick="activateTab('tab-stack')">Tech Stack</a>
+        <a class="sidebar-link" onclick="activateTab('tab-folder')">Folder Structure</a>
+        <a class="sidebar-link" onclick="activateTab('tab-agent')">Agent Loop</a>
+        <a class="sidebar-link" onclick="activateTab('tab-eventbus')">Event Bus</a>
+        <a class="sidebar-link" onclick="activateTab('tab-gcp')">GCP Migration</a>
+        <a class="sidebar-link" onclick="activateTab('tab-security')">Security</a>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">FAQ <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Why LangGraph instead of LangChain?</button>
+          <div class="faq-a">LangGraph provides explicit state machine control over the agent loop, making it easier to implement the 4-step Plan-Act-Observe-Respond cycle with deterministic branching. LangChain's LCEL is less transparent for complex multi-step agent workflows.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How do agents communicate?</button>
+          <div class="faq-a">Via the Event Bus (<code>asyncio.Queue</code>). Agents publish events (e.g., <code>incident_created</code>) and subscribe to events they care about. There is no direct agent-to-agent RPC. This decouples agents and allows independent scaling.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What changes during GCP migration?</button>
+          <div class="faq-a">Only the <code>shared/clients/</code> adaptor layer changes. SQLite becomes Spanner, DuckDB becomes BigQuery, ChromaDB becomes Vertex AI Vector Search, Redis becomes Memorystore. Agent code, tools, and business logic remain untouched.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Why two separate DuckDB files?</button>
+          <div class="faq-a"><code>analytics.duckdb</code> holds cross-app analytical data (incidents, alerts, decisions). <code>logs.duckdb</code> holds raw parsed log data from CDN/origin sources. Separation prevents log volume from impacting analytics query performance.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Can I use Python 3.14?</button>
+          <div class="faq-a">No. Python 3.14 is explicitly prohibited. The project uses Python 3.12 exclusively. This is enforced in CI and documented in the project rules.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">Quick Links <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <a class="quick-link" href="index.html">Platform Overview</a>
+        <a class="quick-link" href="api_reference.html">API Reference</a>
+        <a class="quick-link" href="log_schemas.html">Log Schemas</a>
+        <a class="quick-link" href="ai_lab.html">AI Lab</a>
+        <a class="quick-link" href="devops_assistant.html">DevOps Assistant</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content" id="mainContent">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-adr">ADR's</button>
+      <button class="tab-btn" data-tab="tab-stack">Tech Stack</button>
+      <button class="tab-btn" data-tab="tab-folder">Folder Structure</button>
+      <button class="tab-btn" data-tab="tab-agent">Agent Loop</button>
+      <button class="tab-btn" data-tab="tab-eventbus">Event Bus</button>
+      <button class="tab-btn" data-tab="tab-gcp">GCP Migration</button>
+      <button class="tab-btn" data-tab="tab-security">Security</button>
+    </div>
+
+    <!-- =================== ADR TAB =================== -->
+    <div class="tab-content active" id="tab-adr">
+      <h2 class="section-title">Architecture Decision Records</h2>
+      <p style="color:var(--text2); margin-bottom:16px;">All major architecture decisions are documented below. Each ADR captures the context, decision, and consequences.</p>
+
+      <table class="data-table">
+        <thead><tr><th>ADR</th><th>Decision</th><th>Status</th><th>Rationale</th></tr></thead>
+        <tbody>
+          <tr><td><strong>ADR-001</strong></td><td>LangGraph for Agent Orchestration</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Explicit state machine control, deterministic 4-step loop, better than LCEL for multi-step agent workflows with branching and tool calls.</td></tr>
+          <tr><td><strong>ADR-002</strong></td><td>FastAPI as Backend Framework</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Async-first, Pydantic v2 integration, OpenAPI auto-docs, excellent performance. Python 3.12 type hints fully supported.</td></tr>
+          <tr><td><strong>ADR-003</strong></td><td>Next.js 14 for Frontend</td><td><span class="badge badge-low">ACCEPTED</span></td><td>App Router, React Server Components, TypeScript-first, Tailwind + shadcn/ui component ecosystem. SSR/SSG flexibility.</td></tr>
+          <tr><td><strong>ADR-004</strong></td><td>SQLite for Platform Metadata</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Zero-config, embedded, perfect for local dev. GCP migration path: swap to Spanner via adaptor pattern. Stores users, tenants, config.</td></tr>
+          <tr><td><strong>ADR-005</strong></td><td>DuckDB for Analytics</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Columnar OLAP engine, excellent for time-series aggregations. Embedded, no server needed. File: <code>analytics.duckdb</code>. GCP: BigQuery.</td></tr>
+          <tr><td><strong>ADR-006</strong></td><td>ChromaDB for Vector Storage</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Simple embedding storage and similarity search. Local persistent mode. Used for runbooks, knowledge base, prompt templates. GCP: Vertex AI Vector Search.</td></tr>
+          <tr><td><strong>ADR-007</strong></td><td>Redis for Caching &amp; Real-time</td><td><span class="badge badge-low">ACCEPTED</span></td><td>In-memory cache for active sessions, health status, rate limiting. Pub/Sub for WebSocket fan-out. GCP: Memorystore.</td></tr>
+          <tr><td><strong>ADR-008</strong></td><td>asyncio.Queue Event Bus</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Lightweight in-process event bus for inter-agent communication. 9 event types. No external dependency. GCP: could upgrade to Pub/Sub if needed.</td></tr>
+          <tr><td><strong>ADR-009</strong></td><td>Anthropic Claude as LLM Provider</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Three tiers: Haiku (batch/cheap), Sonnet (default agent), Opus (P0/P1 critical). LLM Gateway handles routing, retry, caching, cost tracking.</td></tr>
+          <tr><td><strong>ADR-010</strong></td><td>Adaptor Pattern for DB Clients</td><td><span class="badge badge-low">ACCEPTED</span></td><td>All DB access through <code>shared/clients/</code> adaptors. Agent code never imports DB drivers directly. Enables GCP migration by swapping only the adaptor layer.</td></tr>
+          <tr><td><strong>ADR-011</strong></td><td>Separate logs.duckdb for Raw Logs</td><td><span class="badge badge-low">ACCEPTED</span></td><td>Raw parsed CDN/origin logs in dedicated DuckDB file. Prevents log volume (millions of rows) from impacting <code>analytics.duckdb</code> query performance.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== TECH STACK TAB =================== -->
+    <div class="tab-content" id="tab-stack">
+      <h2 class="section-title">Technology Stack</h2>
+
+      <div class="card">
+        <h3>Backend</h3>
+        <table class="data-table">
+          <thead><tr><th>Technology</th><th>Version</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>Python</td><td>3.12</td><td>Primary language (3.14 PROHIBITED)</td></tr>
+            <tr><td>FastAPI</td><td>latest</td><td>REST API framework, async-first</td></tr>
+            <tr><td>Pydantic</td><td>v2</td><td>Data validation, settings, schemas</td></tr>
+            <tr><td>JWT (PyJWT)</td><td>latest</td><td>Authentication tokens (login/refresh/logout)</td></tr>
+            <tr><td>structlog</td><td>latest</td><td>Structured logging (print() PROHIBITED)</td></tr>
+            <tr><td>uvicorn</td><td>latest</td><td>ASGI server, --reload for dev</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Frontend</h3>
+        <table class="data-table">
+          <thead><tr><th>Technology</th><th>Version</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>Next.js</td><td>14</td><td>React framework, App Router, SSR/SSG</td></tr>
+            <tr><td>TypeScript</td><td>latest</td><td>Type safety throughout frontend</td></tr>
+            <tr><td>Tailwind CSS</td><td>latest</td><td>Utility-first styling, design tokens via CSS vars</td></tr>
+            <tr><td>shadcn/ui</td><td>latest</td><td>Accessible UI components (Radix primitives)</td></tr>
+            <tr><td>Recharts</td><td>latest</td><td>Chart components for dashboards</td></tr>
+            <tr><td>Socket.IO Client</td><td>latest</td><td>WebSocket connection for real-time updates</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>AI / Agent Layer</h3>
+        <table class="data-table">
+          <thead><tr><th>Technology</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>LangGraph</td><td>Agent orchestration: 4-step state machine (Plan-Act-Observe-Respond)</td></tr>
+            <tr><td>BaseAgent</td><td>Abstract base class in <code>shared/agents/base_agent.py</code>, all 11 app agents extend this</td></tr>
+            <tr><td>LLM Gateway</td><td><code>shared/llm_gateway.py</code> — model routing (Haiku/Sonnet/Opus), retry, cache, cost tracking</td></tr>
+            <tr><td>Anthropic Claude</td><td>Haiku (batch), Sonnet (default), Opus (P0/P1 only)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Data Layer</h3>
+        <table class="data-table">
+          <thead><tr><th>Technology</th><th>File/Location</th><th>Purpose</th><th>GCP Equivalent</th></tr></thead>
+          <tbody>
+            <tr><td>SQLite</td><td><code>data/sqlite/platform.db</code></td><td>Platform metadata, users, tenants, config</td><td>Spanner</td></tr>
+            <tr><td>DuckDB</td><td><code>data/duckdb/analytics.duckdb</code></td><td>Cross-app analytics, incidents, decisions</td><td>BigQuery</td></tr>
+            <tr><td>DuckDB</td><td><code>data/duckdb/logs.duckdb</code></td><td>Raw parsed CDN/origin log data</td><td>BigQuery</td></tr>
+            <tr><td>ChromaDB</td><td><code>data/chromadb/</code></td><td>Vector embeddings for runbooks, knowledge base</td><td>Vertex AI Vector Search</td></tr>
+            <tr><td>Redis</td><td>localhost:6379</td><td>Cache, sessions, real-time pub/sub</td><td>Memorystore</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Log Analyzer Specific</h3>
+        <table class="data-table">
+          <thead><tr><th>Technology</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>boto3</td><td>AWS S3 access for fetching raw CDN logs</td></tr>
+            <tr><td>APScheduler</td><td>Scheduled log fetch every 6 hours</td></tr>
+            <tr><td>watchdog</td><td>File system watcher for new log files</td></tr>
+            <tr><td>Plotly</td><td>21 chart types for log analysis reports</td></tr>
+            <tr><td>kaleido</td><td>v0.2.1 ONLY (1.x PROHIBITED) — Plotly static image export</td></tr>
+            <tr><td>python-docx</td><td>DOCX report generation</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Dev Tools</h3>
+        <table class="data-table">
+          <thead><tr><th>Tool</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>pytest</td><td>Test framework, coverage target &ge; 80%</td></tr>
+            <tr><td>ruff</td><td>Linter + formatter (replaces black, isort, flake8)</td></tr>
+            <tr><td>mypy</td><td>Static type checking</td></tr>
+            <tr><td>Poetry</td><td>Dependency management via pyproject.toml</td></tr>
+            <tr><td>pre-commit</td><td>Git hooks: ruff + mypy + pytest on commit</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- =================== FOLDER STRUCTURE TAB =================== -->
+    <div class="tab-content" id="tab-folder">
+      <h2 class="section-title">Complete Folder Structure</h2>
+      <div class="card">
+<pre class="code-block tree-block">AAOP/
+<span class="dir">├── CLAUDE.md</span>                        <span class="comment">← Navigation index</span>
+<span class="dir">├── ARCHITECTURE.md</span>                  <span class="comment">← Architecture decisions, stack, adaptor pattern</span>
+<span class="dir">├── UI_SYSTEM.md</span>                     <span class="comment">← Design system, component rules</span>
+<span class="dir">├── API_CONTRACTS.md</span>                 <span class="comment">← All endpoint contracts</span>
+<span class="dir">├── CHANGELOG.md</span>                     <span class="comment">← Version history</span>
+<span class="file">├── pyproject.toml</span>                   <span class="comment">← Poetry + ruff + mypy + pytest config</span>
+<span class="file">├── .env</span>                             <span class="comment">← Real values (in .gitignore)</span>
+<span class="file">├── .env.example</span>                     <span class="comment">← Key list (no values)</span>
+│
+<span class="dir">├── docs/</span>
+│   ├── SPRINT_PLAN.md               <span class="comment">← Sprint management (S01–S09)</span>
+│   └── DATA_FLOW.md                 <span class="comment">← Cross-app data architecture</span>
+│
+<span class="dir">├── backend/</span>                         <span class="comment">← FastAPI application (port 8000)</span>
+│   ├── main.py                      <span class="comment">← App, router mount, startup events</span>
+│   ├── auth.py                      <span class="comment">← JWT login/refresh/logout</span>
+│   ├── dependencies.py              <span class="comment">← DI: DB sessions, tenant context</span>
+│   ├── routers/
+│   │   ├── ops_center.py            <span class="comment">← /ops prefix</span>
+│   │   ├── log_analyzer.py          <span class="comment">← /log-analyzer prefix</span>
+│   │   ├── alert_center.py          <span class="comment">← /alerts prefix</span>
+│   │   ├── viewer_experience.py     <span class="comment">← /viewer prefix</span>
+│   │   ├── live_intelligence.py     <span class="comment">← /live prefix</span>
+│   │   ├── growth_retention.py      <span class="comment">← /growth prefix</span>
+│   │   ├── capacity_cost.py         <span class="comment">← /capacity prefix</span>
+│   │   ├── ai_lab.py                <span class="comment">← /ai-lab prefix</span>
+│   │   ├── knowledge_base.py        <span class="comment">← /knowledge prefix</span>
+│   │   ├── devops_assistant.py      <span class="comment">← /devops prefix</span>
+│   │   └── admin_governance.py      <span class="comment">← /admin prefix</span>
+│   ├── websocket/
+│   │   └── manager.py               <span class="comment">← Socket.IO broadcast manager</span>
+│   └── middleware/
+│       ├── rate_limit.py
+│       └── tenant_context.py        <span class="comment">← X-Tenant-ID header inject</span>
+│
+<span class="dir">├── frontend/</span>                        <span class="comment">← Next.js 14 (port 3000)</span>
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.ts
+│   ├── next.config.ts
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx            <span class="comment">← Root layout (sidebar, dark mode)</span>
+│       │   ├── page.tsx              <span class="comment">← Dashboard</span>
+│       │   ├── globals.css           <span class="comment">← Design tokens (CSS vars)</span>
+│       │   └── (apps)/              <span class="comment">← 11 app pages</span>
+│       ├── components/
+│       │   ├── ui/                   <span class="comment">← shadcn/ui components</span>
+│       │   ├── layout/               <span class="comment">← Sidebar, Header, Breadcrumb</span>
+│       │   ├── charts/               <span class="comment">← Recharts wrappers</span>
+│       │   └── agent-chat/           <span class="comment">← AI chat panel (collapsible)</span>
+│       ├── lib/
+│       │   ├── api.ts                <span class="comment">← fetch wrappers → FastAPI</span>
+│       │   ├── trpc.ts               <span class="comment">← tRPC client</span>
+│       │   └── socket.ts             <span class="comment">← Socket.IO client</span>
+│       └── types/
+│           └── index.ts              <span class="comment">← Shared TypeScript types</span>
+│
+<span class="dir">├── apps/</span>                            <span class="comment">← 11 app agent implementations</span>
+│   ├── ops_center/                  <span class="comment">← M01 Incident + M06 RCA</span>
+│   ├── log_analyzer/                <span class="comment">← M07 + Akamai/Medianova sub-modules</span>
+│   ├── alert_center/                <span class="comment">← M13 Alert Router</span>
+│   ├── viewer_experience/           <span class="comment">← M02 QoE + M09 Complaint</span>
+│   ├── live_intelligence/           <span class="comment">← M05 Live Event + M11 External</span>
+│   ├── growth_retention/            <span class="comment">← M18 Growth + M03 Data Analyst</span>
+│   ├── capacity_cost/               <span class="comment">← M16 Capacity + M04 Automation</span>
+│   ├── admin_governance/            <span class="comment">← M12 Tenant + M17 Compliance</span>
+│   ├── ai_lab/                      <span class="comment">← M10 Experiment + M14 ML Gov</span>
+│   ├── knowledge_base/              <span class="comment">← M15 Knowledge Base</span>
+│   ├── devops_assistant/            <span class="comment">← M08 DevOps Assistant</span>
+│   └── mock_data_gen/               <span class="comment">← Mock Data Generator</span>
+│
+<span class="dir">├── shared/</span>                          <span class="comment">← Common libraries</span>
+│   ├── agents/
+│   │   └── base_agent.py            <span class="comment">← BaseAgent, LangGraph 4-step</span>
+│   ├── llm_gateway.py               <span class="comment">← Routing + retry + cache + cost</span>
+│   ├── event_bus.py                 <span class="comment">← asyncio.Queue, 9 event types</span>
+│   ├── clients/
+│   │   ├── sqlite_client.py         <span class="comment">← → GCP: Spanner adaptor</span>
+│   │   ├── duckdb_client.py         <span class="comment">← → GCP: BigQuery adaptor</span>
+│   │   ├── chroma_client.py         <span class="comment">← → GCP: Vertex AI VS adaptor</span>
+│   │   └── redis_client.py          <span class="comment">← redis.asyncio wrapper</span>
+│   ├── schemas/
+│   │   ├── base_event.py            <span class="comment">← BaseEvent, SeverityLevel, RiskLevel</span>
+│   │   └── agent_decision.py        <span class="comment">← AgentDecision (DuckDB shared)</span>
+│   └── utils/
+│       ├── settings.py              <span class="comment">← Pydantic BaseSettings, .env</span>
+│       └── pii_scrubber.py          <span class="comment">← LLM pre-processing PII removal</span>
+│
+<span class="dir">├── data/</span>                            <span class="comment">← Local data (in .gitignore)</span>
+│   ├── sqlite/platform.db
+│   ├── duckdb/analytics.duckdb
+│   ├── chromadb/
+│   ├── logs/                        <span class="comment">← S3-fetched log cache</span>
+│   └── reports/{tenant_id}/         <span class="comment">← Generated DOCX reports</span>
+│
+<span class="dir">└── tests/</span>
+    ├── conftest.py                  <span class="comment">← Shared fixtures</span>
+    ├── unit/
+    └── integration/scenarios/       <span class="comment">← normal_weekday, match_day_derby, drm_outage, cdn_spike</span></pre>
+      </div>
+    </div>
+
+    <!-- =================== AGENT LOOP TAB =================== -->
+    <div class="tab-content" id="tab-agent">
+      <h2 class="section-title">Agent 4-Step Loop</h2>
+
+      <div class="card">
+        <h3>BaseAgent LangGraph State Machine</h3>
+        <p>Every agent in AAOP extends <code>BaseAgent</code> from <code>shared/agents/base_agent.py</code>. The LangGraph state machine implements a consistent 4-step loop:</p>
+        <div class="flow-row" style="justify-content: center;">
+          <div class="flow-step" style="min-width:160px; text-align:center;">
+            <div style="font-size:1.1rem; margin-bottom:4px;">1. PLAN</div>
+            <div style="font-size:0.72rem; font-weight:400; opacity:0.8;">Parse intent<br>Select tools<br>Determine strategy</div>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight" style="min-width:160px; text-align:center;">
+            <div style="font-size:1.1rem; margin-bottom:4px;">2. ACT</div>
+            <div style="font-size:0.72rem; font-weight:400; opacity:0.8;">Execute tools<br>Check risk level<br>Await approval if HIGH</div>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step" style="min-width:160px; text-align:center;">
+            <div style="font-size:1.1rem; margin-bottom:4px;">3. OBSERVE</div>
+            <div style="font-size:0.72rem; font-weight:400; opacity:0.8;">Aggregate results<br>Cross-reference data<br>Detect anomalies</div>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight" style="min-width:160px; text-align:center;">
+            <div style="font-size:1.1rem; margin-bottom:4px;">4. RESPOND</div>
+            <div style="font-size:0.72rem; font-weight:400; opacity:0.8;">Format output<br>Emit events<br>Store decision</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Step Details</h3>
+        <table class="data-table">
+          <thead><tr><th>Step</th><th>Input</th><th>Processing</th><th>Output</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Plan</strong></td>
+              <td>User message + conversation history + system prompt</td>
+              <td>LLM analyzes intent, selects relevant tools, creates execution plan. Multi-tool plans are parallelized where possible.</td>
+              <td>Tool call list with parameters</td>
+            </tr>
+            <tr>
+              <td><strong>2. Act</strong></td>
+              <td>Tool call list from Plan step</td>
+              <td>Tools executed sequentially or in parallel. Each tool checks <code>risk_level</code>. HIGH risk tools pause for human approval. All tool calls logged with tenant_id.</td>
+              <td>Tool results (success/error)</td>
+            </tr>
+            <tr>
+              <td><strong>3. Observe</strong></td>
+              <td>Tool results + original context</td>
+              <td>LLM synthesizes tool outputs, cross-references with platform state, identifies patterns or anomalies. May trigger additional tool calls (loop back to Act).</td>
+              <td>Synthesized analysis</td>
+            </tr>
+            <tr>
+              <td><strong>4. Respond</strong></td>
+              <td>Synthesized analysis</td>
+              <td>Format response for the user. Emit relevant events to Event Bus. Store <code>AgentDecision</code> record in DuckDB for audit trail.</td>
+              <td>User-facing response + side effects</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>LLM Gateway Routing</h3>
+        <table class="data-table">
+          <thead><tr><th>Model</th><th>When Used</th><th>Latency Target</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-low">Haiku</span></td><td>Batch operations, classification, embedding generation</td><td>&lt; 500ms</td></tr>
+            <tr><td><span class="badge badge-accent">Sonnet</span></td><td>Default agent responses, tool selection, analysis</td><td>&lt; 2s</td></tr>
+            <tr><td><span class="badge badge-purple">Opus</span></td><td>P0/P1 critical decisions ONLY (incidents, production changes)</td><td>&lt; 5s</td></tr>
+          </tbody>
+        </table>
+        <div class="info-box" style="margin-top:12px;">
+          <div class="label">Gateway Features</div>
+          Retry with exponential backoff (3 attempts), response caching (Redis, TTL: 5min for identical queries), cost tracking per tenant/model, rate limiting per tenant.
+        </div>
+      </div>
+    </div>
+
+    <!-- =================== EVENT BUS TAB =================== -->
+    <div class="tab-content" id="tab-eventbus">
+      <h2 class="section-title">Event Bus</h2>
+
+      <div class="card">
+        <h3>Architecture</h3>
+        <p>The Event Bus uses <code>asyncio.Queue</code> for in-process, async pub/sub communication between agents. Located at <code>shared/event_bus.py</code>. No external dependencies.</p>
+        <div class="flow-row" style="justify-content:center;">
+          <div class="flow-step">Publisher Agent</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Event Bus (asyncio.Queue)</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Subscriber Agent(s)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>All 9 Event Types</h3>
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Publisher</th><th>Subscriber(s)</th><th>Trigger</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>incident_created</code></td>
+              <td>Ops Center</td>
+              <td>Alert Center, DevOps, Live Intel</td>
+              <td>New incident opened (auto or manual)</td>
+            </tr>
+            <tr>
+              <td><code>incident_resolved</code></td>
+              <td>Ops Center</td>
+              <td>Alert Center, Knowledge Base</td>
+              <td>Incident status changed to resolved</td>
+            </tr>
+            <tr>
+              <td><code>alert_fired</code></td>
+              <td>Alert Center</td>
+              <td>Ops Center, DevOps, Live Intel</td>
+              <td>Alert threshold breached</td>
+            </tr>
+            <tr>
+              <td><code>anomaly_detected</code></td>
+              <td>Log Analyzer</td>
+              <td>Alert Center, Ops Center</td>
+              <td>Log anomaly detection pipeline triggers</td>
+            </tr>
+            <tr>
+              <td><code>qoe_degraded</code></td>
+              <td>Viewer Experience</td>
+              <td>Ops Center, Alert Center</td>
+              <td>QoE score drops below threshold</td>
+            </tr>
+            <tr>
+              <td><code>live_event_started</code></td>
+              <td>Live Intelligence</td>
+              <td>Capacity Cost, Alert Center</td>
+              <td>Scheduled live event begins</td>
+            </tr>
+            <tr>
+              <td><code>capacity_warning</code></td>
+              <td>Capacity Cost</td>
+              <td>Ops Center, Alert Center, DevOps</td>
+              <td>Resource utilization exceeds threshold</td>
+            </tr>
+            <tr>
+              <td><code>experiment_completed</code></td>
+              <td>AI Lab</td>
+              <td>Knowledge Base</td>
+              <td>A/B experiment reaches statistical significance</td>
+            </tr>
+            <tr>
+              <td><code>model_drift_detected</code></td>
+              <td>AI Lab</td>
+              <td>Alert Center, Ops Center</td>
+              <td>Model drift above threshold in governance check</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Event Schema (BaseEvent)</h3>
+<pre class="code-block">class BaseEvent(BaseModel):
+    event_id: str = Field(default_factory=lambda: str(uuid4()))
+    event_type: str              # One of the 9 event types
+    tenant_id: str               # Required: multi-tenant isolation
+    severity: SeverityLevel      # INFO | WARNING | ERROR | CRITICAL
+    source_app: str              # Publisher app name
+    payload: dict                # Event-specific data
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    correlation_id: str | None   # For event chain tracking</pre>
+      </div>
+    </div>
+
+    <!-- =================== GCP MIGRATION TAB =================== -->
+    <div class="tab-content" id="tab-gcp">
+      <h2 class="section-title">GCP Migration Path</h2>
+
+      <div class="info-box">
+        <div class="label">Key Principle: Agent Code Never Changes</div>
+        The Adaptor Pattern (ADR-010) ensures that migrating to GCP only requires swapping the <code>shared/clients/</code> layer. All agent code, tools, business logic, and API endpoints remain identical.
+      </div>
+
+      <div class="card">
+        <h3>Migration Table</h3>
+        <table class="data-table">
+          <thead><tr><th>Local</th><th>GCP Equivalent</th><th>Adaptor File</th><th>Migration Effort</th></tr></thead>
+          <tbody>
+            <tr><td>SQLite (<code>platform.db</code>)</td><td>Cloud Spanner</td><td><code>shared/clients/sqlite_client.py</code></td><td><span class="badge badge-medium">MEDIUM</span></td></tr>
+            <tr><td>DuckDB (<code>analytics.duckdb</code>)</td><td>BigQuery</td><td><code>shared/clients/duckdb_client.py</code></td><td><span class="badge badge-medium">MEDIUM</span></td></tr>
+            <tr><td>DuckDB (<code>logs.duckdb</code>)</td><td>BigQuery (separate dataset)</td><td><code>shared/clients/duckdb_client.py</code></td><td><span class="badge badge-medium">MEDIUM</span></td></tr>
+            <tr><td>ChromaDB</td><td>Vertex AI Vector Search</td><td><code>shared/clients/chroma_client.py</code></td><td><span class="badge badge-high">HIGH</span></td></tr>
+            <tr><td>Redis</td><td>Memorystore for Redis</td><td><code>shared/clients/redis_client.py</code></td><td><span class="badge badge-low">LOW</span></td></tr>
+            <tr><td>Local file storage</td><td>Cloud Storage (GCS)</td><td>New adaptor needed</td><td><span class="badge badge-medium">MEDIUM</span></td></tr>
+            <tr><td>.env secrets</td><td>GCP Secret Manager</td><td><code>shared/utils/settings.py</code></td><td><span class="badge badge-low">LOW</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Migration Steps</h3>
+        <ol style="margin:8px 0 0 20px; color:var(--text2); font-size:0.88rem;">
+          <li>Create GCP project and enable required APIs (Spanner, BigQuery, Vertex AI, Memorystore, Secret Manager)</li>
+          <li>Implement new adaptor classes that conform to the same interface as local clients</li>
+          <li>Update <code>shared/utils/settings.py</code> to detect environment (local vs GCP) and load appropriate client</li>
+          <li>Run data migration scripts to move existing data to GCP services</li>
+          <li>Update CI/CD pipeline for GCP deployment (Cloud Run or GKE)</li>
+          <li>Run full test suite against GCP backends to verify parity</li>
+          <li>Gradual traffic migration with rollback capability</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- =================== SECURITY TAB =================== -->
+    <div class="tab-content" id="tab-security">
+      <h2 class="section-title">Security</h2>
+
+      <div class="card">
+        <h3>Environment Variables (.env)</h3>
+        <table class="data-table">
+          <thead><tr><th>Variable</th><th>Purpose</th><th>Secret?</th></tr></thead>
+          <tbody>
+            <tr><td><code class="env-var">ANTHROPIC_API_KEY</code></td><td>Claude API authentication</td><td><span class="badge badge-high">YES</span></td></tr>
+            <tr><td><code class="env-var">JWT_SECRET</code></td><td>JWT token signing key</td><td><span class="badge badge-high">YES</span></td></tr>
+            <tr><td><code class="env-var">REDIS_URL</code></td><td>Redis connection string</td><td><span class="badge badge-medium">PARTIAL</span></td></tr>
+            <tr><td><code class="env-var">AWS_ACCESS_KEY_ID</code></td><td>S3 access for log fetching</td><td><span class="badge badge-high">YES</span></td></tr>
+            <tr><td><code class="env-var">AWS_SECRET_ACCESS_KEY</code></td><td>S3 secret key</td><td><span class="badge badge-high">YES</span></td></tr>
+            <tr><td><code class="env-var">S3_BUCKET_NAME</code></td><td>CDN log bucket name</td><td>No</td></tr>
+            <tr><td><code class="env-var">DATABASE_URL</code></td><td>SQLite connection path</td><td>No</td></tr>
+            <tr><td><code class="env-var">DUCKDB_PATH</code></td><td>DuckDB file path</td><td>No</td></tr>
+            <tr><td><code class="env-var">LOG_LEVEL</code></td><td>structlog level (DEBUG/INFO/WARNING)</td><td>No</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>PII Scrubber</h3>
+        <p>Located at <code>shared/utils/pii_scrubber.py</code>. Runs before any data is sent to the LLM Gateway. Detects and redacts:</p>
+        <ul style="margin:8px 0 0 20px; color:var(--text2); font-size:0.88rem;">
+          <li>Email addresses &rarr; <code>[EMAIL_REDACTED]</code></li>
+          <li>Phone numbers &rarr; <code>[PHONE_REDACTED]</code></li>
+          <li>IP addresses &rarr; <code>[IP_REDACTED]</code></li>
+          <li>Credit card numbers &rarr; <code>[CC_REDACTED]</code></li>
+          <li>Turkish national ID (TCKN) &rarr; <code>[TCKN_REDACTED]</code></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Authentication &amp; Authorization</h3>
+        <ul style="margin:8px 0 0 20px; color:var(--text2); font-size:0.88rem;">
+          <li>JWT-based authentication (PyJWT)</li>
+          <li>Access token (15min) + Refresh token (7d)</li>
+          <li>All API endpoints require valid JWT (except <code>/health</code>, <code>/auth/login</code>)</li>
+          <li><code>X-Tenant-ID</code> header required for all data-access endpoints</li>
+          <li>Rate limiting via Redis (configurable per tenant)</li>
+        </ul>
+      </div>
+
+      <div class="danger-box">
+        <div class="label">Red Lines (9 Rules)</div>
+        <ol style="margin:8px 0 0 20px; font-size:0.85rem;">
+          <li><strong>No <code>print()</code></strong> &mdash; use <code>structlog</code> exclusively</li>
+          <li><strong>No Python 3.14</strong> &mdash; project is locked to 3.12</li>
+          <li><strong>No kaleido 1.x</strong> &mdash; must use kaleido==0.2.1</li>
+          <li><strong>No direct DB access in agents</strong> &mdash; always through <code>shared/clients/</code></li>
+          <li><strong>No tool calls without <code>tenant_id</code></strong> &mdash; multi-tenant isolation is mandatory</li>
+          <li><strong>No secrets in code</strong> &mdash; all secrets via <code>.env</code> (local) or Secret Manager (prod)</li>
+          <li><strong>No HIGH risk tools without approval</strong> &mdash; <code>approval_required=True</code></li>
+          <li><strong>No LLM calls without PII scrubbing</strong> &mdash; pii_scrubber must run first</li>
+          <li><strong>No agent-to-agent direct RPC</strong> &mdash; communicate via Event Bus only</li>
+        </ol>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+function activateTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const content = document.getElementById(tabId);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+}
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+  const content = el.nextElementSibling;
+  if (content) content.classList.toggle('collapsed');
+}
+
+function toggleFaq(el) {
+  const answer = el.nextElementSibling;
+  answer.classList.toggle('open');
+}
+
+const searchInput = document.getElementById('searchInput');
+const mainContent = document.getElementById('mainContent');
+const noResult = document.getElementById('noResult');
+
+searchInput.addEventListener('input', function() {
+  const query = this.value.trim().toLowerCase();
+  clearMarks();
+  noResult.style.display = 'none';
+  searchInput.classList.remove('no-results');
+  if (query.length < 2) return;
+
+  let found = false;
+  const walker = document.createTreeWalker(mainContent, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(node => {
+    const text = node.textContent;
+    const idx = text.toLowerCase().indexOf(query);
+    if (idx === -1) return;
+    found = true;
+    const span = document.createElement('span');
+    span.appendChild(document.createTextNode(text.substring(0, idx)));
+    const mark = document.createElement('mark');
+    mark.textContent = text.substring(idx, idx + query.length);
+    span.appendChild(mark);
+    span.appendChild(document.createTextNode(text.substring(idx + query.length)));
+    node.parentNode.replaceChild(span, node);
+  });
+
+  if (!found) {
+    searchInput.classList.add('no-results');
+    noResult.style.display = 'inline';
+  } else {
+    const firstMark = mainContent.querySelector('mark');
+    if (firstMark) {
+      const tabContent = firstMark.closest('.tab-content');
+      if (tabContent && !tabContent.classList.contains('active')) activateTab(tabContent.id);
+      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+});
+
+function clearMarks() {
+  mainContent.querySelectorAll('mark').forEach(mark => {
+    const parent = mark.parentNode;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  });
+  mainContent.querySelectorAll('span:not([class]):not([id])').forEach(span => {
+    if (!span.className && !span.id) {
+      const frag = document.createDocumentFragment();
+      while (span.firstChild) frag.appendChild(span.firstChild);
+      if (span.parentNode) span.parentNode.replaceChild(frag, span);
+    }
+  });
+}
+</script>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || !data.type) return;
+  if (data.type === 'showTab') {
+    var tabId = data.tabId;
+    var btn = document.querySelector('[data-tab="' + tabId + '"]') ||
+              document.querySelector('.chip[onclick*="' + tabId + '"]');
+    if (btn) { btn.click(); }
+    else if (typeof switchTab === 'function') { switchTab(tabId); }
+    else if (typeof activateTab === 'function') { activateTab(tabId); }
+  }
+  if (data.type === 'scrollTo') {
+    var el = document.getElementById(data.sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+</script>
+</body>
+</html>

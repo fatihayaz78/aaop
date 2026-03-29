@@ -149,3 +149,9 @@ Senaryolar: QoE anomaly (buffering>5% → event) | Complaint NLP | MATCH_DAY (y�
 - Frontend: 6 tabs
 - Tests: 52 passed, 0 failures
 - Status: ✅ Complete
+
+---
+## Sprint Progress — S-DI-04 (2026-03-28)
+### logs.duckdb Entegrasyonu
+- GET /viewer/dashboard: qoe_live (player_events_logs), app_reviews (app_reviews_logs)
+- DuckDB OKUMA: logs.duckdb aaop_company schema (player_events_logs, npaw_analytics_logs, app_reviews_logs)

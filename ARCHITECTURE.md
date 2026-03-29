@@ -38,7 +38,7 @@ Socket.IO Client    WebSocket real-time
 ```
 FastAPI             Python 3.12, port 8000, async
 tRPC               type-safe backend↔frontend köprüsü
-Socket.IO           WebSocket (python-socketio)
+Socket.IO           WebSocket (python-socketio) ⚠️ tanımlı ama mount edilmemiş — S-WS-01'de
 Pydantic v2         tüm request/response modelleri
 JWT                 python-jose, HS256
 python-multipart    dosya upload (log dosyaları)
@@ -296,6 +296,8 @@ class BaseAgent:
         # Event Bus'a sonuç yayınla (ilgili event type ile)
 ```
 
+> ⚠️ **Mevcut Durum (Mart 2026):** BaseAgent class tanımlı ancak LangGraph StateGraph henüz implement edilmemiş. Tüm app'lerde agent.py stub halinde. Implementation: S-AGENT-01 sprint'inde yapılacak.
+
 ---
 
 ## 5. LOKAL → GCP GEÇİŞ HARİTASI (Adaptor Pattern)
@@ -328,6 +330,8 @@ class BaseAgent:
 | `analysis_complete` | log_analyzer | growth_retention, viewer_experience |
 
 > Detaylı şemalar ve DuckDB tablo yapısı: `docs/DATA_FLOW.md`
+
+> ⚠️ **Mevcut Durum (Mart 2026):** shared/event_bus.py tanımlı ve 9 event type spec'te mevcut. Ancak hiçbir app runtime'da subscribe/publish yapmıyor. Event Bus wiring: S-EB-01 sprint'inde yapılacak.
 
 ---
 

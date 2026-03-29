@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Captain logAR — AAOP Knowledge Base</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg2: #0f1117;
+      --bg3: #151820;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --accent: #38bdf8;
+      --accent2: #7c3aed;
+      --low: #10b981;
+      --medium: #f59e0b;
+      --high: #ef4444;
+      --border: #1e293b;
+      --radius: 10px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a4050; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 2rem 4rem;
+    }
+
+    h1, h2, h3, h4 { font-family: 'Syne', sans-serif; }
+
+    code, .code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+    }
+
+    a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: #7dd3fc; }
+
+    /* ─── HEADER ─── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 2.5rem 0 2rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    .header-left h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+    }
+
+    .header-left .subtitle {
+      color: var(--text2);
+      font-size: 0.95rem;
+      margin-top: 0.3rem;
+    }
+
+    .header-left .badge {
+      display: inline-block;
+      margin-top: 0.5rem;
+      padding: 0.2rem 0.7rem;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .header-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      max-width: 560px;
+    }
+
+    .module-chip {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.7rem;
+      color: var(--text2);
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.2s;
+    }
+
+    .module-chip:hover {
+      background: rgba(56, 189, 248, 0.1);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ─── SECTIONS ─── */
+    .section {
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .section-title .num {
+      color: var(--accent);
+      margin-right: 0.5rem;
+    }
+
+    /* ─── PLATFORM OVERVIEW ─── */
+    .overview-text {
+      color: var(--text2);
+      line-height: 1.8;
+      max-width: 960px;
+    }
+
+    .overview-text strong { color: var(--text); }
+
+    .overview-text code {
+      background: var(--bg3);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    /* ─── STATS GRID ─── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-number {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      color: var(--text2);
+      font-size: 0.8rem;
+      margin-top: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ─── APP CARDS ─── */
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .app-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .app-card .stripe {
+      height: 3px;
+      width: 100%;
+    }
+
+    .app-card .stripe.p0 { background: var(--high); }
+    .app-card .stripe.p1 { background: var(--medium); }
+    .app-card .stripe.p2 { background: var(--accent); }
+
+    .app-card .card-body {
+      padding: 1.2rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-card .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+
+    .app-card .app-name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+    }
+
+    .app-card .module-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--text2);
+      margin-top: 0.15rem;
+    }
+
+    .priority-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
+    }
+
+    .priority-badge.p0 { background: rgba(239, 68, 68, 0.15); color: var(--high); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .priority-badge.p1 { background: rgba(245, 158, 11, 0.15); color: var(--medium); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .priority-badge.p2 { background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); }
+
+    .app-card .user-profile {
+      font-size: 0.75rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      opacity: 0.8;
+    }
+
+    .app-card .description {
+      font-size: 0.82rem;
+      color: var(--text2);
+      line-height: 1.5;
+      flex: 1;
+    }
+
+    .app-card .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.75rem;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .app-card .sprint-status {
+      font-size: 0.72rem;
+      color: var(--low);
+    }
+
+    .app-card .test-count {
+      font-size: 0.7rem;
+      color: var(--text2);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ─── TABLES ─── */
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    thead th {
+      background: var(--bg3);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text2);
+    }
+
+    tbody tr:hover { background: rgba(56, 189, 248, 0.03); }
+
+    tbody td code {
+      background: var(--bg3);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      color: var(--accent);
+      font-size: 0.8rem;
+    }
+
+    /* ─── TECH STACK CARDS ─── */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .tech-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.2rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .tech-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .tech-card h4 {
+      font-size: 0.95rem;
+      margin-bottom: 0.6rem;
+      color: var(--accent);
+    }
+
+    .tech-card ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .tech-card li {
+      font-size: 0.8rem;
+      color: var(--text2);
+      padding: 0.2rem 0;
+      padding-left: 1rem;
+      position: relative;
+    }
+
+    .tech-card li::before {
+      content: '>';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+    }
+
+    /* ─── AGENT LOOP ─── */
+    .agent-loop {
+      display: flex;
+      gap: 0;
+      align-items: stretch;
+      overflow-x: auto;
+      padding: 0.5rem 0;
+    }
+
+    .loop-step {
+      flex: 1;
+      min-width: 200px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.2rem;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .loop-step:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .loop-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      color: var(--accent);
+      padding: 0 0.4rem;
+      flex-shrink: 0;
+    }
+
+    .loop-step .step-num {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.6rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+    }
+
+    .loop-step .step-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin: 0.4rem 0;
+    }
+
+    .loop-step .step-detail {
+      font-size: 0.75rem;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    .loop-step .step-detail span {
+      display: block;
+    }
+
+    .loop-step .step-detail .timing {
+      color: var(--low);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+    }
+
+    /* ─── CODE BLOCK ─── */
+    .code-block {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.2rem 1.5rem;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      color: var(--text2);
+    }
+
+    .code-block .comment { color: #475569; }
+    .code-block .cmd { color: var(--low); }
+    .code-block .flag { color: var(--medium); }
+
+    /* ─── WARNING / INFO / DANGER BOXES ─── */
+    .box {
+      border-radius: var(--radius);
+      padding: 1rem 1.2rem;
+      margin-top: 1rem;
+      font-size: 0.83rem;
+      line-height: 1.7;
+    }
+
+    .box.warning {
+      background: rgba(245, 158, 11, 0.08);
+      border-left: 3px solid var(--medium);
+      color: var(--medium);
+    }
+
+    .box.info {
+      background: rgba(56, 189, 248, 0.08);
+      border-left: 3px solid var(--accent);
+      color: var(--accent);
+    }
+
+    .box.danger {
+      background: rgba(239, 68, 68, 0.06);
+      border-left: 3px solid var(--high);
+    }
+
+    .box.danger .line {
+      display: block;
+      padding: 0.2rem 0;
+      color: var(--text2);
+      font-size: 0.82rem;
+    }
+
+    .box.danger .line .x { color: var(--high); margin-right: 0.5rem; }
+    .box.danger .line .arrow { color: #475569; margin: 0 0.4rem; }
+    .box.danger .line code {
+      background: var(--bg3);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      color: var(--text2);
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 1024px) {
+      .app-grid, .tech-grid { grid-template-columns: repeat(2, 1fr); }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .app-grid, .tech-grid, .stats-grid { grid-template-columns: 1fr; }
+      .header { flex-direction: column; }
+      .agent-loop { flex-direction: column; }
+      .loop-arrow { transform: rotate(90deg); padding: 0.3rem 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="header">
+    <div class="header-left">
+      <h1>Captain logAR</h1>
+      <div class="subtitle">AAOP Knowledge Base v1.0</div>
+      <span class="badge">tenant: aaop_company</span>
+    </div>
+    <div class="header-right">
+      <a class="module-chip" href="ops_center.html">ops_center</a>
+      <a class="module-chip" href="log_analyzer.html">log_analyzer</a>
+      <a class="module-chip" href="alert_center.html">alert_center</a>
+      <a class="module-chip" href="viewer_experience.html">viewer_experience</a>
+      <a class="module-chip" href="live_intelligence.html">live_intelligence</a>
+      <a class="module-chip" href="growth_retention.html">growth_retention</a>
+      <a class="module-chip" href="capacity_cost.html">capacity_cost</a>
+      <a class="module-chip" href="admin_governance.html">admin_governance</a>
+      <a class="module-chip" href="ai_lab.html">ai_lab</a>
+      <a class="module-chip" href="knowledge_base.html">knowledge_base</a>
+      <a class="module-chip" href="devops_assistant.html">devops_assistant</a>
+    </div>
+  </header>
+
+  <!-- ═══ 1. PLATFORM OVERVIEW ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">01</span>Platform Overview</h2>
+    <p class="overview-text">
+      <strong>AAOP</strong> (Agentic AI Observability Platform) is an AI-powered OTT platform observability system
+      built under the <strong>Captain logAR</strong> brand. The primary tenant is <strong>S Sport Plus</strong>
+      (<code>aaop_company</code>). The platform follows a <strong>local-first architecture</strong> with a clear
+      GCP migration path via the adaptor pattern &mdash; all local data stores (SQLite, DuckDB, ChromaDB, Redis)
+      map 1:1 to GCP-managed equivalents without touching agent code.
+      Repo: <a href="https://github.com/fatihayaz78/aaop">github.com/fatihayaz78/aaop</a>.
+      Local path: <code>/Users/fatihayaz/Documents/Projects/AAOP</code>.
+    </p>
+  </section>
+
+  <!-- ═══ 2. STATS GRID ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">02</span>Platform Stats</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-number">11</div>
+        <div class="stat-label">Apps</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">18</div>
+        <div class="stat-label">AI Modules</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">116</div>
+        <div class="stat-label">API Endpoints</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">659</div>
+        <div class="stat-label">Tests (0 failures)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">45.6M</div>
+        <div class="stat-label">Log Rows</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">13</div>
+        <div class="stat-label">Log Sources</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">91</div>
+        <div class="stat-label">Days Mock Data</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">485K</div>
+        <div class="stat-label">Subscribers</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 3. APPLICATION CARDS ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">03</span>11 Applications</h2>
+    <div class="app-grid">
+
+      <!-- 1. Ops Center -->
+      <a href="ops_center.html" class="app-card" style="color:inherit">
+        <div class="stripe p0"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Ops Center</div>
+              <div class="module-code">M01 + M06</div>
+            </div>
+            <span class="priority-badge p0">P0</span>
+          </div>
+          <div class="user-profile">NOC Operator, Platform Muhendisi</div>
+          <div class="description">Incident monitoring, tracking, and Root Cause Analysis with AI-driven correlation and timeline reconstruction.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count">51 tests</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 2. Log Analyzer -->
+      <a href="log_analyzer.html" class="app-card" style="color:inherit">
+        <div class="stripe p0"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Log Analyzer</div>
+              <div class="module-code">M07</div>
+            </div>
+            <span class="priority-badge p0">P0</span>
+          </div>
+          <div class="user-profile">CDN Muhendisi, Platform Analist</div>
+          <div class="description">CDN log intelligence with anomaly detection, 22-field parsing, date-range fetching, and BigQuery export.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count">99 tests</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 3. Alert Center -->
+      <a href="alert_center.html" class="app-card" style="color:inherit">
+        <div class="stripe p0"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Alert Center</div>
+              <div class="module-code">M13</div>
+            </div>
+            <span class="priority-badge p0">P0</span>
+          </div>
+          <div class="user-profile">NOC Operator, On-call Muhendisi</div>
+          <div class="description">Alert routing, deduplication, and escalation with severity-based LLM classification and notification channels.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count">47 tests</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 4. Viewer Experience -->
+      <a href="viewer_experience.html" class="app-card" style="color:inherit">
+        <div class="stripe p1"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Viewer Experience</div>
+              <div class="module-code">M02 + M09</div>
+            </div>
+            <span class="priority-badge p1">P1</span>
+          </div>
+          <div class="user-profile">QoE Analist, Musteri Deneyimi</div>
+          <div class="description">Quality of Experience monitoring combined with viewer complaint analysis and sentiment tracking.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 5. Live Intelligence -->
+      <a href="live_intelligence.html" class="app-card" style="color:inherit">
+        <div class="stripe p1"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Live Intelligence</div>
+              <div class="module-code">M05 + M11</div>
+            </div>
+            <span class="priority-badge p1">P1</span>
+          </div>
+          <div class="user-profile">Yayin Operatoru</div>
+          <div class="description">Live event tracking with external data integration for real-time broadcast monitoring and viewer surge prediction.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 6. Growth & Retention -->
+      <a href="growth_retention.html" class="app-card" style="color:inherit">
+        <div class="stripe p1"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Growth &amp; Retention</div>
+              <div class="module-code">M18 + M03</div>
+            </div>
+            <span class="priority-badge p1">P1</span>
+          </div>
+          <div class="user-profile">Buyume Analisti</div>
+          <div class="description">Churn prediction and subscriber growth analysis with AI-powered data exploration and cohort segmentation.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 7. Capacity & Cost -->
+      <a href="capacity_cost.html" class="app-card" style="color:inherit">
+        <div class="stripe p1"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Capacity &amp; Cost</div>
+              <div class="module-code">M16 + M04</div>
+            </div>
+            <span class="priority-badge p1">P1</span>
+          </div>
+          <div class="user-profile">DevOps Muhendisi</div>
+          <div class="description">Capacity forecasting and cost optimization with automated scaling recommendations and infrastructure automation.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 8. Admin & Governance -->
+      <a href="admin_governance.html" class="app-card" style="color:inherit">
+        <div class="stripe p1"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Admin &amp; Governance</div>
+              <div class="module-code">M12 + M17</div>
+            </div>
+            <span class="priority-badge p1">P1</span>
+          </div>
+          <div class="user-profile">Platform Yoneticisi</div>
+          <div class="description">Multi-tenant management with compliance tracking, audit logging, and governance policy enforcement.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 9. AI Lab -->
+      <a href="ai_lab.html" class="app-card" style="color:inherit">
+        <div class="stripe p2"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">AI Lab</div>
+              <div class="module-code">M10 + M14</div>
+            </div>
+            <span class="priority-badge p2">P2</span>
+          </div>
+          <div class="user-profile">AI/ML Muhendisi</div>
+          <div class="description">Experimentation framework and ML governance with A/B testing, model registry, and performance tracking.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 10. Knowledge Base -->
+      <a href="knowledge_base.html" class="app-card" style="color:inherit">
+        <div class="stripe p2"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">Knowledge Base</div>
+              <div class="module-code">M15</div>
+            </div>
+            <span class="priority-badge p2">P2</span>
+          </div>
+          <div class="user-profile">NOC Operator, Muhendis</div>
+          <div class="description">Semantic search with RAG-powered document retrieval across incidents, runbooks, and platform documentation.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 11. DevOps Assistant -->
+      <a href="devops_assistant.html" class="app-card" style="color:inherit">
+        <div class="stripe p2"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <div>
+              <div class="app-name">DevOps Assistant</div>
+              <div class="module-code">M08</div>
+            </div>
+            <span class="priority-badge p2">P2</span>
+          </div>
+          <div class="user-profile">Platform Muhendisi</div>
+          <div class="description">Runbook Q&amp;A and diagnostic assistance with context-aware troubleshooting and infrastructure health checks.</div>
+          <div class="card-footer">
+            <span class="sprint-status">&#10003; Complete</span>
+            <span class="test-count"></span>
+          </div>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ═══ 4. LLM ROUTING ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">04</span>LLM Routing Table</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Identifier</th>
+            <th>Usage</th>
+            <th>Constraint</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong style="color:var(--low)">Haiku</strong></td>
+            <td><code>claude-haiku-4-5-20251001</code></td>
+            <td>Alert routing, batch processing, P3 events, automation</td>
+            <td>High volume, low cost</td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--accent)">Sonnet</strong></td>
+            <td><code>claude-sonnet-4-20250514</code></td>
+            <td>P2 events, CDN anomaly analysis, QoE, default</td>
+            <td>Standard quality</td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--accent2)">Opus</strong></td>
+            <td><code>claude-opus-4-20250514</code></td>
+            <td>ONLY P0/P1 incident analysis + RCA</td>
+            <td style="color:var(--high)">Cost constraint &mdash; forbidden elsewhere</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 5. TECH STACK ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">05</span>Tech Stack</h2>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <h4>Backend</h4>
+        <ul>
+          <li>FastAPI &mdash; Python 3.12</li>
+          <li>Port 8000</li>
+          <li>Pydantic v2 validation</li>
+          <li>JWT HS256 authentication</li>
+          <li>Socket.IO real-time broadcast</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4>Frontend</h4>
+        <ul>
+          <li>Next.js 14 &mdash; App Router</li>
+          <li>TypeScript strict mode</li>
+          <li>Tailwind CSS</li>
+          <li>shadcn/ui components</li>
+          <li>Recharts &mdash; port 3000</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4>AI / Agent</h4>
+        <ul>
+          <li>LangGraph 4-step loop</li>
+          <li>BaseAgent abstract class</li>
+          <li>LLM Gateway (route + retry + cache)</li>
+          <li>Haiku / Sonnet / Opus routing</li>
+          <li>tenacity retry policies</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4>Data Layer</h4>
+        <ul>
+          <li>SQLite &mdash; platform metadata</li>
+          <li>DuckDB &mdash; shared analytics</li>
+          <li>logs.duckdb &mdash; 30-day hot cache</li>
+          <li>ChromaDB &mdash; vector RAG store</li>
+          <li>Redis &mdash; TTL context cache</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4>Log Analyzer</h4>
+        <ul>
+          <li>boto3 &mdash; S3 log fetching</li>
+          <li>APScheduler (6h interval)</li>
+          <li>watchdog file watcher</li>
+          <li>kaleido==0.2.1 (PINNED)</li>
+          <li>plotly + python-docx reports</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4>DevTools</h4>
+        <ul>
+          <li>pytest &mdash; coverage &ge; 80%</li>
+          <li>ruff &mdash; linter + formatter</li>
+          <li>mypy &mdash; strict type checking</li>
+          <li>poetry &mdash; dependency management</li>
+          <li>pre-commit + GitHub Actions CI</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 6. AGENT 4-STEP LOOP ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">06</span>Agent 4-Step Loop</h2>
+    <div class="agent-loop">
+      <div class="loop-step">
+        <div class="step-num">01</div>
+        <div class="step-name">context_loader</div>
+        <div class="step-detail">
+          <span>Redis lookup <span class="timing">&lt;5ms</span></span>
+          <span>DuckDB query <span class="timing">&lt;50ms</span></span>
+          <span>ChromaDB RAG <span class="timing">&lt;100ms</span></span>
+        </div>
+      </div>
+      <div class="loop-arrow">&rarr;</div>
+      <div class="loop-step">
+        <div class="step-num">02</div>
+        <div class="step-name">reasoning</div>
+        <div class="step-detail">
+          <span>PII scrub via pii_scrubber</span>
+          <span>Model select by severity</span>
+          <span>LLM call &rarr; parse response</span>
+        </div>
+      </div>
+      <div class="loop-arrow">&rarr;</div>
+      <div class="loop-step">
+        <div class="step-num">03</div>
+        <div class="step-name">tool_execution</div>
+        <div class="step-detail">
+          <span><span style="color:var(--low)">LOW</span>: auto-execute</span>
+          <span><span style="color:var(--medium)">MEDIUM</span>: auto + notify</span>
+          <span><span style="color:var(--high)">HIGH</span>: approval_required</span>
+        </div>
+      </div>
+      <div class="loop-arrow">&rarr;</div>
+      <div class="loop-step">
+        <div class="step-num">04</div>
+        <div class="step-name">memory_update</div>
+        <div class="step-detail">
+          <span>DuckDB write</span>
+          <span>Redis cache update</span>
+          <span>Event Bus publish</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 7. CROSS-APP EVENT BUS ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">07</span>Cross-App Event Bus</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Event Type</th>
+            <th>Publisher</th>
+            <th>Subscribers</th>
+            <th>Trigger Condition</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>cdn_anomaly_detected</code></td>
+            <td>log_analyzer</td>
+            <td>ops_center, alert_center</td>
+            <td>CDN metric exceeds anomaly threshold</td>
+          </tr>
+          <tr>
+            <td><code>incident_created</code></td>
+            <td>ops_center</td>
+            <td>alert_center, knowledge_base</td>
+            <td>New incident registered in ops center</td>
+          </tr>
+          <tr>
+            <td><code>rca_completed</code></td>
+            <td>ops_center (M06)</td>
+            <td>knowledge_base, alert_center</td>
+            <td>Root cause analysis finalized</td>
+          </tr>
+          <tr>
+            <td><code>qoe_degradation</code></td>
+            <td>viewer_experience</td>
+            <td>ops_center, alert_center</td>
+            <td>QoE score drops below threshold</td>
+          </tr>
+          <tr>
+            <td><code>live_event_starting</code></td>
+            <td>live_intelligence</td>
+            <td>ops_center, log_analyzer, alert_center</td>
+            <td>Scheduled live broadcast begins</td>
+          </tr>
+          <tr>
+            <td><code>external_data_updated</code></td>
+            <td>live_intelligence</td>
+            <td>ops_center, growth_retention</td>
+            <td>External data source refreshed</td>
+          </tr>
+          <tr>
+            <td><code>churn_risk_detected</code></td>
+            <td>growth_retention</td>
+            <td>alert_center</td>
+            <td>Subscriber churn probability exceeds limit</td>
+          </tr>
+          <tr>
+            <td><code>scale_recommendation</code></td>
+            <td>capacity_cost</td>
+            <td>ops_center, alert_center</td>
+            <td>Capacity forecast suggests scaling action</td>
+          </tr>
+          <tr>
+            <td><code>analysis_complete</code></td>
+            <td>log_analyzer</td>
+            <td>growth_retention, viewer_experience</td>
+            <td>Log analysis batch processing finished</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 8. STARTUP COMMANDS ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">08</span>Startup Commands</h2>
+    <div class="code-block">
+      <span class="comment"># Activate virtual environment</span><br>
+      <span class="cmd">source</span> ~/.venvs/aaop/bin/activate<br><br>
+      <span class="comment"># Start backend (FastAPI — port 8000)</span><br>
+      <span class="cmd">python</span> <span class="flag">-m</span> uvicorn backend.main:app <span class="flag">--reload</span> <span class="flag">--port</span> 8000<br><br>
+      <span class="comment"># Start frontend (Next.js — port 3000)</span><br>
+      <span class="cmd">cd</span> frontend && <span class="cmd">npm</span> run dev<br><br>
+      <span class="comment"># Start Redis</span><br>
+      <span class="cmd">redis-server</span><br><br>
+      <span class="comment"># Health check</span><br>
+      <span class="cmd">curl</span> http://localhost:8000/health
+    </div>
+    <div class="box warning">
+      <strong>Important:</strong> Always use <code style="color:var(--text)">python -m uvicorn</code> (not just <code style="color:var(--text)">uvicorn</code>) to ensure the correct virtual environment Python is used.
+    </div>
+  </section>
+
+  <!-- ═══ 9. RED LINES ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">09</span>Red Lines</h2>
+    <div class="box danger">
+      <span class="line"><span class="x">&#10007;</span><code>print()</code><span class="arrow">&rarr;</span> Use <code>structlog</code> for all logging</span>
+      <span class="line"><span class="x">&#10007;</span><code>Python 3.14</code><span class="arrow">&rarr;</span> Stick to <code>Python 3.12</code></span>
+      <span class="line"><span class="x">&#10007;</span><code>kaleido 1.x</code><span class="arrow">&rarr;</span> Pin to <code>kaleido==0.2.1</code> (Chrome dependency)</span>
+      <span class="line"><span class="x">&#10007;</span>Direct DB access inside Agent<span class="arrow">&rarr;</span> Always go through <code>tools</code></span>
+      <span class="line"><span class="x">&#10007;</span>HIGH risk tool auto-run<span class="arrow">&rarr;</span> Set <code>approval_required=True</code></span>
+      <span class="line"><span class="x">&#10007;</span>Sending raw PII to LLM<span class="arrow">&rarr;</span> Run through <code>pii_scrubber.py</code> first</span>
+      <span class="line"><span class="x">&#10007;</span>Hardcoded credentials<span class="arrow">&rarr;</span> Use <code>.env</code> file</span>
+      <span class="line"><span class="x">&#10007;</span>Tool call without <code>tenant_id</code><span class="arrow">&rarr;</span> All tools require <code>tenant_id</code></span>
+      <span class="line"><span class="x">&#10007;</span>Undocumented ADR<span class="arrow">&rarr;</span> Update <code>ARCHITECTURE.md</code></span>
+    </div>
+  </section>
+
+  <!-- ═══ 10. LOCAL → GCP MIGRATION MAP ═══ -->
+  <section class="section">
+    <h2 class="section-title"><span class="num">10</span>Local &rarr; GCP Migration Map</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Local</th>
+            <th>GCP Equivalent</th>
+            <th>Adaptor File</th>
+            <th>What Changes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SQLite</td>
+            <td>Cloud Spanner</td>
+            <td><code>shared/clients/sqlite_client.py</code></td>
+            <td>Adaptor only</td>
+          </tr>
+          <tr>
+            <td>DuckDB</td>
+            <td>BigQuery</td>
+            <td><code>shared/clients/duckdb_client.py</code></td>
+            <td>Adaptor only</td>
+          </tr>
+          <tr>
+            <td>logs.duckdb</td>
+            <td>BigQuery</td>
+            <td><code>shared/clients/logs_duckdb_client.py</code></td>
+            <td>Adaptor only</td>
+          </tr>
+          <tr>
+            <td>ChromaDB</td>
+            <td>Vertex AI Vector Search</td>
+            <td><code>shared/clients/chroma_client.py</code></td>
+            <td>Adaptor only</td>
+          </tr>
+          <tr>
+            <td>asyncio.Queue</td>
+            <td>Google Cloud Pub/Sub</td>
+            <td><code>shared/event_bus.py</code></td>
+            <td>Adaptor only</td>
+          </tr>
+          <tr>
+            <td>Redis (local)</td>
+            <td>Cloud Memorystore</td>
+            <td><code>shared/clients/redis_client.py</code></td>
+            <td>Host changes only</td>
+          </tr>
+          <tr>
+            <td><code>.env</code> secrets</td>
+            <td>GCP Secret Manager</td>
+            <td><code>shared/utils/settings.py</code></td>
+            <td>Provider changes</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box info">
+      <strong>Key principle:</strong> Agent code (<code style="color:var(--text)">apps/*/agent.py</code>, <code style="color:var(--text)">apps/*/tools.py</code>) does <strong>NOT</strong> change during GCP migration. Only the adaptor layer inside <code style="color:var(--text)">shared/clients/</code> is swapped.
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Smooth hover feedback for stat cards — subtle pulse
+  document.querySelectorAll('.stat-card').forEach(card => {
+    card.addEventListener('mouseenter', () => {
+      const num = card.querySelector('.stat-number');
+      if (num) num.style.transform = 'scale(1.05)';
+    });
+    card.addEventListener('mouseleave', () => {
+      const num = card.querySelector('.stat-number');
+      if (num) num.style.transform = 'scale(1)';
+    });
+  });
+
+  // Add transition to stat numbers
+  document.querySelectorAll('.stat-number').forEach(el => {
+    el.style.transition = 'transform 0.2s ease';
+  });
+
+  // Keyboard navigation for app cards
+  document.querySelectorAll('.app-card').forEach(card => {
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') card.click();
+    });
+  });
+</script>
+
+</body>
+</html>

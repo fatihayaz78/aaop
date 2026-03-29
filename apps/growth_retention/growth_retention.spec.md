@@ -122,3 +122,9 @@ Senaryolar: CHURN_RISK (risk>0.7 → event) | NL query (→ doğru SQL → doğr
 - Frontend: 5 tabs incl. AI Query
 - Tests: 51 passed, 0 failures
 - Status: ✅ Complete
+
+---
+## Sprint Progress — S-DI-04 (2026-03-28)
+### logs.duckdb Entegrasyonu
+- GET /growth/dashboard: crm_live (crm_subscriber_logs), billing_live (billing_logs)
+- DuckDB OKUMA: logs.duckdb aaop_company schema (crm_subscriber_logs, billing_logs, player_events_logs)

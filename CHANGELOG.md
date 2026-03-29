@@ -8,6 +8,16 @@
 
 ---
 
+### S-DOC-02 — 2026-03-29
+- CLAUDE.md: Aktif sprint güncellendi, shared/ingest/ + backend/models/ + docs/kb/ + logs.duckdb eklendi
+- ARCHITECTURE.md: Agent stub notu, Event Bus runtime notu, WebSocket notu eklendi
+- API_CONTRACTS.md: 3 eksik endpoint eklendi, WebSocket implementasyon uyarısı eklendi
+- 8 stale spec dosyası: S-DI-03/S-DI-04 logs.duckdb entegrasyon notları eklendi
+- ops_center_spec.md: Agent stub durumu notu eklendi
+- Temel bulgular: Uyuşma %57 → hedef %90+ | 7 kritik eksik CLAUDE.md'de kapatıldı | 12 endpoint gap kapatıldı
+
+---
+
 ### S-DI-04 — 2026-03-28
 - shared/ingest/log_queries.py: 5 yeni helper (get_app_reviews, get_epg_schedule, get_churn_metrics, get_billing_summary, get_data_source_stats)
 - backend/routers: 7 P1/P2 modül logs.duckdb'den gerçek veri okur (viewer_experience, live_intelligence, growth_retention, capacity_cost, admin_governance, devops_assistant)

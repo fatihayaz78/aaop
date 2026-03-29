@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Reference — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #7c3aed;
+  --low: #10b981;
+  --medium: #f59e0b;
+  --high: #ef4444;
+  --border: #1e2433;
+  --border2: #2a3244;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.header h1 span.icon { font-size: 1.3rem; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-bar .search-icon { color: var(--text2); font-size: 1.1rem; }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 32px 0; }
+.chip { padding: 4px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; font-size: 0.72rem; color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 120px); }
+
+.sidebar { width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; transition: color 0.2s; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 5px 20px 5px 28px; font-size: 0.82rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; cursor: pointer; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+.sidebar-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(56,189,248,0.08); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-link { display: block; padding: 5px 20px 5px 28px; font-size: 0.82rem; color: var(--text2); transition: all 0.15s; }
+.quick-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.8rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); transform: translateY(-1px); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; margin: 12px 0; color: var(--text2); }
+
+.section-title { font-size: 1.25rem; margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.section-title:first-child { margin-top: 0; }
+
+.method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; min-width: 52px; text-align: center; }
+.method-get { background: rgba(16,185,129,0.15); color: var(--low); }
+.method-post { background: rgba(56,189,248,0.15); color: var(--accent); }
+.method-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.method-patch { background: rgba(245,158,11,0.15); color: var(--medium); }
+.method-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+.method-ws { background: rgba(124,58,237,0.15); color: var(--accent2); }
+
+/* ENDPOINT ROW */
+.ep-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+.ep-row:hover { background: rgba(56,189,248,0.03); }
+.ep-path { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--accent); }
+.ep-desc { color: var(--text2); font-size: 0.82rem; margin-left: auto; text-align: right; }
+
+/* ACCORDION */
+.accordion-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.accordion-head:hover { border-color: var(--accent); }
+.accordion-head .arrow { transition: transform 0.2s; color: var(--text2); font-size: 0.7rem; }
+.accordion-head.open .arrow { transform: rotate(90deg); }
+.accordion-body {
+  max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
+  border-left: 2px solid var(--border);
+  margin-left: 16px;
+  margin-bottom: 8px;
+}
+.accordion-body.open { max-height: 2000px; }
+.accordion-body .ep-row:last-child { border-bottom: none; }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 0.88rem; }
+.info-box .label { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#x1F4E1;</span> API Reference</h1>
+  <div class="breadcrumb">
+    <a href="index.html">&larr; Platform Overview</a>
+    <span class="sep">/</span>
+    <span>API Reference</span>
+  </div>
+</div>
+
+<div class="search-bar">
+  <span class="search-icon">&#x1F50D;</span>
+  <input type="text" id="searchInput" placeholder="Search endpoints, paths, methods..." />
+  <span class="search-no-result" id="noResult">No results found</span>
+</div>
+
+<div class="chips">
+  <span class="chip" onclick="activateTab('tab-auth')">Auth</span>
+  <span class="chip" onclick="activateTab('tab-ops')">Ops Center</span>
+  <span class="chip" onclick="activateTab('tab-log')">Log Analyzer</span>
+  <span class="chip" onclick="activateTab('tab-alert')">Alerts</span>
+  <span class="chip" onclick="activateTab('tab-viewer')">Viewer</span>
+  <span class="chip" onclick="activateTab('tab-live')">Live</span>
+  <span class="chip" onclick="activateTab('tab-growth')">Growth</span>
+  <span class="chip" onclick="activateTab('tab-capacity')">Capacity</span>
+  <span class="chip" onclick="activateTab('tab-admin')">Admin</span>
+  <span class="chip" onclick="activateTab('tab-ailab')">AI Lab</span>
+  <span class="chip" onclick="activateTab('tab-kb')">Knowledge</span>
+  <span class="chip" onclick="activateTab('tab-devops')">DevOps</span>
+  <span class="chip" onclick="activateTab('tab-mock')">Mock Data</span>
+  <span class="chip" onclick="activateTab('tab-ds')">Data Sources</span>
+  <span class="chip" onclick="activateTab('tab-ws')">WebSocket</span>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">Endpoints <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <a class="sidebar-link active" onclick="activateTab('tab-auth')">Auth &amp; Platform</a>
+        <a class="sidebar-link" onclick="activateTab('tab-ops')">Ops Center (9)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-log')">Log Analyzer (30+)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-alert')">Alert Center (12)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-viewer')">Viewer Exp (8)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-live')">Live Intel (7)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-growth')">Growth (6)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-capacity')">Capacity (6)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-admin')">Admin (9)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-ailab')">AI Lab (7)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-kb')">Knowledge (4)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-devops')">DevOps (5)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-mock')">Mock Data (12)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-ds')">Data Sources (10)</a>
+        <a class="sidebar-link" onclick="activateTab('tab-ws')">WebSocket</a>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">FAQ <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How do I authenticate?</button>
+          <div class="faq-a">POST to <code>/auth/login</code> with email/password. You receive an access_token (15min) and refresh_token (7d). Include the access token as <code>Authorization: Bearer &lt;token&gt;</code> in all subsequent requests.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What is X-Tenant-ID?</button>
+          <div class="faq-a">All data-access endpoints require the <code>X-Tenant-ID</code> header for multi-tenant isolation. The middleware validates that the authenticated user has access to the requested tenant.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What about rate limiting?</button>
+          <div class="faq-a">Rate limiting is enforced per tenant via Redis. Default: 100 req/min for GET endpoints, 30 req/min for POST/PUT/DELETE. Configurable per tenant in admin settings.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">Quick Links <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <a class="quick-link" href="index.html">Platform Overview</a>
+        <a class="quick-link" href="architecture.html">Architecture</a>
+        <a class="quick-link" href="log_schemas.html">Log Schemas</a>
+        <a class="quick-link" href="ai_lab.html">AI Lab</a>
+        <a class="quick-link" href="devops_assistant.html">DevOps Assistant</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content" id="mainContent">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-auth">Auth</button>
+      <button class="tab-btn" data-tab="tab-ops">Ops Center</button>
+      <button class="tab-btn" data-tab="tab-log">Log Analyzer</button>
+      <button class="tab-btn" data-tab="tab-alert">Alerts</button>
+      <button class="tab-btn" data-tab="tab-viewer">Viewer</button>
+      <button class="tab-btn" data-tab="tab-live">Live</button>
+      <button class="tab-btn" data-tab="tab-growth">Growth</button>
+      <button class="tab-btn" data-tab="tab-capacity">Capacity</button>
+      <button class="tab-btn" data-tab="tab-admin">Admin</button>
+      <button class="tab-btn" data-tab="tab-ailab">AI Lab</button>
+      <button class="tab-btn" data-tab="tab-kb">Knowledge</button>
+      <button class="tab-btn" data-tab="tab-devops">DevOps</button>
+      <button class="tab-btn" data-tab="tab-mock">Mock Data</button>
+      <button class="tab-btn" data-tab="tab-ds">Data Sources</button>
+      <button class="tab-btn" data-tab="tab-ws">WebSocket</button>
+    </div>
+
+    <!-- AUTH -->
+    <div class="tab-content active" id="tab-auth">
+      <h2 class="section-title">Auth &amp; Platform</h2>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/auth/login</span><span class="ep-desc">Authenticate with email/password, returns JWT pair</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/auth/refresh</span><span class="ep-desc">Refresh access token using refresh_token</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/auth/logout</span><span class="ep-desc">Invalidate current session tokens</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/auth/me</span><span class="ep-desc">Get current user profile and permissions</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/health</span><span class="ep-desc">Basic health check (no auth required)</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/health/detailed</span><span class="ep-desc">Detailed health with DB, Redis, service status</span></div>
+
+      <div class="card" style="margin-top:20px;">
+        <h4>Login Example</h4>
+<pre class="code-block">POST /auth/login
+Content-Type: application/json
+
+{ "email": "admin@aaop.dev", "password": "..." }
+
+// Response 200
+{
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "token_type": "bearer",
+  "expires_in": 900,
+  "user": { "id": "usr_001", "email": "admin@aaop.dev", "role": "admin" }
+}</pre>
+      </div>
+    </div>
+
+    <!-- OPS CENTER -->
+    <div class="tab-content" id="tab-ops">
+      <h2 class="section-title">Ops Center &mdash; <code>/ops</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ops/incidents</span><span class="ep-desc">List incidents with filters (status, severity, date)</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/ops/incidents</span><span class="ep-desc">Create new incident (manual or agent-triggered)</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ops/incidents/{id}</span><span class="ep-desc">Get incident details with timeline</span></div>
+      <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/ops/incidents/{id}</span><span class="ep-desc">Update incident status, severity, assignee</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/ops/incidents/{id}/rca</span><span class="ep-desc">Trigger RCA analysis (M06) for an incident</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ops/incidents/{id}/rca</span><span class="ep-desc">Get RCA report for an incident</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ops/dashboard</span><span class="ep-desc">Ops dashboard summary (active incidents, MTTR, SLA)</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/ops/chat</span><span class="ep-desc">Send message to OpsAgent for analysis</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ops/timeline</span><span class="ep-desc">Cross-incident timeline view</span></div>
+    </div>
+
+    <!-- LOG ANALYZER -->
+    <div class="tab-content" id="tab-log">
+      <h2 class="section-title">Log Analyzer &mdash; <code>/log-analyzer</code></h2>
+
+      <div class="accordion-head" onclick="toggleAccordion(this)"><span class="arrow">&#x25B6;</span> <strong>Projects</strong> <span style="color:var(--text2);font-size:0.8rem;margin-left:auto;">4 endpoints</span></div>
+      <div class="accordion-body">
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/projects</span><span class="ep-desc">List analysis projects</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/projects</span><span class="ep-desc">Create new analysis project</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/projects/{id}</span><span class="ep-desc">Get project details</span></div>
+        <div class="ep-row"><span class="method method-delete">DELETE</span><span class="ep-path">/log-analyzer/projects/{id}</span><span class="ep-desc">Delete project and associated data</span></div>
+      </div>
+
+      <div class="accordion-head" onclick="toggleAccordion(this)"><span class="arrow">&#x25B6;</span> <strong>Akamai Sub-module</strong> <span style="color:var(--text2);font-size:0.8rem;margin-left:auto;">10 endpoints</span></div>
+      <div class="accordion-body">
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/akamai/settings</span><span class="ep-desc">Get Akamai connection settings</span></div>
+        <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/log-analyzer/akamai/settings</span><span class="ep-desc">Update Akamai S3 bucket/path settings</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/akamai/fetch</span><span class="ep-desc">Trigger manual log fetch from S3</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/akamai/fetch-history</span><span class="ep-desc">List fetch job history with status</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/akamai/parse</span><span class="ep-desc">Parse fetched log files (22-field parser)</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/akamai/charts</span><span class="ep-desc">Get available chart types (21 charts)</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/akamai/charts/generate</span><span class="ep-desc">Generate specific charts with date range</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/akamai/report</span><span class="ep-desc">Generate DOCX report</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/akamai/reports</span><span class="ep-desc">List generated reports</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/akamai/export/bigquery</span><span class="ep-desc">Export parsed data to BigQuery format</span></div>
+      </div>
+
+      <div class="accordion-head" onclick="toggleAccordion(this)"><span class="arrow">&#x25B6;</span> <strong>Structure &amp; Query</strong> <span style="color:var(--text2);font-size:0.8rem;margin-left:auto;">6 endpoints</span></div>
+      <div class="accordion-body">
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/structure/fields</span><span class="ep-desc">Get parsed field list with types</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/structure/query</span><span class="ep-desc">Run custom SQL query on logs.duckdb</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/structure/stats</span><span class="ep-desc">Get log volume statistics</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/structure/date-range</span><span class="ep-desc">Get available date range</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/structure/export</span><span class="ep-desc">Export query results (CSV/JSON)</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/structure/schemas</span><span class="ep-desc">Get DuckDB table schemas</span></div>
+      </div>
+
+      <div class="accordion-head" onclick="toggleAccordion(this)"><span class="arrow">&#x25B6;</span> <strong>Medianova</strong> <span style="color:var(--text2);font-size:0.8rem;margin-left:auto;">4 endpoints</span></div>
+      <div class="accordion-body">
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/medianova/settings</span><span class="ep-desc">Get Medianova CDN settings</span></div>
+        <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/log-analyzer/medianova/settings</span><span class="ep-desc">Update Medianova settings</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/medianova/fetch</span><span class="ep-desc">Trigger Medianova log fetch</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/medianova/status</span><span class="ep-desc">Get Medianova integration status</span></div>
+      </div>
+
+      <div class="accordion-head" onclick="toggleAccordion(this)"><span class="arrow">&#x25B6;</span> <strong>Anomaly Rules &amp; Scheduled Tasks</strong> <span style="color:var(--text2);font-size:0.8rem;margin-left:auto;">4 endpoints</span></div>
+      <div class="accordion-body">
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/anomaly-rules</span><span class="ep-desc">List anomaly detection rules</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/anomaly-rules</span><span class="ep-desc">Create custom anomaly rule</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/scheduled-tasks</span><span class="ep-desc">List scheduled analysis tasks</span></div>
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/scheduled-tasks</span><span class="ep-desc">Create/update scheduled task (APScheduler)</span></div>
+      </div>
+
+      <div class="accordion-head" onclick="toggleAccordion(this)"><span class="arrow">&#x25B6;</span> <strong>Chat</strong> <span style="color:var(--text2);font-size:0.8rem;margin-left:auto;">2 endpoints</span></div>
+      <div class="accordion-body">
+        <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/log-analyzer/chat</span><span class="ep-desc">Send message to Log Analyzer agent</span></div>
+        <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/log-analyzer/chat/history</span><span class="ep-desc">Get chat session history</span></div>
+      </div>
+    </div>
+
+    <!-- ALERT CENTER -->
+    <div class="tab-content" id="tab-alert">
+      <h2 class="section-title">Alert Center &mdash; <code>/alerts</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/alerts</span><span class="ep-desc">List alerts with status/severity filters</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/alerts</span><span class="ep-desc">Create manual alert</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/alerts/{id}</span><span class="ep-desc">Get alert details and history</span></div>
+      <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/alerts/{id}/acknowledge</span><span class="ep-desc">Acknowledge an alert</span></div>
+      <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/alerts/{id}/resolve</span><span class="ep-desc">Resolve an alert</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/alerts/rules</span><span class="ep-desc">List alert routing rules</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/alerts/rules</span><span class="ep-desc">Create alert routing rule</span></div>
+      <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/alerts/rules/{id}</span><span class="ep-desc">Update routing rule</span></div>
+      <div class="ep-row"><span class="method method-delete">DELETE</span><span class="ep-path">/alerts/rules/{id}</span><span class="ep-desc">Delete routing rule</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/alerts/dashboard</span><span class="ep-desc">Alert dashboard summary</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/alerts/escalation-policies</span><span class="ep-desc">List escalation policies</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/alerts/chat</span><span class="ep-desc">Send message to Alert agent</span></div>
+    </div>
+
+    <!-- VIEWER -->
+    <div class="tab-content" id="tab-viewer">
+      <h2 class="section-title">Viewer Experience &mdash; <code>/viewer</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/viewer/qoe/dashboard</span><span class="ep-desc">QoE dashboard with real-time metrics</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/viewer/qoe/sessions</span><span class="ep-desc">List viewer sessions with QoE scores</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/viewer/qoe/trends</span><span class="ep-desc">QoE trend analysis over time</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/viewer/complaints</span><span class="ep-desc">List viewer complaints</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/viewer/complaints</span><span class="ep-desc">Create viewer complaint ticket</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/viewer/complaints/{id}</span><span class="ep-desc">Get complaint details with correlation</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/viewer/chat</span><span class="ep-desc">Send message to QoE/Complaint agent</span></div>
+      <div class="ep-row"><span class="method method-ws">WS</span><span class="ep-path">/viewer/ws/qoe</span><span class="ep-desc">Real-time QoE metric stream</span></div>
+    </div>
+
+    <!-- LIVE -->
+    <div class="tab-content" id="tab-live">
+      <h2 class="section-title">Live Intelligence &mdash; <code>/live</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/live/events</span><span class="ep-desc">List scheduled/active live events</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/live/events</span><span class="ep-desc">Create live event entry</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/live/events/{id}</span><span class="ep-desc">Get event details with viewer metrics</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/live/events/{id}/metrics</span><span class="ep-desc">Real-time metrics for active event</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/live/external</span><span class="ep-desc">External data feeds (social, news)</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/live/chat</span><span class="ep-desc">Send message to Live Intelligence agent</span></div>
+      <div class="ep-row"><span class="method method-ws">WS</span><span class="ep-path">/live/ws/event/{id}</span><span class="ep-desc">Real-time event metric stream</span></div>
+    </div>
+
+    <!-- GROWTH -->
+    <div class="tab-content" id="tab-growth">
+      <h2 class="section-title">Growth &amp; Retention &mdash; <code>/growth</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/growth/dashboard</span><span class="ep-desc">Growth KPI dashboard (subs, churn, revenue)</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/growth/cohorts</span><span class="ep-desc">Cohort analysis with retention curves</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/growth/churn-risk</span><span class="ep-desc">Churn risk predictions by segment</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/growth/analysis</span><span class="ep-desc">Run custom growth analysis query</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/growth/chat</span><span class="ep-desc">Send message to Growth/Data Analyst agent</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/growth/reports</span><span class="ep-desc">List generated growth reports</span></div>
+    </div>
+
+    <!-- CAPACITY -->
+    <div class="tab-content" id="tab-capacity">
+      <h2 class="section-title">Capacity &amp; Cost &mdash; <code>/capacity</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/capacity/dashboard</span><span class="ep-desc">Capacity utilization dashboard</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/capacity/forecast</span><span class="ep-desc">Capacity forecast based on trends</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/capacity/cost-breakdown</span><span class="ep-desc">Infrastructure cost breakdown by service</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/capacity/automation/rules</span><span class="ep-desc">List auto-scaling rules</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/capacity/automation/rules</span><span class="ep-desc">Create auto-scaling rule</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/capacity/chat</span><span class="ep-desc">Send message to Capacity/Automation agent</span></div>
+    </div>
+
+    <!-- ADMIN -->
+    <div class="tab-content" id="tab-admin">
+      <h2 class="section-title">Admin &amp; Governance &mdash; <code>/admin</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/admin/tenants</span><span class="ep-desc">List all tenants</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/admin/tenants</span><span class="ep-desc">Create new tenant</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/admin/tenants/{id}</span><span class="ep-desc">Get tenant details and configuration</span></div>
+      <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/admin/tenants/{id}</span><span class="ep-desc">Update tenant settings</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/admin/users</span><span class="ep-desc">List users with role/tenant filters</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/admin/users</span><span class="ep-desc">Create new user</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/admin/compliance/audit</span><span class="ep-desc">Get compliance audit log</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/admin/compliance/report</span><span class="ep-desc">Generate compliance report</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/admin/chat</span><span class="ep-desc">Send message to Admin/Compliance agent</span></div>
+    </div>
+
+    <!-- AI LAB -->
+    <div class="tab-content" id="tab-ailab">
+      <h2 class="section-title">AI Lab &mdash; <code>/ai-lab</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ai-lab/experiments</span><span class="ep-desc">List experiments with pagination</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/ai-lab/experiments</span><span class="ep-desc">Create new A/B experiment</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ai-lab/experiments/{id}</span><span class="ep-desc">Get experiment details and results</span></div>
+      <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/ai-lab/experiments/{id}/status</span><span class="ep-desc">Update experiment status</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ai-lab/models</span><span class="ep-desc">List registered models</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/ai-lab/models/{id}/drift</span><span class="ep-desc">Get drift detection report</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/ai-lab/models/{id}/deploy</span><span class="ep-desc">Deploy/rollback model version</span></div>
+    </div>
+
+    <!-- KNOWLEDGE -->
+    <div class="tab-content" id="tab-kb">
+      <h2 class="section-title">Knowledge Base &mdash; <code>/knowledge</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/knowledge/documents</span><span class="ep-desc">List knowledge base documents</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/knowledge/documents</span><span class="ep-desc">Upload and index new document</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/knowledge/search</span><span class="ep-desc">Semantic search across knowledge base</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/knowledge/chat</span><span class="ep-desc">Send message to Knowledge Base agent</span></div>
+    </div>
+
+    <!-- DEVOPS -->
+    <div class="tab-content" id="tab-devops">
+      <h2 class="section-title">DevOps Assistant &mdash; <code>/devops</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/devops/health</span><span class="ep-desc">Aggregate service health status</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/devops/chat</span><span class="ep-desc">Natural language query to DevOps agent</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/devops/runbooks</span><span class="ep-desc">List available runbooks</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/devops/runbooks</span><span class="ep-desc">Upload new runbook</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/devops/diagnostics/{service}</span><span class="ep-desc">Run diagnostic pipeline for a service</span></div>
+    </div>
+
+    <!-- MOCK DATA GEN -->
+    <div class="tab-content" id="tab-mock">
+      <h2 class="section-title">Mock Data Generator &mdash; <code>/mock-data</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/mock-data/sources</span><span class="ep-desc">List all 13 data sources with metadata</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/mock-data/sources/{name}</span><span class="ep-desc">Get source details and field schema</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/mock-data/sources/{name}/schema</span><span class="ep-desc">Get detailed field-level schema</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/mock-data/generate/{name}</span><span class="ep-desc">Generate mock data for a source</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/mock-data/generate/all</span><span class="ep-desc">Generate all sources (run_all.py)</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/mock-data/validate/{name}</span><span class="ep-desc">Validate generated data for a source</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/mock-data/validate/all</span><span class="ep-desc">Validate all sources (validate.py)</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/mock-data/status</span><span class="ep-desc">Get generation/validation status</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/mock-data/stop</span><span class="ep-desc">Stop running generation process</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/mock-data/export-schemas</span><span class="ep-desc">Export all schemas as JSON</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/mock-data/output/{name}</span><span class="ep-desc">Download generated output file</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/mock-data/correlations</span><span class="ep-desc">Get cross-source correlation map</span></div>
+    </div>
+
+    <!-- DATA SOURCES -->
+    <div class="tab-content" id="tab-ds">
+      <h2 class="section-title">Data Sources &mdash; <code>/data-sources</code></h2>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/data-sources/configs</span><span class="ep-desc">List all data source configurations</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/data-sources/configs</span><span class="ep-desc">Create new data source config</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/data-sources/configs/{id}</span><span class="ep-desc">Get config details</span></div>
+      <div class="ep-row"><span class="method method-put">PUT</span><span class="ep-path">/data-sources/configs/{id}</span><span class="ep-desc">Update data source config</span></div>
+      <div class="ep-row"><span class="method method-delete">DELETE</span><span class="ep-path">/data-sources/configs/{id}</span><span class="ep-desc">Delete data source config</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/data-sources/sync/{id}</span><span class="ep-desc">Trigger data sync for a source</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/data-sources/query</span><span class="ep-desc">Query across data sources</span></div>
+      <div class="ep-row"><span class="method method-get">GET</span><span class="ep-path">/data-sources/watch-status</span><span class="ep-desc">Get file watcher status</span></div>
+      <div class="ep-row"><span class="method method-post">POST</span><span class="ep-path">/data-sources/import</span><span class="ep-desc">Import data from external file</span></div>
+      <div class="ep-row"><span class="method method-delete">DELETE</span><span class="ep-path">/data-sources/data/{source}</span><span class="ep-desc">Delete imported data for a source</span></div>
+    </div>
+
+    <!-- WEBSOCKET -->
+    <div class="tab-content" id="tab-ws">
+      <h2 class="section-title">WebSocket Events</h2>
+      <p style="color:var(--text2); margin-bottom:16px;">Socket.IO based real-time communication. Manager at <code>backend/websocket/manager.py</code>.</p>
+
+      <div class="card">
+        <h3>Client Events (Emit)</h3>
+        <div class="ep-row"><span class="method method-ws">EMIT</span><span class="ep-path">subscribe</span><span class="ep-desc">Subscribe to a channel (room join)</span></div>
+        <div class="ep-row"><span class="method method-ws">EMIT</span><span class="ep-path">unsubscribe</span><span class="ep-desc">Unsubscribe from a channel (room leave)</span></div>
+        <div class="ep-row"><span class="method method-ws">EMIT</span><span class="ep-path">agent_chat</span><span class="ep-desc">Send message to agent via WebSocket</span></div>
+      </div>
+
+      <div class="card">
+        <h3>Server Events (Listen)</h3>
+        <div class="ep-row"><span class="method method-ws">ON</span><span class="ep-path">incident_update</span><span class="ep-desc">Incident status change broadcast</span></div>
+        <div class="ep-row"><span class="method method-ws">ON</span><span class="ep-path">alert_new</span><span class="ep-desc">New alert fired notification</span></div>
+        <div class="ep-row"><span class="method method-ws">ON</span><span class="ep-path">agent_stream</span><span class="ep-desc">Streaming agent response tokens</span></div>
+        <div class="ep-row"><span class="method method-ws">ON</span><span class="ep-path">metric_update</span><span class="ep-desc">Real-time metric data push</span></div>
+      </div>
+
+      <div class="card">
+        <h4>Connection Example</h4>
+<pre class="code-block">import { io } from "socket.io-client";
+
+const socket = io("http://localhost:8000", {
+  auth: { token: "Bearer &lt;JWT&gt;" },
+  query: { tenant_id: "tenant_001" }
+});
+
+socket.emit("subscribe", { channel: "ops:incidents" });
+
+socket.on("incident_update", (data) => {
+  console.log("Incident updated:", data.incident_id, data.status);
+});
+
+socket.on("agent_stream", (data) => {
+  // Append streaming token to chat UI
+  appendToken(data.token, data.session_id);
+});</pre>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+function activateTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const content = document.getElementById(tabId);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+}
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+  const content = el.nextElementSibling;
+  if (content) content.classList.toggle('collapsed');
+}
+
+function toggleFaq(el) {
+  const answer = el.nextElementSibling;
+  answer.classList.toggle('open');
+}
+
+function toggleAccordion(el) {
+  el.classList.toggle('open');
+  const body = el.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+const searchInput = document.getElementById('searchInput');
+const mainContent = document.getElementById('mainContent');
+const noResult = document.getElementById('noResult');
+
+searchInput.addEventListener('input', function() {
+  const query = this.value.trim().toLowerCase();
+  clearMarks();
+  noResult.style.display = 'none';
+  searchInput.classList.remove('no-results');
+  if (query.length < 2) return;
+
+  let found = false;
+  const walker = document.createTreeWalker(mainContent, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(node => {
+    const text = node.textContent;
+    const idx = text.toLowerCase().indexOf(query);
+    if (idx === -1) return;
+    found = true;
+    const span = document.createElement('span');
+    span.appendChild(document.createTextNode(text.substring(0, idx)));
+    const mark = document.createElement('mark');
+    mark.textContent = text.substring(idx, idx + query.length);
+    span.appendChild(mark);
+    span.appendChild(document.createTextNode(text.substring(idx + query.length)));
+    node.parentNode.replaceChild(span, node);
+  });
+
+  if (!found) {
+    searchInput.classList.add('no-results');
+    noResult.style.display = 'inline';
+  } else {
+    const firstMark = mainContent.querySelector('mark');
+    if (firstMark) {
+      const tabContent = firstMark.closest('.tab-content');
+      if (tabContent && !tabContent.classList.contains('active')) activateTab(tabContent.id);
+      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+});
+
+function clearMarks() {
+  mainContent.querySelectorAll('mark').forEach(mark => {
+    const parent = mark.parentNode;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  });
+  mainContent.querySelectorAll('span:not([class]):not([id])').forEach(span => {
+    if (!span.className && !span.id) {
+      const frag = document.createDocumentFragment();
+      while (span.firstChild) frag.appendChild(span.firstChild);
+      if (span.parentNode) span.parentNode.replaceChild(frag, span);
+    }
+  });
+}
+</script>
+</body>
+</html>

@@ -31,12 +31,16 @@ GET    /metrics/platform    → {total_events_24h, active_tenants, agent_decisio
 ## 3. OPS CENTER (M01 + M06)
 
 ```
+GET    /ops/health                   → {status, module}
 POST   /ops/incidents/analyze       Body: IncidentEvent → AgentDecisionResult
 GET    /ops/incidents               Query: tenant_id, status, severity, limit → [Incident]
 GET    /ops/incidents/{id}          → IncidentDetail (with RCA if available)
+PATCH  /ops/incidents/{id}/status   Body: StatusUpdate → UpdatedIncident
 POST   /ops/rca/trigger             Body: {incident_id, tenant_id} → RCAJob
 GET    /ops/rca/{job_id}            → RCAResult (polling)
-GET    /ops/dashboard               Query: tenant_id → OpsMetrics
+GET    /ops/dashboard               Query: tenant_id → OpsMetrics (CDN+QoE+Infra from logs.duckdb)
+GET    /ops/decisions               Query: tenant_id → [AgentDecision]
+POST   /ops/chat                    Body: ChatRequest → ChatResponse
 WS     /ws/ops/incidents            WebSocket: real-time incident stream
 ```
 
@@ -306,6 +310,7 @@ GET    /data-sources/watch-status               Query: tenant_id → WatchStatus
 ```
 GET    /mock-data-gen/sources                        → [SourceInfo]
 GET    /mock-data-gen/sources/{source}/schema        → SourceSchema
+GET    /mock-data-gen/sources/{source}/fields        → [FieldDefinition]
 POST   /mock-data-gen/generate                       Body: GenerateRequest → {job_id}
 GET    /mock-data-gen/jobs/{job_id}                  → JobStatus
 POST   /mock-data-gen/jobs/{job_id}/cancel           → {status: "cancelled"}
@@ -402,6 +407,8 @@ class ErrorResponse(BaseModel):
 ---
 
 ## 15. WEBSOCKET PROTOKOLÜ
+
+> ⚠️ **Mevcut Durum (Mart 2026):** Aşağıdaki WebSocket endpoint'ler tanımlı ancak backend'de henüz mount edilmemiş. backend/websocket/manager.py var ama main.py'de ASGI'ye entegre değil. Frontend MockSocket kullanıyor. Gerçek implementasyon S-WS-01'de yapılacak.
 
 ```typescript
 // Socket.IO events (client → server)

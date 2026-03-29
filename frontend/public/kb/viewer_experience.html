@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Viewer Experience — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #7c3aed;
+  --low: #10b981;
+  --medium: #f59e0b;
+  --high: #ef4444;
+  --border: #1e2433;
+  --border2: #2a3244;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+/* HEADER */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.header h1 span.icon { font-size: 1.3rem; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+/* SEARCH BAR */
+.search-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 32px;
+  display: flex; align-items: center; gap: 12px;
+}
+.search-bar input {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 16px; color: var(--text);
+  font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-bar .search-icon { color: var(--text2); font-size: 1.1rem; }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+/* QUICK NAV CHIPS */
+.chip-bar { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 32px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.chip {
+  padding: 4px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 500;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  cursor: pointer; transition: all 0.2s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* LAYOUT */
+.layout { display: flex; min-height: calc(100vh - 140px); }
+
+/* SIDEBAR */
+.sidebar {
+  display: none;
+  width: 220px; min-width: 220px; background: var(--bg2);
+  border-right: 1px solid var(--border); padding: 20px 0;
+  position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto;
+}
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px; font-size: 0.75rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2);
+  cursor: pointer; user-select: none; transition: color 0.2s;
+}
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link {
+  display: block; padding: 6px 20px 6px 28px; font-size: 0.85rem;
+  color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent;
+}
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+
+/* FAQ */
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q {
+  display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem;
+  color: var(--text2); cursor: pointer; text-align: left; background: none;
+  border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4;
+}
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a {
+  max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5;
+  background: rgba(56,189,248,0.02);
+}
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+/* MAIN CONTENT */
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+
+/* TAB BAR */
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn {
+  padding: 10px 20px; background: none; border: none;
+  border-bottom: 2px solid transparent; color: var(--text2);
+  font-size: 0.88rem; font-weight: 500; font-family: 'Inter', sans-serif;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* CARDS */
+.card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card-grid .card { margin-bottom: 0; }
+
+/* BADGES */
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-method {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem;
+  font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em;
+}
+.badge-get { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-post { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-ws { background: rgba(124,58,237,0.15); color: var(--accent2); }
+
+/* TABLES */
+.data-table {
+  width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem;
+}
+.data-table th {
+  text-align: left; padding: 10px 14px; background: var(--bg3); color: var(--text2);
+  font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+
+/* CODE BLOCKS */
+pre.code-block {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px; margin: 12px 0; overflow-x: auto; font-size: 0.82rem;
+  line-height: 1.5; color: var(--text2);
+}
+code.inline {
+  background: var(--bg3); padding: 2px 6px; border-radius: 4px;
+  font-size: 0.84rem; color: var(--accent);
+}
+
+/* INFO BOX */
+.info-box {
+  background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2);
+  border-left: 3px solid var(--accent); border-radius: 8px;
+  padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2);
+}
+.info-box strong { color: var(--accent); }
+.warn-box {
+  background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2);
+  border-left: 3px solid var(--high); border-radius: 8px;
+  padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2);
+}
+.warn-box strong { color: var(--high); }
+
+/* ACCORDION */
+.accordion { margin: 16px 0; }
+.accordion-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.accordion-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--bg3); cursor: pointer;
+  transition: background 0.2s; font-weight: 500; font-size: 0.9rem;
+}
+.accordion-header:hover { background: var(--bg2); }
+.accordion-header .ep-meta { display: flex; align-items: center; gap: 8px; }
+.accordion-header .arrow-acc { transition: transform 0.2s; color: var(--text2); }
+.accordion-header.open .arrow-acc { transform: rotate(180deg); }
+.accordion-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--bg2); }
+.accordion-body-inner { padding: 16px; }
+
+/* FLOW DIAGRAM */
+.flow-diagram { display: flex; align-items: center; gap: 0; margin: 20px 0; overflow-x: auto; padding: 10px 0; }
+.flow-step {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 18px; min-width: 130px; text-align: center; flex-shrink: 0;
+}
+.flow-step:hover { border-color: var(--accent); }
+.flow-step .step-num { font-size: 0.7rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.flow-step .step-title { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+.flow-step .step-desc { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+.flow-arrow { color: var(--text2); font-size: 1.2rem; margin: 0 8px; flex-shrink: 0; }
+
+/* SECTION */
+.section-title { font-size: 1.3rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.section-subtitle { color: var(--text2); font-size: 0.92rem; margin-bottom: 20px; }
+
+/* QUICK LINKS */
+.quick-links { padding: 8px 20px; }
+.quick-link {
+  display: block; padding: 5px 0 5px 8px; font-size: 0.82rem; color: var(--text2);
+  transition: color 0.15s;
+}
+.quick-link:hover { color: var(--accent); }
+.quick-link::before { content: "# "; color: var(--accent2); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- QUICK NAV CHIPS -->
+<div class="chip-bar">
+  <span class="chip" onclick="switchTab('overview')">Overview</span>
+  <span class="chip" onclick="switchTab('qoe')">QoE Agent</span>
+  <span class="chip" onclick="switchTab('complaint')">Complaint Agent</span>
+  <span class="chip" onclick="switchTab('tools')">Tools</span>
+  <span class="chip" onclick="switchTab('api')">API</span>
+  <span class="chip" onclick="switchTab('crossapp')">Cross-App</span>
+  <span class="chip" onclick="switchTab('data')">Data</span>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+
+
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+  <button class="tab-btn" onclick="switchTab('qoe')">QoE Agent</button>
+  <button class="tab-btn" onclick="switchTab('complaint')">Complaint Agent</button>
+  <button class="tab-btn" onclick="switchTab('tools')">Tools</button>
+  <button class="tab-btn" onclick="switchTab('api')">API</button>
+  <button class="tab-btn" onclick="switchTab('crossapp')">Cross-App</button>
+  <button class="tab-btn" onclick="switchTab('data')">Data</button>
+</div>
+
+<!-- ==================== OVERVIEW ==================== -->
+<div class="tab-content active" id="tab-overview">
+  <h2 class="section-title">Viewer Experience Overview</h2>
+  <p class="section-subtitle">Real-time QoE monitoring and complaint management for OTT streaming platform.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>QoE Agent (M02)</h4>
+      <p>Monitors viewer quality-of-experience metrics in real-time. Calculates composite QoE scores, detects degradations, and emits platform-wide events.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-low">6 LOW tools</span></div>
+    </div>
+    <div class="card">
+      <h4>Complaint Agent (M09)</h4>
+      <p>NLP-powered complaint categorization with sentiment analysis. Routes complaints and escalates critical issues to OpsCenter.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-high">1 HIGH tool</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>Architecture:</strong> Both agents share the <code class="inline">viewer_experience</code> app folder. QoEAgent handles telemetry-driven insights; ComplaintAgent handles user-reported issues. They communicate via the Event Bus.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Agent Workflow</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Step 1</div><div class="step-title">Ingest</div><div class="step-desc">Telemetry / Complaint</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Step 2</div><div class="step-title">Analyze</div><div class="step-desc">QoE calc / NLP classify</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Step 3</div><div class="step-title">Decide</div><div class="step-desc">Threshold check</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Step 4</div><div class="step-title">Act</div><div class="step-desc">Event / Escalation</div></div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">QoE Score Formula</h3>
+  <pre class="code-block">score = 5.0
+      - buffering_ratio * 10
+      - startup_delay_penalty
+      - error_count * 0.3
+      - bitrate_penalty
+
+# Constraints: 0.0 &lt;= score &lt;= 5.0
+# startup_delay_penalty = max(0, (startup_ms - 2000) / 1000) * 0.5
+# bitrate_penalty = max(0, (target_bitrate - actual_bitrate) / target_bitrate) * 1.0</pre>
+
+  <h3 style="margin:20px 0 12px;">Score Interpretation</h3>
+  <table class="data-table">
+    <thead><tr><th>Range</th><th>Label</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">4.5 - 5.0</code></td><td><span class="badge badge-low">Excellent</span></td><td>No action needed</td></tr>
+      <tr><td><code class="inline">3.5 - 4.4</code></td><td><span class="badge badge-accent">Good</span></td><td>Monitor trending</td></tr>
+      <tr><td><code class="inline">2.5 - 3.4</code></td><td><span class="badge badge-medium">Fair</span></td><td>Investigate root cause</td></tr>
+      <tr><td><code class="inline">1.0 - 2.4</code></td><td><span class="badge badge-high">Poor</span></td><td>Emit qoe_degradation event</td></tr>
+      <tr><td><code class="inline">0.0 - 0.9</code></td><td><span class="badge badge-high">Critical</span></td><td>Auto-escalate to OpsCenter</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== QOE AGENT ==================== -->
+<div class="tab-content" id="tab-qoe">
+  <h2 class="section-title">QoE Agent (M02)</h2>
+  <p class="section-subtitle">Real-time Quality of Experience monitoring and degradation detection.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (default)</td></tr>
+      <tr><td style="color:var(--text2);">Base Class</td><td><code class="inline">BaseAgent</code> (LangGraph 4-step)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/viewer_experience/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>6 tools (all LOW risk)</td></tr>
+      <tr><td style="color:var(--text2);">Primary DB</td><td>DuckDB (analytics.duckdb)</td></tr>
+    </table>
+  </div>
+
+  <div class="info-box">
+    <strong>Key Behavior:</strong> QoEAgent runs continuous telemetry analysis. When the average score for a region drops below 2.5, it emits a <code class="inline">qoe_degradation</code> event on the Event Bus which triggers OpsCenter and Alert Center responses.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Monitoring Pipeline</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Input</div><div class="step-title">Player Telemetry</div><div class="step-desc">buffering, bitrate, errors</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Process</div><div class="step-title">QoE Calculation</div><div class="step-desc">5-factor scoring</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Store</div><div class="step-title">DuckDB Write</div><div class="step-desc">qoe_metrics table</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Check</div><div class="step-title">Threshold</div><div class="step-desc">&lt; 2.5 = degrade</div></div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">QoE Metrics Tracked</h3>
+  <div class="card-grid">
+    <div class="card"><h4>Buffering Ratio</h4><p>Time spent buffering / total playback time. Weight: x10 penalty in formula.</p></div>
+    <div class="card"><h4>Startup Delay</h4><p>Time from play-press to first frame. Penalty kicks in above 2000ms.</p></div>
+    <div class="card"><h4>Error Count</h4><p>Player errors per session (DRM, codec, network). Weight: x0.3 per error.</p></div>
+    <div class="card"><h4>Bitrate Quality</h4><p>Actual vs target bitrate ratio. Lower bitrate = higher penalty.</p></div>
+  </div>
+</div>
+
+<!-- ==================== COMPLAINT AGENT ==================== -->
+<div class="tab-content" id="tab-complaint">
+  <h2 class="section-title">Complaint Agent (M09)</h2>
+  <p class="section-subtitle">NLP-powered complaint categorization with sentiment analysis and escalation.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (default)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/viewer_experience/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>4 tools (3 LOW, 1 HIGH)</td></tr>
+      <tr><td style="color:var(--text2);">NLP Features</td><td>Categorization, Sentiment Analysis, Entity Extraction</td></tr>
+    </table>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Complaint Categories</h3>
+  <table class="data-table">
+    <thead><tr><th>Category</th><th>Description</th><th>Auto-Action</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">buffering</code></td><td>Playback buffering / freezing issues</td><td>Cross-ref with QoE data</td></tr>
+      <tr><td><code class="inline">audio</code></td><td>Audio sync, missing audio, language mismatch</td><td>Log to content team</td></tr>
+      <tr><td><code class="inline">subtitle</code></td><td>Missing / incorrect / delayed subtitles</td><td>Log to content team</td></tr>
+      <tr><td><code class="inline">crash</code></td><td>App crash, freeze, black screen</td><td>Create DevOps ticket</td></tr>
+      <tr><td><code class="inline">billing</code></td><td>Subscription, payment, refund issues</td><td>Route to billing team</td></tr>
+      <tr><td><code class="inline">other</code></td><td>Uncategorized complaints</td><td>Manual review queue</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin:20px 0 12px;">Sentiment Analysis</h3>
+  <div class="card-grid">
+    <div class="card"><h4>Positive</h4><p>Viewer satisfied, praising content or feature. Confidence &gt; 0.8 required.</p></div>
+    <div class="card"><h4>Neutral</h4><p>Informational report without strong emotion. Default fallback.</p></div>
+    <div class="card"><h4>Negative</h4><p>Frustrated viewer. If combined with crash/buffering, escalation priority increases.</p></div>
+  </div>
+
+  <div class="warn-box">
+    <strong>HIGH Risk Tool:</strong> <code class="inline">escalate_complaint</code> requires admin approval. It creates an OpsCenter incident with full complaint context, QoE correlation data, and recommended actions.
+  </div>
+</div>
+
+<!-- ==================== TOOLS ==================== -->
+<div class="tab-content" id="tab-tools">
+  <h2 class="section-title">Tools Reference</h2>
+  <p class="section-subtitle">10 tools total: 6 LOW, 3 MEDIUM, 1 HIGH risk.</p>
+
+  <table class="data-table">
+    <thead><tr><th>Tool Name</th><th>Risk</th><th>Agent</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">get_qoe_dashboard</code></td><td><span class="badge badge-low">LOW</span></td><td>QoE</td><td>Fetch QoE dashboard summary with regional breakdown</td></tr>
+      <tr><td><code class="inline">get_qoe_by_region</code></td><td><span class="badge badge-low">LOW</span></td><td>QoE</td><td>Filter QoE metrics by region, city, ISP</td></tr>
+      <tr><td><code class="inline">get_qoe_history</code></td><td><span class="badge badge-low">LOW</span></td><td>QoE</td><td>Historical QoE scores with time-range filter</td></tr>
+      <tr><td><code class="inline">get_qoe_alerts</code></td><td><span class="badge badge-low">LOW</span></td><td>QoE</td><td>List active QoE threshold violations</td></tr>
+      <tr><td><code class="inline">get_viewer_sessions</code></td><td><span class="badge badge-low">LOW</span></td><td>QoE</td><td>Query individual viewer sessions</td></tr>
+      <tr><td><code class="inline">get_playback_errors</code></td><td><span class="badge badge-low">LOW</span></td><td>QoE</td><td>Aggregate playback errors by type and device</td></tr>
+      <tr><td><code class="inline">search_complaints</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Complaint</td><td>Full-text search across complaint database</td></tr>
+      <tr><td><code class="inline">classify_complaint</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Complaint</td><td>NLP categorization + sentiment for a complaint</td></tr>
+      <tr><td><code class="inline">get_complaint_trends</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Complaint</td><td>Complaint volume trends by category and time</td></tr>
+      <tr><td><code class="inline">escalate_complaint</code></td><td><span class="badge badge-high">HIGH</span></td><td>Complaint</td><td>Escalate complaint to OpsCenter incident (approval required)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box">
+    <strong>Risk Policy:</strong> All tools include <code class="inline">risk_level</code> and <code class="inline">tenant_id</code> parameters. HIGH-risk tools set <code class="inline">approval_required=True</code> and block execution until admin confirms.
+  </div>
+</div>
+
+<!-- ==================== API ==================== -->
+<div class="tab-content" id="tab-api">
+  <h2 class="section-title">API Endpoints</h2>
+  <p class="section-subtitle">Router prefix: <code class="inline">/viewer</code> &mdash; 8 REST endpoints + 1 WebSocket.</p>
+
+  <div class="accordion">
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/viewer/qoe/dashboard</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Returns QoE dashboard summary with average scores, regional breakdown, and active degradations.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code> (required), <code class="inline">time_range</code> (1h|6h|24h|7d)</p>
+        <p><strong>Response:</strong> 200 &mdash; QoE summary object with metrics array</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/viewer/qoe/by-region</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>QoE scores filtered by geographic region with ISP-level detail.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">region</code>, <code class="inline">city</code>, <code class="inline">isp</code></p>
+        <p><strong>Response:</strong> 200 &mdash; Array of region QoE objects</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/viewer/qoe/history</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Historical QoE time-series data for trend analysis and charting.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">start</code>, <code class="inline">end</code>, <code class="inline">granularity</code> (5m|1h|1d)</p>
+        <p><strong>Response:</strong> 200 &mdash; Time-series array with timestamps and scores</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/viewer/complaints</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>List complaints with pagination, filtering by category and sentiment.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">category</code>, <code class="inline">sentiment</code>, <code class="inline">page</code>, <code class="inline">limit</code></p>
+        <p><strong>Response:</strong> 200 &mdash; Paginated complaint list</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/viewer/complaints</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Submit a new complaint. Triggers NLP classification automatically.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ tenant_id, user_id_hash, text, device_type, app_version }</code></p>
+        <p><strong>Response:</strong> 201 &mdash; Created complaint with auto-assigned category and sentiment</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/viewer/complaints/trends</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Complaint volume trends grouped by category over time.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">days</code> (default: 30)</p>
+        <p><strong>Response:</strong> 200 &mdash; Trend data per category</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/viewer/complaints/{id}/escalate</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Escalate a complaint to OpsCenter. Requires admin role. Creates an incident.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ reason, priority, correlation_ids }</code></p>
+        <p><strong>Response:</strong> 200 &mdash; Incident ID and escalation status</p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/viewer/sessions</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Query viewer sessions with playback metrics for debugging.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">user_id_hash</code>, <code class="inline">device</code>, <code class="inline">date</code></p>
+        <p><strong>Response:</strong> 200 &mdash; Session details with QoE scores per session</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-ws">WS</span> <code class="inline">/viewer/ws/qoe-live</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Real-time WebSocket stream of QoE scores and degradation alerts.</p>
+        <p style="margin-top:8px;"><strong>Events:</strong> <code class="inline">qoe_update</code>, <code class="inline">degradation_alert</code>, <code class="inline">complaint_new</code></p>
+        <p><strong>Protocol:</strong> Socket.IO via <code class="inline">shared/websocket/manager.py</code></p>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CROSS-APP ==================== -->
+<div class="tab-content" id="tab-crossapp">
+  <h2 class="section-title">Cross-App Events</h2>
+  <p class="section-subtitle">Event Bus integration for inter-app communication.</p>
+
+  <h3 style="margin:20px 0 12px;">OUTPUT Events (Published)</h3>
+  <div class="card">
+    <h4>qoe_degradation</h4>
+    <p>Emitted when average QoE score for a region drops below 2.5 for more than 5 minutes.</p>
+    <pre class="code-block">{
+  "event_type": "qoe_degradation",
+  "severity": "HIGH",
+  "region": "europe-west1",
+  "avg_score": 1.8,
+  "affected_viewers": 12450,
+  "degradation_factors": ["buffering", "errors"],
+  "timestamp": "2026-03-28T14:30:00Z"
+}</pre>
+    <p style="margin-top:8px;"><strong>Consumers:</strong> OpsCenter (auto-incident), Alert Center (notification), Capacity & Cost (scale check)</p>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">INPUT Events (Consumed)</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h4>analysis_complete</h4>
+      <p>From Log Analyzer. When log analysis finishes, QoE Agent correlates findings with viewer experience data to enrich degradation context.</p>
+    </div>
+    <div class="card">
+      <h4>live_event_starting</h4>
+      <p>From Live Intelligence. QoE Agent adjusts thresholds and monitoring frequency for live event periods (increased viewer load).</p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DATA ==================== -->
+<div class="tab-content" id="tab-data">
+  <h2 class="section-title">Data Model</h2>
+  <p class="section-subtitle">DuckDB tables in <code class="inline">analytics.duckdb</code> for QoE and complaint data.</p>
+
+  <div class="card">
+    <h4>qoe_metrics (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE qoe_metrics (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    user_id_hash    VARCHAR NOT NULL,
+    session_id      VARCHAR NOT NULL,
+    region          VARCHAR,
+    city            VARCHAR,
+    isp             VARCHAR,
+    device_type     VARCHAR,
+    qoe_score       DOUBLE NOT NULL,
+    buffering_ratio DOUBLE,
+    startup_ms      INTEGER,
+    error_count     INTEGER,
+    actual_bitrate  INTEGER,
+    target_bitrate  INTEGER,
+    recorded_at     TIMESTAMP NOT NULL
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>complaints (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE complaints (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    user_id_hash    VARCHAR NOT NULL,
+    text            TEXT NOT NULL,
+    category        VARCHAR,  -- buffering|audio|subtitle|crash|billing|other
+    sentiment       VARCHAR,  -- positive|neutral|negative
+    confidence      DOUBLE,
+    device_type     VARCHAR,
+    app_version     VARCHAR,
+    status          VARCHAR DEFAULT 'open',
+    escalated       BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMP NOT NULL
+);</pre>
+  </div>
+
+  <div class="info-box">
+    <strong>PII Policy:</strong> Only <code class="inline">user_id_hash</code> is stored. Raw user IDs are never persisted. The <code class="inline">shared/utils/pii_scrubber.py</code> ensures PII is stripped before any LLM call.
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+// ==================== TABS ====================
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  var target = document.getElementById('tab-' + name);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    if (btn.textContent.toLowerCase().replace(/[^a-z]/g,'').indexOf(name.replace(/[^a-z]/g,'')) >= 0 ||
+        btn.onclick.toString().indexOf("'" + name + "'") >= 0) {
+      btn.classList.add('active');
+    }
+  });
+  // Simpler: match by onclick
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    var attr = btn.getAttribute('onclick');
+    if (attr && attr.indexOf("'" + name + "'") !== -1) {
+      btn.classList.add('active');
+    }
+  });
+}
+
+// ==================== SIDEBAR SECTIONS ====================
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+  var content = el.nextElementSibling;
+  if (content) content.classList.toggle('collapsed');
+}
+
+// ==================== FAQ ====================
+function toggleFaq(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('open');
+}
+
+// ==================== ACCORDION ====================
+function toggleAccordion(header) {
+  var body = header.nextElementSibling;
+  header.classList.toggle('open');
+  if (header.classList.contains('open')) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+  } else {
+    body.style.maxHeight = '0';
+  }
+}
+
+// ==================== SEARCH ====================
+var searchInput = document.getElementById('globalSearch');
+var noResultMsg = document.getElementById('searchNoResult');
+var mainContent = document.querySelector('.main-content');
+
+function clearMarks() {
+  var marks = mainContent.querySelectorAll('mark.search-highlight');
+  marks.forEach(function(m) {
+    var parent = m.parentNode;
+    parent.replaceChild(document.createTextNode(m.textContent), m);
+    parent.normalize();
+  });
+}
+
+function searchInTextNodes(node, term, results) {
+  if (node.nodeType === 3) {
+    var idx = node.textContent.toLowerCase().indexOf(term.toLowerCase());
+    if (idx >= 0) {
+      var span = document.createElement('mark');
+      span.className = 'search-highlight';
+      var after = node.splitText(idx);
+      var matched = after.splitText(term.length);
+      var clone = after.cloneNode(true);
+      span.appendChild(clone);
+      after.parentNode.replaceChild(span, after);
+      results.push(span);
+      searchInTextNodes(matched, term, results);
+    }
+  } else if (node.nodeType === 1 && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE' && !node.classList.contains('search-highlight')) {
+    var children = Array.prototype.slice.call(node.childNodes);
+    for (var i = 0; i < children.length; i++) {
+      searchInTextNodes(children[i], term, results);
+    }
+  }
+}
+
+searchInput.addEventListener('keyup', function() {
+  clearMarks();
+  var term = searchInput.value.trim();
+  if (term.length < 2) {
+    searchInput.classList.remove('no-results');
+    noResultMsg.style.display = 'none';
+    return;
+  }
+  var results = [];
+  searchInTextNodes(mainContent, term, results);
+  if (results.length === 0) {
+    searchInput.classList.add('no-results');
+    noResultMsg.style.display = 'inline';
+  } else {
+    searchInput.classList.remove('no-results');
+    noResultMsg.style.display = 'none';
+    results[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+</script>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || !data.type) return;
+  if (data.type === 'showTab') {
+    var tabId = data.tabId;
+    var btn = document.querySelector('[data-tab="' + tabId + '"]') ||
+              document.querySelector('.chip[onclick*="' + tabId + '"]');
+    if (btn) { btn.click(); }
+    else if (typeof switchTab === 'function') { switchTab(tabId); }
+    else if (typeof activateTab === 'function') { activateTab(tabId); }
+  }
+  if (data.type === 'scrollTo') {
+    var el = document.getElementById(data.sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+</script>
+</body>
+</html>

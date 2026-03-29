@@ -151,3 +151,10 @@ Senaryolar: Dedup (2x event → 1x Slack) | Storm (15/5dk → 1 özet) | Suppres
 - backend/routers/alert_center.py — 10 endpoints (dashboard, list, rules CRUD, channels, suppression, analytics)
 - apps/alert_center/tests/test_router.py — 18 router tests
 - frontend/src/app/(apps)/alert-center/page.tsx — 6 tabs, WebSocket Live Feed
+
+---
+## Sprint Progress — S-DI-03 (2026-03-28)
+### logs.duckdb Entegrasyonu
+- GET /alerts/dashboard: CDN health badge (medianova_logs), DRM status badge (widevine_drm_logs + fairplay_drm_logs), API health badge (api_logs_logs)
+- POST /alerts/evaluate: Anomali tespiti logs.duckdb'den gerçek veri ile
+- DuckDB OKUMA: logs.duckdb aaop_company schema (medianova_logs, widevine_drm_logs, fairplay_drm_logs, api_logs_logs)

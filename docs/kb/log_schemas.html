@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log Schemas — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #7c3aed;
+  --low: #10b981;
+  --medium: #f59e0b;
+  --high: #ef4444;
+  --border: #1e2433;
+  --border2: #2a3244;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.header h1 span.icon { font-size: 1.3rem; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-bar .search-icon { color: var(--text2); font-size: 1.1rem; }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 32px 0; }
+.chip { padding: 4px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; font-size: 0.72rem; color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 120px); }
+
+.sidebar { width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; transition: color 0.2s; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 5px 20px 5px 28px; font-size: 0.82rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; cursor: pointer; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+.sidebar-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(56,189,248,0.08); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-link { display: block; padding: 5px 20px 5px 28px; font-size: 0.82rem; color: var(--text2); transition: all 0.15s; }
+.quick-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.8rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); transform: translateY(-1px); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-request { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-response { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-client { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-network { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-security { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-aaop { background: rgba(56,189,248,0.25); color: #7dd3fc; }
+.badge-pii { background: rgba(239,68,68,0.2); color: var(--high); font-weight: 700; }
+.badge-session { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-content { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-device { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-drm { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-metric { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-subscriber { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-billing { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-notification { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-review { background: rgba(56,189,248,0.15); color: var(--accent); }
+
+.data-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.82rem; }
+.data-table th { text-align: left; padding: 8px 10px; background: var(--bg3); color: var(--text2); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+.data-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+.data-table code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; font-size: 0.78rem; color: var(--accent); }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-radius: var(--radius); padding: 14px 18px; margin: 14px 0; font-size: 0.85rem; }
+.info-box .label { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.warning-box { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2); border-radius: var(--radius); padding: 14px 18px; margin: 14px 0; font-size: 0.85rem; }
+.warning-box .label { font-weight: 600; color: var(--medium); margin-bottom: 4px; }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; font-size: 0.78rem; line-height: 1.5; margin: 10px 0; color: var(--text2); }
+
+.section-title { font-size: 1.2rem; margin: 24px 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.section-title:first-child { margin-top: 0; }
+
+.source-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; font-size: 0.82rem; color: var(--text2); }
+.source-meta span { display: flex; align-items: center; gap: 4px; }
+.source-meta strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#x1F4CA;</span> Log Schemas</h1>
+  <div class="breadcrumb">
+    <a href="index.html">&larr; Platform Overview</a>
+    <span class="sep">/</span>
+    <span>Log Schemas &mdash; 13 Sources</span>
+  </div>
+</div>
+
+<div class="search-bar">
+  <span class="search-icon">&#x1F50D;</span>
+  <input type="text" id="searchInput" placeholder="Search fields, types, sources..." />
+  <span class="search-no-result" id="noResult">No results found</span>
+</div>
+
+<div class="chips">
+  <span class="chip" onclick="activateTab('tab-medianova')">Medianova</span>
+  <span class="chip" onclick="activateTab('tab-origin')">Origin</span>
+  <span class="chip" onclick="activateTab('tab-widevine')">Widevine</span>
+  <span class="chip" onclick="activateTab('tab-fairplay')">FairPlay</span>
+  <span class="chip" onclick="activateTab('tab-player')">Player Events</span>
+  <span class="chip" onclick="activateTab('tab-npaw')">NPAW</span>
+  <span class="chip" onclick="activateTab('tab-api')">API Logs</span>
+  <span class="chip" onclick="activateTab('tab-newrelic')">New Relic</span>
+  <span class="chip" onclick="activateTab('tab-crm')">CRM</span>
+  <span class="chip" onclick="activateTab('tab-epg')">EPG</span>
+  <span class="chip" onclick="activateTab('tab-billing')">Billing</span>
+  <span class="chip" onclick="activateTab('tab-push')">Push</span>
+  <span class="chip" onclick="activateTab('tab-reviews')">App Reviews</span>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">Sources <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <a class="sidebar-link active" onclick="activateTab('tab-medianova')">Medianova CDN</a>
+        <a class="sidebar-link" onclick="activateTab('tab-origin')">Origin Server</a>
+        <a class="sidebar-link" onclick="activateTab('tab-widevine')">Widevine DRM</a>
+        <a class="sidebar-link" onclick="activateTab('tab-fairplay')">FairPlay DRM</a>
+        <a class="sidebar-link" onclick="activateTab('tab-player')">Player Events</a>
+        <a class="sidebar-link" onclick="activateTab('tab-npaw')">NPAW Analytics</a>
+        <a class="sidebar-link" onclick="activateTab('tab-api')">API Logs</a>
+        <a class="sidebar-link" onclick="activateTab('tab-newrelic')">New Relic</a>
+        <a class="sidebar-link" onclick="activateTab('tab-crm')">CRM</a>
+        <a class="sidebar-link" onclick="activateTab('tab-epg')">EPG</a>
+        <a class="sidebar-link" onclick="activateTab('tab-billing')">Billing</a>
+        <a class="sidebar-link" onclick="activateTab('tab-push')">Push Notifications</a>
+        <a class="sidebar-link" onclick="activateTab('tab-reviews')">App Reviews</a>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">FAQ <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How are sources correlated?</button>
+          <div class="faq-a">Primary correlation keys: <code>subscriber_id</code> links CRM/Billing/Player, <code>session_id</code> chains Player Events, <code>medianova_req_id</code> links Origin to CDN, <code>device_id</code> spans Player/DRM/Push sources.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What format are raw files?</button>
+          <div class="faq-a">Varies by source: JSONL.gz (most), TSV (Medianova CDN), CSV (CRM, Billing), JSON (EPG, New Relic). All parsed into DuckDB <code>logs.duckdb</code> for unified querying.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Which fields contain PII?</button>
+          <div class="faq-a">Fields flagged as PII: <code>client_ip</code>, <code>subscriber_id</code>, <code>email</code>, <code>phone</code>, <code>device_id</code>. The PII scrubber redacts these before LLM processing. Raw data in DuckDB retains PII for operational use.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">Quick Links <span class="arrow">&#x25BC;</span></div>
+      <div class="sidebar-section-content">
+        <a class="quick-link" href="index.html">Platform Overview</a>
+        <a class="quick-link" href="architecture.html">Architecture</a>
+        <a class="quick-link" href="api_reference.html">API Reference</a>
+        <a class="quick-link" href="ai_lab.html">AI Lab</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content" id="mainContent">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-medianova">Medianova</button>
+      <button class="tab-btn" data-tab="tab-origin">Origin</button>
+      <button class="tab-btn" data-tab="tab-widevine">Widevine</button>
+      <button class="tab-btn" data-tab="tab-fairplay">FairPlay</button>
+      <button class="tab-btn" data-tab="tab-player">Player</button>
+      <button class="tab-btn" data-tab="tab-npaw">NPAW</button>
+      <button class="tab-btn" data-tab="tab-api">API</button>
+      <button class="tab-btn" data-tab="tab-newrelic">New Relic</button>
+      <button class="tab-btn" data-tab="tab-crm">CRM</button>
+      <button class="tab-btn" data-tab="tab-epg">EPG</button>
+      <button class="tab-btn" data-tab="tab-billing">Billing</button>
+      <button class="tab-btn" data-tab="tab-push">Push</button>
+      <button class="tab-btn" data-tab="tab-reviews">Reviews</button>
+    </div>
+
+    <!-- =================== MEDIANOVA =================== -->
+    <div class="tab-content active" id="tab-medianova">
+      <h2 class="section-title">Medianova CDN Logs</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> TSV (tab-separated)</span>
+        <span><strong>Read by:</strong> Log Analyzer, Ops Center, Alert Center</span>
+        <span><strong>Output:</strong> <code>data/logs/medianova/{date}/</code></span>
+        <span><strong>Fields:</strong> 32</span>
+      </div>
+
+      <div class="info-box">
+        <div class="label">Correlations</div>
+        <code>medianova_req_id</code> &rarr; Origin Server logs | <code>client_ip</code> &rarr; Player Events (geo-enriched) | <code>content_path</code> &rarr; EPG schedule
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-request">request</span></td><td>Request timestamp (UTC)</td><td>2026-01-15T14:32:01Z</td><td></td></tr>
+          <tr><td><code>client_ip</code></td><td>string</td><td><span class="badge badge-client">client</span></td><td>Client IP address</td><td>185.23.45.67</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>method</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>HTTP method</td><td>GET</td><td></td></tr>
+          <tr><td><code>url_path</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>Request URL path</td><td>/live/channel1/index.m3u8</td><td></td></tr>
+          <tr><td><code>query_string</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>URL query parameters</td><td>token=abc&quality=hd</td><td></td></tr>
+          <tr><td><code>protocol</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>HTTP protocol version</td><td>HTTP/2.0</td><td></td></tr>
+          <tr><td><code>status_code</code></td><td>int</td><td><span class="badge badge-response">response</span></td><td>HTTP response status code</td><td>200</td><td></td></tr>
+          <tr><td><code>bytes_sent</code></td><td>int</td><td><span class="badge badge-response">response</span></td><td>Response body size in bytes</td><td>1048576</td><td></td></tr>
+          <tr><td><code>response_time_ms</code></td><td>float</td><td><span class="badge badge-response">response</span></td><td>Total response time in milliseconds</td><td>45.2</td><td></td></tr>
+          <tr><td><code>cache_status</code></td><td>string</td><td><span class="badge badge-response">response</span></td><td>CDN cache status</td><td>HIT / MISS / EXPIRED</td><td></td></tr>
+          <tr><td><code>content_type</code></td><td>string</td><td><span class="badge badge-response">response</span></td><td>Response content type</td><td>application/vnd.apple.mpegurl</td><td></td></tr>
+          <tr><td><code>user_agent</code></td><td>string</td><td><span class="badge badge-client">client</span></td><td>Client user agent string</td><td>ExoPlayer/2.19.1</td><td></td></tr>
+          <tr><td><code>referer</code></td><td>string</td><td><span class="badge badge-client">client</span></td><td>HTTP Referer header</td><td>https://app.platform.tv</td><td></td></tr>
+          <tr><td><code>country_code</code></td><td>string</td><td><span class="badge badge-client">client</span></td><td>GeoIP country</td><td>TR</td><td></td></tr>
+          <tr><td><code>city</code></td><td>string</td><td><span class="badge badge-client">client</span></td><td>GeoIP city</td><td>Istanbul</td><td></td></tr>
+          <tr><td><code>asn</code></td><td>int</td><td><span class="badge badge-network">network</span></td><td>Autonomous System Number</td><td>9121</td><td></td></tr>
+          <tr><td><code>isp_name</code></td><td>string</td><td><span class="badge badge-network">network</span></td><td>ISP name from ASN</td><td>Turk Telekom</td><td></td></tr>
+          <tr><td><code>edge_server</code></td><td>string</td><td><span class="badge badge-network">network</span></td><td>CDN edge server hostname</td><td>ist-edge-01.mn.net</td><td></td></tr>
+          <tr><td><code>pop_location</code></td><td>string</td><td><span class="badge badge-network">network</span></td><td>Point of Presence location</td><td>Istanbul-1</td><td></td></tr>
+          <tr><td><code>ssl_protocol</code></td><td>string</td><td><span class="badge badge-security">security</span></td><td>TLS version used</td><td>TLSv1.3</td><td></td></tr>
+          <tr><td><code>ssl_cipher</code></td><td>string</td><td><span class="badge badge-security">security</span></td><td>TLS cipher suite</td><td>TLS_AES_256_GCM_SHA384</td><td></td></tr>
+          <tr><td><code>request_id</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>Unique request identifier</td><td>req_7f8a9b2c</td><td></td></tr>
+          <tr><td><code>origin_fetch</code></td><td>bool</td><td><span class="badge badge-network">network</span></td><td>Whether request went to origin</td><td>false</td><td></td></tr>
+          <tr><td><code>origin_time_ms</code></td><td>float</td><td><span class="badge badge-network">network</span></td><td>Origin fetch time (if applicable)</td><td>120.5</td><td></td></tr>
+          <tr><td><code>content_path</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>Normalized content path</td><td>/live/ch1/</td><td></td></tr>
+          <tr><td><code>stream_type</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>HLS/DASH/progressive</td><td>hls</td><td></td></tr>
+          <tr><td><code>segment_number</code></td><td>int</td><td><span class="badge badge-request">request</span></td><td>Video segment sequence number</td><td>42</td><td></td></tr>
+          <tr><td><code>bandwidth_tier</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>AAOP: bandwidth classification</td><td>high / medium / low</td><td></td></tr>
+          <tr><td><code>anomaly_score</code></td><td>float</td><td><span class="badge badge-aaop">aaop</span></td><td>AAOP: computed anomaly score</td><td>0.12</td><td></td></tr>
+          <tr><td><code>error_category</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>AAOP: error classification</td><td>timeout / 5xx / null</td><td></td></tr>
+          <tr><td><code>medianova_req_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Correlation ID to Origin logs</td><td>mn_abc123def</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>AAOP: multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== ORIGIN =================== -->
+    <div class="tab-content" id="tab-origin">
+      <h2 class="section-title">Origin Server Logs</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSONL.gz</span>
+        <span><strong>Read by:</strong> Log Analyzer, Ops Center</span>
+        <span><strong>Output:</strong> <code>data/logs/origin/{date}/</code></span>
+      </div>
+
+      <div class="info-box">
+        <div class="label">Correlations</div>
+        <code>medianova_req_id</code> &rarr; Medianova CDN logs | <code>content_id</code> &rarr; EPG schedule | Event types classify origin activity
+      </div>
+
+      <div class="card">
+        <h3>Event Types</h3>
+        <table class="data-table">
+          <thead><tr><th>Event Type</th><th>Description</th><th>Frequency</th></tr></thead>
+          <tbody>
+            <tr><td><code>cdn_miss</code></td><td>CDN cache miss, origin serves content directly</td><td>~15% of traffic</td></tr>
+            <tr><td><code>hls_dash_fetch</code></td><td>HLS/DASH manifest or segment fetch from origin</td><td>~60% of traffic</td></tr>
+            <tr><td><code>health_check</code></td><td>CDN health check probe to origin</td><td>Every 30s per edge</td></tr>
+            <tr><td><code>transcoder_event</code></td><td>Live transcoder output to origin storage</td><td>Continuous during live</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-request">request</span></td><td>Event timestamp UTC</td><td>2026-01-15T14:32:02Z</td><td></td></tr>
+          <tr><td><code>event_type</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>Origin event classification</td><td>cdn_miss</td><td></td></tr>
+          <tr><td><code>medianova_req_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Correlation to CDN request</td><td>mn_abc123def</td><td></td></tr>
+          <tr><td><code>content_id</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Content identifier</td><td>live_ch1_seg42</td><td></td></tr>
+          <tr><td><code>origin_server</code></td><td>string</td><td><span class="badge badge-network">network</span></td><td>Origin server hostname</td><td>origin-01.platform.tv</td><td></td></tr>
+          <tr><td><code>response_time_ms</code></td><td>float</td><td><span class="badge badge-response">response</span></td><td>Origin processing time</td><td>85.3</td><td></td></tr>
+          <tr><td><code>status_code</code></td><td>int</td><td><span class="badge badge-response">response</span></td><td>HTTP response status</td><td>200</td><td></td></tr>
+          <tr><td><code>bytes_served</code></td><td>int</td><td><span class="badge badge-response">response</span></td><td>Bytes served to CDN edge</td><td>2097152</td><td></td></tr>
+          <tr><td><code>storage_path</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Internal storage path</td><td>/mnt/live/ch1/seg42.ts</td><td></td></tr>
+          <tr><td><code>edge_requesting</code></td><td>string</td><td><span class="badge badge-network">network</span></td><td>Which edge server requested</td><td>ist-edge-01.mn.net</td><td></td></tr>
+          <tr><td><code>transcoder_id</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Transcoder instance ID</td><td>tc_gpu_03</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== WIDEVINE =================== -->
+    <div class="tab-content" id="tab-widevine">
+      <h2 class="section-title">Widevine DRM Logs</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSONL.gz</span>
+        <span><strong>Read by:</strong> Log Analyzer, Viewer Experience, Ops Center</span>
+        <span><strong>Output:</strong> <code>data/logs/widevine/{date}/</code></span>
+      </div>
+
+      <div class="card">
+        <h3>Event Types &amp; Security Levels</h3>
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>license_request</code></td><td>New DRM license request from client</td></tr>
+            <tr><td><code>license_renewal</code></td><td>Existing license renewal before expiry</td></tr>
+            <tr><td><code>license_validation</code></td><td>Server-side license validity check</td></tr>
+            <tr><td><code>license_error</code></td><td>License issuance or validation failure</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:10px; color:var(--text2); font-size:0.85rem;"><strong>Security Levels:</strong> <span class="badge badge-drm">L1</span> Hardware-backed TEE (highest) | <span class="badge badge-drm">L2</span> Software crypto with HW root | <span class="badge badge-drm">L3</span> Software-only (lowest, SD only)</p>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-request">request</span></td><td>Event timestamp UTC</td><td>2026-01-15T14:32:05Z</td><td></td></tr>
+          <tr><td><code>event_type</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>DRM event classification</td><td>license_request</td><td></td></tr>
+          <tr><td><code>device_id</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Unique device identifier</td><td>dev_a1b2c3d4</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>subscriber_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Subscriber identifier</td><td>sub_12345</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>security_level</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>Widevine security level</td><td>L1</td><td></td></tr>
+          <tr><td><code>content_id</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Protected content identifier</td><td>movie_4567</td><td></td></tr>
+          <tr><td><code>license_type</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>Streaming or offline license</td><td>streaming</td><td></td></tr>
+          <tr><td><code>hdcp_version</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>HDCP version supported</td><td>2.2</td><td></td></tr>
+          <tr><td><code>max_resolution</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>Max resolution allowed by policy</td><td>4K / 1080p / 720p</td><td></td></tr>
+          <tr><td><code>error_code</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>Error code (if error event)</td><td>DEVICE_REVOKED</td><td></td></tr>
+          <tr><td><code>platform</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Client platform</td><td>Android / ChromeOS / SmartTV</td><td></td></tr>
+          <tr><td><code>response_time_ms</code></td><td>float</td><td><span class="badge badge-response">response</span></td><td>License server response time</td><td>32.1</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== FAIRPLAY =================== -->
+    <div class="tab-content" id="tab-fairplay">
+      <h2 class="section-title">FairPlay DRM Logs</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSONL.gz</span>
+        <span><strong>Read by:</strong> Log Analyzer, Viewer Experience, Ops Center</span>
+        <span><strong>Output:</strong> <code>data/logs/fairplay/{date}/</code></span>
+      </div>
+
+      <div class="warning-box">
+        <div class="label">Known Anomaly: March 15 Certificate Incident</div>
+        On 2026-03-15, a certificate renewal failure caused a spike in <code>certificate_status=expired</code> events across all iOS devices. The incident lasted 4 hours and affected ~12K subscribers. Correlated with Ops Center incident INC-2026-0315-001.
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-request">request</span></td><td>Event timestamp UTC</td><td>2026-01-15T14:32:06Z</td><td></td></tr>
+          <tr><td><code>certificate_status</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>FairPlay certificate state</td><td>valid / expired / revoked</td><td></td></tr>
+          <tr><td><code>device_id</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Apple device identifier</td><td>dev_ios_xyz789</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>subscriber_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Subscriber identifier</td><td>sub_12345</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>ios_version</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>iOS version on device</td><td>17.4.1</td><td></td></tr>
+          <tr><td><code>device_model</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Apple device model</td><td>iPhone15,3</td><td></td></tr>
+          <tr><td><code>content_id</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Protected content identifier</td><td>movie_4567</td><td></td></tr>
+          <tr><td><code>event_type</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>FairPlay event type</td><td>license_request / renewal / error</td><td></td></tr>
+          <tr><td><code>error_code</code></td><td>string</td><td><span class="badge badge-drm">drm</span></td><td>Error code (if applicable)</td><td>CERT_EXPIRED / DEVICE_NOT_ALLOWED</td><td></td></tr>
+          <tr><td><code>response_time_ms</code></td><td>float</td><td><span class="badge badge-response">response</span></td><td>License server response time</td><td>28.7</td><td></td></tr>
+          <tr><td><code>app_version</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Player app version</td><td>5.2.1</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== PLAYER EVENTS =================== -->
+    <div class="tab-content" id="tab-player">
+      <h2 class="section-title">Player Events</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSONL.gz</span>
+        <span><strong>Read by:</strong> Viewer Experience, Log Analyzer, Growth &amp; Retention</span>
+        <span><strong>Output:</strong> <code>data/logs/player_events/{date}/</code></span>
+      </div>
+
+      <div class="card">
+        <h3>7 Event Types (Session Chain)</h3>
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Description</th><th>Chain Order</th></tr></thead>
+          <tbody>
+            <tr><td><code>session_start</code></td><td>Player initialized, content selected</td><td>1</td></tr>
+            <tr><td><code>buffering_start</code></td><td>Buffering began (initial or rebuffer)</td><td>2+</td></tr>
+            <tr><td><code>buffering_end</code></td><td>Buffering completed, playback resumed</td><td>3+</td></tr>
+            <tr><td><code>quality_change</code></td><td>ABR quality switch (up or down)</td><td>Any</td></tr>
+            <tr><td><code>error</code></td><td>Player error (network, DRM, codec)</td><td>Any</td></tr>
+            <tr><td><code>seek</code></td><td>User seek action</td><td>Any</td></tr>
+            <tr><td><code>session_end</code></td><td>Player closed, session completed</td><td>Last</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-box">
+        <div class="label">QoE Formula Fields</div>
+        QoE score is computed from: <code>startup_time_ms</code>, <code>rebuffer_count</code>, <code>rebuffer_duration_ms</code>, <code>avg_bitrate_kbps</code>, <code>quality_switches</code>. Formula: <code>QoE = 5.0 - (startup_penalty + rebuffer_penalty + quality_penalty)</code>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-session">session</span></td><td>Event timestamp UTC</td><td>2026-01-15T20:15:01Z</td><td></td></tr>
+          <tr><td><code>event_type</code></td><td>string</td><td><span class="badge badge-session">session</span></td><td>Player event type</td><td>session_start</td><td></td></tr>
+          <tr><td><code>session_id</code></td><td>string</td><td><span class="badge badge-session">session</span></td><td>Unique session identifier (chain key)</td><td>sess_a1b2c3</td><td></td></tr>
+          <tr><td><code>subscriber_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Subscriber identifier</td><td>sub_12345</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>device_id</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Device identifier</td><td>dev_xyz789</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>content_id</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Content being played</td><td>live_ch1</td><td></td></tr>
+          <tr><td><code>startup_time_ms</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Time to first frame (ms)</td><td>1200</td><td></td></tr>
+          <tr><td><code>rebuffer_count</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Number of rebuffering events</td><td>2</td><td></td></tr>
+          <tr><td><code>rebuffer_duration_ms</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Total rebuffering time (ms)</td><td>3500</td><td></td></tr>
+          <tr><td><code>avg_bitrate_kbps</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Average streaming bitrate</td><td>4500</td><td></td></tr>
+          <tr><td><code>quality_switches</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>ABR quality change count</td><td>3</td><td></td></tr>
+          <tr><td><code>platform</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Client platform</td><td>iOS / Android / WebOS / Tizen</td><td></td></tr>
+          <tr><td><code>player_version</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Player SDK version</td><td>5.2.1</td><td></td></tr>
+          <tr><td><code>error_code</code></td><td>string</td><td><span class="badge badge-metric">metric</span></td><td>Error code (if error event)</td><td>NETWORK_TIMEOUT</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== NPAW =================== -->
+    <div class="tab-content" id="tab-npaw">
+      <h2 class="section-title">NPAW Analytics</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSON</span>
+        <span><strong>Read by:</strong> Viewer Experience, Growth &amp; Retention</span>
+        <span><strong>Output:</strong> <code>data/logs/npaw/{date}/</code></span>
+      </div>
+
+      <div class="info-box">
+        <div class="label">Correlation with Player Events</div>
+        NPAW <code>qoe_score</code> correlates with Player Events computed QoE within +/-0.1 tolerance. Use <code>session_id</code> for direct correlation. NPAW provides aggregate session-level metrics while Player Events provide granular event-level data.
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-session">session</span></td><td>Session aggregate timestamp</td><td>2026-01-15T20:45:00Z</td><td></td></tr>
+          <tr><td><code>session_id</code></td><td>string</td><td><span class="badge badge-session">session</span></td><td>Correlation key to Player Events</td><td>sess_a1b2c3</td><td></td></tr>
+          <tr><td><code>subscriber_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Subscriber identifier</td><td>sub_12345</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>qoe_score</code></td><td>float</td><td><span class="badge badge-metric">metric</span></td><td>NPAW quality of experience (1-5)</td><td>4.2</td><td></td></tr>
+          <tr><td><code>avg_bitrate_kbps</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Session average bitrate</td><td>4500</td><td></td></tr>
+          <tr><td><code>total_play_time_s</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Total playback seconds</td><td>3600</td><td></td></tr>
+          <tr><td><code>total_buffer_time_s</code></td><td>float</td><td><span class="badge badge-metric">metric</span></td><td>Total buffering seconds</td><td>3.5</td><td></td></tr>
+          <tr><td><code>join_time_ms</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Time to start playback</td><td>1200</td><td></td></tr>
+          <tr><td><code>error_count</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Number of errors in session</td><td>0</td><td></td></tr>
+          <tr><td><code>content_title</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Content title</td><td>Super League Match</td><td></td></tr>
+          <tr><td><code>device_type</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Device type classification</td><td>mobile / tablet / tv / desktop</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== API LOGS =================== -->
+    <div class="tab-content" id="tab-api">
+      <h2 class="section-title">API Logs</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSONL.gz</span>
+        <span><strong>Read by:</strong> Log Analyzer, DevOps Assistant, Ops Center</span>
+        <span><strong>Output:</strong> <code>data/logs/api_logs/{date}/</code></span>
+        <span><strong>Endpoints tracked:</strong> 13</span>
+      </div>
+
+      <div class="card">
+        <h3>Status Distribution</h3>
+        <p style="color:var(--text2); font-size:0.85rem;">Typical distribution: 2xx: ~92%, 3xx: ~2%, 4xx: ~5%, 5xx: ~1%. Anomaly alert triggers at 5xx &gt; 3% in a 5-minute window.</p>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-request">request</span></td><td>Request timestamp</td><td>2026-01-15T14:32:10Z</td><td></td></tr>
+          <tr><td><code>method</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>HTTP method</td><td>GET / POST / PUT / DELETE</td><td></td></tr>
+          <tr><td><code>endpoint</code></td><td>string</td><td><span class="badge badge-request">request</span></td><td>API endpoint path</td><td>/ops/incidents</td><td></td></tr>
+          <tr><td><code>status_code</code></td><td>int</td><td><span class="badge badge-response">response</span></td><td>HTTP response status</td><td>200</td><td></td></tr>
+          <tr><td><code>response_time_ms</code></td><td>float</td><td><span class="badge badge-response">response</span></td><td>API response latency</td><td>45.2</td><td></td></tr>
+          <tr><td><code>user_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Authenticated user ID</td><td>usr_001</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Tenant from X-Tenant-ID header</td><td>tenant_001</td><td></td></tr>
+          <tr><td><code>client_ip</code></td><td>string</td><td><span class="badge badge-client">client</span></td><td>Client IP address</td><td>10.0.1.50</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>request_size</code></td><td>int</td><td><span class="badge badge-request">request</span></td><td>Request body size bytes</td><td>256</td><td></td></tr>
+          <tr><td><code>response_size</code></td><td>int</td><td><span class="badge badge-response">response</span></td><td>Response body size bytes</td><td>1024</td><td></td></tr>
+          <tr><td><code>error_message</code></td><td>string</td><td><span class="badge badge-response">response</span></td><td>Error detail (if 4xx/5xx)</td><td>Unauthorized</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== NEW RELIC =================== -->
+    <div class="tab-content" id="tab-newrelic">
+      <h2 class="section-title">New Relic Logs</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSON</span>
+        <span><strong>Read by:</strong> DevOps Assistant, Ops Center, Capacity &amp; Cost</span>
+        <span><strong>Output:</strong> <code>data/logs/new_relic/{date}/</code></span>
+      </div>
+
+      <div class="card">
+        <h3>3 Event Types / 5 Services</h3>
+        <table class="data-table">
+          <thead><tr><th>Event Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>apm_transaction</code></td><td>Application performance monitoring: request traces, throughput, error rates</td></tr>
+            <tr><td><code>infrastructure</code></td><td>Host metrics: CPU, memory, disk, network utilization</td></tr>
+            <tr><td><code>error_event</code></td><td>Application errors with stack traces and context</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:10px; color:var(--text2); font-size:0.85rem;"><strong>5 Monitored Services:</strong> fastapi-backend, next-frontend, redis-cache, duckdb-analytics, chromadb-vectors</p>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-metric">metric</span></td><td>Metric collection time</td><td>2026-01-15T14:30:00Z</td><td></td></tr>
+          <tr><td><code>event_type</code></td><td>string</td><td><span class="badge badge-metric">metric</span></td><td>New Relic event classification</td><td>apm_transaction</td><td></td></tr>
+          <tr><td><code>service_name</code></td><td>string</td><td><span class="badge badge-network">network</span></td><td>Monitored service name</td><td>fastapi-backend</td><td></td></tr>
+          <tr><td><code>host</code></td><td>string</td><td><span class="badge badge-network">network</span></td><td>Host identifier</td><td>aaop-prod-01</td><td></td></tr>
+          <tr><td><code>cpu_pct</code></td><td>float</td><td><span class="badge badge-metric">metric</span></td><td>CPU utilization percentage</td><td>65.3</td><td></td></tr>
+          <tr><td><code>memory_pct</code></td><td>float</td><td><span class="badge badge-metric">metric</span></td><td>Memory utilization percentage</td><td>78.1</td><td></td></tr>
+          <tr><td><code>throughput_rpm</code></td><td>int</td><td><span class="badge badge-metric">metric</span></td><td>Requests per minute (APM)</td><td>1200</td><td></td></tr>
+          <tr><td><code>error_rate</code></td><td>float</td><td><span class="badge badge-metric">metric</span></td><td>Error rate percentage</td><td>0.8</td><td></td></tr>
+          <tr><td><code>avg_response_ms</code></td><td>float</td><td><span class="badge badge-metric">metric</span></td><td>Average response time</td><td>45.2</td><td></td></tr>
+          <tr><td><code>error_message</code></td><td>string</td><td><span class="badge badge-metric">metric</span></td><td>Error message (error_event only)</td><td>ConnectionRefused: Redis</td><td></td></tr>
+          <tr><td><code>stack_trace</code></td><td>string</td><td><span class="badge badge-metric">metric</span></td><td>Stack trace (error_event only)</td><td>Traceback (most recent call...)  </td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== CRM =================== -->
+    <div class="tab-content" id="tab-crm">
+      <h2 class="section-title">CRM Data</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> CSV</span>
+        <span><strong>Read by:</strong> Growth &amp; Retention, Viewer Experience, Admin</span>
+        <span><strong>Output:</strong> <code>data/logs/crm/{date}/</code></span>
+        <span><strong>Subscribers:</strong> ~485K</span>
+      </div>
+
+      <div class="card">
+        <h3>Tier Breakdown</h3>
+        <table class="data-table">
+          <thead><tr><th>Tier</th><th>% of Base</th><th>Typical Churn Risk</th></tr></thead>
+          <tbody>
+            <tr><td>Basic</td><td>~40%</td><td>Medium-High</td></tr>
+            <tr><td>Standard</td><td>~35%</td><td>Low-Medium</td></tr>
+            <tr><td>Premium</td><td>~20%</td><td>Low</td></tr>
+            <tr><td>Trial</td><td>~5%</td><td>High</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>subscriber_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Unique subscriber ID (cross-source key)</td><td>sub_12345</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>email</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Subscriber email</td><td>user@example.com</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>phone</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Phone number</td><td>+905321234567</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>tier</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Subscription tier</td><td>premium</td><td></td></tr>
+          <tr><td><code>signup_date</code></td><td>date</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Account creation date</td><td>2025-06-15</td><td></td></tr>
+          <tr><td><code>churn_risk</code></td><td>float</td><td><span class="badge badge-metric">metric</span></td><td>ML-predicted churn probability</td><td>0.23</td><td></td></tr>
+          <tr><td><code>lifetime_value</code></td><td>float</td><td><span class="badge badge-billing">billing</span></td><td>Customer lifetime value (TRY)</td><td>1250.00</td><td></td></tr>
+          <tr><td><code>last_login</code></td><td>datetime</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Last platform login</td><td>2026-01-14T20:30:00Z</td><td></td></tr>
+          <tr><td><code>city</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Registered city</td><td>Istanbul</td><td></td></tr>
+          <tr><td><code>device_count</code></td><td>int</td><td><span class="badge badge-device">device</span></td><td>Number of registered devices</td><td>3</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== EPG =================== -->
+    <div class="tab-content" id="tab-epg">
+      <h2 class="section-title">EPG (Electronic Program Guide)</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSON</span>
+        <span><strong>Read by:</strong> Live Intelligence, Capacity &amp; Cost, Log Analyzer</span>
+        <span><strong>Output:</strong> <code>data/logs/epg/{date}/</code></span>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>program_id</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Unique program identifier</td><td>prog_live_derby</td><td></td></tr>
+          <tr><td><code>channel_name</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Channel name</td><td>beIN Sports 1</td><td></td></tr>
+          <tr><td><code>start_time</code></td><td>datetime</td><td><span class="badge badge-content">content</span></td><td>Program start time</td><td>2026-01-15T20:00:00Z</td><td></td></tr>
+          <tr><td><code>end_time</code></td><td>datetime</td><td><span class="badge badge-content">content</span></td><td>Program end time</td><td>2026-01-15T22:00:00Z</td><td></td></tr>
+          <tr><td><code>program_title</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Program title</td><td>GS vs FB Super League Derby</td><td></td></tr>
+          <tr><td><code>genre</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Program genre</td><td>Sports / Movie / Series / News</td><td></td></tr>
+          <tr><td><code>pre_scale_required</code></td><td>bool</td><td><span class="badge badge-aaop">aaop</span></td><td>AAOP: requires capacity pre-scaling</td><td>true</td><td></td></tr>
+          <tr><td><code>expected_viewers</code></td><td>int</td><td><span class="badge badge-aaop">aaop</span></td><td>AAOP: predicted concurrent viewers</td><td>150000</td><td></td></tr>
+          <tr><td><code>content_type</code></td><td>string</td><td><span class="badge badge-content">content</span></td><td>Live / VOD / Catch-up</td><td>live</td><td></td></tr>
+          <tr><td><code>is_premium</code></td><td>bool</td><td><span class="badge badge-content">content</span></td><td>Premium-only content flag</td><td>true</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== BILLING =================== -->
+    <div class="tab-content" id="tab-billing">
+      <h2 class="section-title">Billing Events</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> CSV</span>
+        <span><strong>Read by:</strong> Growth &amp; Retention, Admin &amp; Governance</span>
+        <span><strong>Output:</strong> <code>data/logs/billing/{date}/</code></span>
+      </div>
+
+      <div class="card">
+        <h3>8 Event Types</h3>
+        <table class="data-table">
+          <thead><tr><th>Event Type</th><th>Description</th><th>Frequency</th></tr></thead>
+          <tbody>
+            <tr><td><code>subscription_created</code></td><td>New subscription activated</td><td>~500/day</td></tr>
+            <tr><td><code>subscription_renewed</code></td><td>Monthly auto-renewal</td><td>Monthly spike</td></tr>
+            <tr><td><code>subscription_cancelled</code></td><td>Cancellation processed</td><td>~150/day</td></tr>
+            <tr><td><code>payment_success</code></td><td>Successful payment transaction</td><td>~16K/day (renewal cycle)</td></tr>
+            <tr><td><code>payment_failed</code></td><td>Payment failure (retry queue)</td><td>~3% of attempts</td></tr>
+            <tr><td><code>refund_issued</code></td><td>Refund processed</td><td>~20/day</td></tr>
+            <tr><td><code>tier_upgrade</code></td><td>Subscription tier upgrade</td><td>~100/day</td></tr>
+            <tr><td><code>tier_downgrade</code></td><td>Subscription tier downgrade</td><td>~40/day</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:10px; color:var(--text2); font-size:0.85rem;"><strong>Gateway distribution:</strong> Credit Card ~55%, Bank Transfer ~25%, Mobile Payment ~15%, Voucher ~5%</p>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-billing">billing</span></td><td>Transaction timestamp</td><td>2026-01-15T09:00:01Z</td><td></td></tr>
+          <tr><td><code>event_type</code></td><td>string</td><td><span class="badge badge-billing">billing</span></td><td>Billing event type</td><td>payment_success</td><td></td></tr>
+          <tr><td><code>subscriber_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Subscriber identifier</td><td>sub_12345</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>amount</code></td><td>float</td><td><span class="badge badge-billing">billing</span></td><td>Transaction amount (TRY)</td><td>99.90</td><td></td></tr>
+          <tr><td><code>currency</code></td><td>string</td><td><span class="badge badge-billing">billing</span></td><td>Currency code</td><td>TRY</td><td></td></tr>
+          <tr><td><code>payment_gateway</code></td><td>string</td><td><span class="badge badge-billing">billing</span></td><td>Payment gateway used</td><td>credit_card / bank_transfer</td><td></td></tr>
+          <tr><td><code>tier</code></td><td>string</td><td><span class="badge badge-billing">billing</span></td><td>Current subscription tier</td><td>premium</td><td></td></tr>
+          <tr><td><code>failure_reason</code></td><td>string</td><td><span class="badge badge-billing">billing</span></td><td>Failure reason (if applicable)</td><td>insufficient_funds</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== PUSH =================== -->
+    <div class="tab-content" id="tab-push">
+      <h2 class="section-title">Push Notifications</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSONL.gz</span>
+        <span><strong>Read by:</strong> Growth &amp; Retention, Viewer Experience</span>
+        <span><strong>Output:</strong> <code>data/logs/push/{date}/</code></span>
+      </div>
+
+      <div class="card">
+        <h3>10 Notification Types</h3>
+        <table class="data-table">
+          <thead><tr><th>Type</th><th>Avg Open Rate</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>live_event_reminder</code></td><td>~35%</td><td>Reminder before live event starts</td></tr>
+            <tr><td><code>new_content</code></td><td>~18%</td><td>New content available notification</td></tr>
+            <tr><td><code>payment_reminder</code></td><td>~42%</td><td>Subscription payment reminder</td></tr>
+            <tr><td><code>churn_win_back</code></td><td>~8%</td><td>Re-engagement for churned users</td></tr>
+            <tr><td><code>score_update</code></td><td>~55%</td><td>Live sports score update</td></tr>
+            <tr><td><code>recommendation</code></td><td>~12%</td><td>Personalized content recommendation</td></tr>
+            <tr><td><code>service_alert</code></td><td>~25%</td><td>Service disruption notification</td></tr>
+            <tr><td><code>promotion</code></td><td>~15%</td><td>Promotional offer</td></tr>
+            <tr><td><code>account_security</code></td><td>~60%</td><td>Security-related (password change, login)</td></tr>
+            <tr><td><code>subscription_update</code></td><td>~38%</td><td>Tier change, renewal, expiry notification</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:10px; color:var(--text2); font-size:0.85rem;"><strong>Delivery failure rate:</strong> ~3.2% (mainly from uninstalled apps and expired tokens)</p>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-notification">notification</span></td><td>Send timestamp</td><td>2026-01-15T19:45:00Z</td><td></td></tr>
+          <tr><td><code>notification_type</code></td><td>string</td><td><span class="badge badge-notification">notification</span></td><td>Notification type</td><td>live_event_reminder</td><td></td></tr>
+          <tr><td><code>subscriber_id</code></td><td>string</td><td><span class="badge badge-subscriber">subscriber</span></td><td>Target subscriber</td><td>sub_12345</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>device_id</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Target device</td><td>dev_xyz789</td><td><span class="badge badge-pii">PII</span></td></tr>
+          <tr><td><code>platform</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>Device platform (APNs/FCM)</td><td>ios / android</td><td></td></tr>
+          <tr><td><code>delivery_status</code></td><td>string</td><td><span class="badge badge-notification">notification</span></td><td>Delivery result</td><td>delivered / failed / pending</td><td></td></tr>
+          <tr><td><code>opened</code></td><td>bool</td><td><span class="badge badge-notification">notification</span></td><td>Whether notification was opened</td><td>true</td><td></td></tr>
+          <tr><td><code>opened_at</code></td><td>datetime</td><td><span class="badge badge-notification">notification</span></td><td>Open timestamp (if opened)</td><td>2026-01-15T19:47:30Z</td><td></td></tr>
+          <tr><td><code>failure_reason</code></td><td>string</td><td><span class="badge badge-notification">notification</span></td><td>Failure reason (if failed)</td><td>token_expired / unregistered</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =================== APP REVIEWS =================== -->
+    <div class="tab-content" id="tab-reviews">
+      <h2 class="section-title">App Reviews</h2>
+      <div class="source-meta">
+        <span><strong>Format:</strong> JSON</span>
+        <span><strong>Read by:</strong> Viewer Experience, Growth &amp; Retention</span>
+        <span><strong>Output:</strong> <code>data/logs/app_reviews/{date}/</code></span>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+        <tbody>
+          <tr><td><code>timestamp</code></td><td>datetime</td><td><span class="badge badge-review">review</span></td><td>Review submission time</td><td>2026-01-15T16:20:00Z</td><td></td></tr>
+          <tr><td><code>review_id</code></td><td>string</td><td><span class="badge badge-review">review</span></td><td>Unique review identifier</td><td>rev_abc123</td><td></td></tr>
+          <tr><td><code>rating</code></td><td>int</td><td><span class="badge badge-review">review</span></td><td>Star rating (1-5)</td><td>4</td><td></td></tr>
+          <tr><td><code>review_text</code></td><td>string</td><td><span class="badge badge-review">review</span></td><td>User review text</td><td>Great app but buffering on live events</td><td></td></tr>
+          <tr><td><code>sentiment</code></td><td>string</td><td><span class="badge badge-review">review</span></td><td>NLP-analyzed sentiment</td><td>positive / neutral / negative</td><td></td></tr>
+          <tr><td><code>category</code></td><td>string</td><td><span class="badge badge-review">review</span></td><td>Auto-classified review category</td><td>performance / content / ui / billing / drm</td><td></td></tr>
+          <tr><td><code>platform</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>App store platform</td><td>ios_appstore / google_play</td><td></td></tr>
+          <tr><td><code>app_version</code></td><td>string</td><td><span class="badge badge-device">device</span></td><td>App version at time of review</td><td>5.2.1</td><td></td></tr>
+          <tr><td><code>country</code></td><td>string</td><td><span class="badge badge-client">client</span></td><td>Reviewer country</td><td>TR</td><td></td></tr>
+          <tr><td><code>developer_response</code></td><td>string</td><td><span class="badge badge-review">review</span></td><td>Developer reply (if any)</td><td>Thank you for your feedback...</td><td></td></tr>
+          <tr><td><code>developer_responded_at</code></td><td>datetime</td><td><span class="badge badge-review">review</span></td><td>Response timestamp</td><td>2026-01-16T09:00:00Z</td><td></td></tr>
+          <tr><td><code>helpful_count</code></td><td>int</td><td><span class="badge badge-review">review</span></td><td>Number of "helpful" votes</td><td>12</td><td></td></tr>
+          <tr><td><code>tenant_id</code></td><td>string</td><td><span class="badge badge-aaop">aaop</span></td><td>Multi-tenant identifier</td><td>tenant_001</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+function activateTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const content = document.getElementById(tabId);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+}
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+  const content = el.nextElementSibling;
+  if (content) content.classList.toggle('collapsed');
+}
+
+function toggleFaq(el) {
+  const answer = el.nextElementSibling;
+  answer.classList.toggle('open');
+}
+
+const searchInput = document.getElementById('searchInput');
+const mainContent = document.getElementById('mainContent');
+const noResult = document.getElementById('noResult');
+
+searchInput.addEventListener('input', function() {
+  const query = this.value.trim().toLowerCase();
+  clearMarks();
+  noResult.style.display = 'none';
+  searchInput.classList.remove('no-results');
+  if (query.length < 2) return;
+
+  let found = false;
+  const walker = document.createTreeWalker(mainContent, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(node => {
+    const text = node.textContent;
+    const idx = text.toLowerCase().indexOf(query);
+    if (idx === -1) return;
+    found = true;
+    const span = document.createElement('span');
+    span.appendChild(document.createTextNode(text.substring(0, idx)));
+    const mark = document.createElement('mark');
+    mark.textContent = text.substring(idx, idx + query.length);
+    span.appendChild(mark);
+    span.appendChild(document.createTextNode(text.substring(idx + query.length)));
+    node.parentNode.replaceChild(span, node);
+  });
+
+  if (!found) {
+    searchInput.classList.add('no-results');
+    noResult.style.display = 'inline';
+  } else {
+    const firstMark = mainContent.querySelector('mark');
+    if (firstMark) {
+      const tabContent = firstMark.closest('.tab-content');
+      if (tabContent && !tabContent.classList.contains('active')) activateTab(tabContent.id);
+      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+});
+
+function clearMarks() {
+  mainContent.querySelectorAll('mark').forEach(mark => {
+    const parent = mark.parentNode;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  });
+  mainContent.querySelectorAll('span:not([class]):not([id])').forEach(span => {
+    if (!span.className && !span.id) {
+      const frag = document.createDocumentFragment();
+      while (span.firstChild) frag.appendChild(span.firstChild);
+      if (span.parentNode) span.parentNode.replaceChild(frag, span);
+    }
+  });
+}
+</script>
+</body>
+</html>

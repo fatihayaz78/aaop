@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log Analyzer — AAOP Knowledge Base</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0c10;--bg2:#0f1117;--bg3:#151820;--bg4:#1c2030;--border:#252a38;--text:#e2e8f0;--text2:#94a3b8;--accent:#38bdf8;--accent2:#7c3aed;--green:#22c55e;--yellow:#eab308;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--radius:8px;--shadow:0 2px 12px rgba(0,0,0,.4)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;display:flex;flex-direction:column;min-height:100vh}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+mark{background:var(--accent);color:var(--bg);padding:1px 3px;border-radius:3px}
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.header .back{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px}
+.header .back:hover{color:var(--accent)}
+.header h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:700}
+.header .badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.badge-p0{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.header .modules{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.header .roles{font-size:12px;color:var(--text2)}
+.nav-chips{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.nav-chips a{font-size:11px;padding:4px 10px;border-radius:14px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);transition:.2s}
+.nav-chips a:hover{background:var(--bg4);color:var(--accent);text-decoration:none;border-color:var(--accent)}
+.search-bar{position:sticky;top:0;z-index:100;background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 28px;display:flex;gap:10px;align-items:center}
+.search-bar input{flex:1;max-width:420px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;color:var(--text);font-size:14px;font-family:'Inter',sans-serif;outline:none;transition:.2s}
+.search-bar input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+.search-bar .count{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{display:none;width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:16px 0;display:flex;flex-direction:column;gap:4px}
+.sidebar h3{font-family:'Syne',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);padding:8px 16px 4px;margin-top:8px}
+.sidebar a.nav-link{display:block;padding:6px 16px;font-size:13px;color:var(--text2);border-left:3px solid transparent;transition:.15s}
+.sidebar a.nav-link:hover{color:var(--text);background:var(--bg3);text-decoration:none}
+.sidebar a.nav-link.active{color:var(--accent);border-left-color:var(--accent);background:rgba(56,189,248,.05)}
+.faq-section{border-top:1px solid var(--border);margin-top:auto;padding:12px 0}
+.faq-item{border-bottom:1px solid var(--border)}
+.faq-q{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text2);font-size:12px;padding:8px 16px;cursor:pointer;font-family:'Inter',sans-serif;transition:.15s}
+.faq-q:hover{color:var(--text);background:var(--bg3)}
+.faq-q::before{content:'+ ';font-family:'JetBrains Mono',monospace;color:var(--accent)}
+.faq-q.open::before{content:'- '}
+.faq-a{display:none;padding:4px 16px 10px 26px;font-size:12px;color:var(--text2);line-height:1.5}
+.faq-a.open{display:block}
+.main{flex:1;overflow-y:auto;padding:0}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);background:var(--bg2);padding:0 24px;position:sticky;top:0;z-index:50;overflow-x:auto}
+.tab-btn{background:none;border:none;color:var(--text2);font-size:13px;font-family:'Inter',sans-serif;font-weight:500;padding:12px 18px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:.15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;padding:28px;animation:fadeIn .2s}
+.tab-content.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:600;margin:20px 0 10px}
+p,.desc{font-size:14px;color:var(--text2);margin-bottom:12px}
+ul,ol{padding-left:20px;margin-bottom:14px}
+li{font-size:14px;color:var(--text2);margin-bottom:4px}
+code{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg3);padding:2px 6px;border-radius:4px;color:var(--accent)}
+pre{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;overflow-x:auto;margin:12px 0;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:var(--text2)}
+.info-box{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin:16px 0}
+.info-box.warn{border-color:rgba(234,179,8,.3);background:rgba(234,179,8,.05)}
+.info-box h4{font-family:'Syne',sans-serif;font-size:14px;margin-bottom:6px}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}
+.info-card{background:var(--bg4);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+.info-card .val{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--accent)}
+.info-card .lbl{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.table-wrap{overflow-x:auto;margin:12px 0;border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--bg3)}
+th{padding:10px 14px;text-align:left;font-weight:600;color:var(--text);font-size:12px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+td{padding:8px 14px;border-bottom:1px solid var(--border);color:var(--text2)}
+tr:hover{background:rgba(56,189,248,.03)}
+.method{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;min-width:52px;text-align:center}
+.method-get{background:rgba(59,130,246,.15);color:var(--blue)}
+.method-post{background:rgba(34,197,94,.15);color:var(--green)}
+.method-patch{background:rgba(234,179,8,.15);color:var(--yellow)}
+.method-delete{background:rgba(239,68,68,.15);color:var(--red)}
+.method-ws{background:rgba(168,85,247,.15);color:var(--purple)}
+.risk{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px}
+.risk-low{background:rgba(34,197,94,.12);color:var(--green)}
+.risk-medium{background:rgba(234,179,8,.12);color:var(--yellow)}
+.risk-high{background:rgba(239,68,68,.12);color:var(--red)}
+.endpoint{border:1px solid var(--border);border-radius:var(--radius);margin:8px 0;overflow:hidden}
+.endpoint-header{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:var(--bg3);transition:.15s}
+.endpoint-header:hover{background:var(--bg4)}
+.endpoint-header .path{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text)}
+.endpoint-header .edesc{font-size:12px;color:var(--text2);margin-left:auto}
+.endpoint-header .arrow{color:var(--text2);font-size:12px;transition:.2s}
+.endpoint-header.open .arrow{transform:rotate(90deg)}
+.endpoint-body{display:none;padding:14px 18px;background:var(--bg2);border-top:1px solid var(--border)}
+.endpoint-body.open{display:block}
+.cat-badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px}
+.cat-meta{background:rgba(56,189,248,.12);color:var(--accent)}
+.cat-timing{background:rgba(168,85,247,.12);color:var(--purple)}
+.cat-traffic{background:rgba(34,197,94,.12);color:var(--green)}
+.cat-content{background:rgba(234,179,8,.12);color:var(--yellow)}
+.cat-client{background:rgba(239,68,68,.12);color:var(--red)}
+.cat-network{background:rgba(59,130,246,.12);color:var(--blue)}
+.cat-response{background:rgba(251,146,60,.12);color:#fb923c}
+.cat-cache{background:rgba(45,212,191,.12);color:#2dd4bf}
+.cat-geo{background:rgba(192,132,252,.12);color:#c084fc}
+.pii-yes{color:var(--red);font-weight:600}
+.pii-no{color:var(--text2)}
+.event-flow{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.event-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.event-card h4{font-size:13px;color:var(--accent);margin-bottom:8px;font-family:'Syne',sans-serif}
+.event-card li{font-size:12px}
+.quick-links{padding:12px 16px;border-top:1px solid var(--border)}
+.quick-links h3{font-size:11px;padding:0;margin:0 0 6px}
+.quick-links a{display:block;font-size:12px;color:var(--text2);padding:3px 0}
+.quick-links a:hover{color:var(--accent)}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin:14px 0}
+.chart-item{background:var(--bg4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px}
+.chart-num{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--accent);min-width:28px}
+.chart-name{font-size:13px;color:var(--text)}
+.chart-cat{font-size:10px;color:var(--text2)}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+
+
+<main class="main">
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="submodules">Sub-Modules</button>
+  <button class="tab-btn" data-tab="akamai">Akamai DS2</button>
+  <button class="tab-btn" data-tab="agent">Agent &amp; Tools</button>
+  <button class="tab-btn" data-tab="api">API</button>
+  <button class="tab-btn" data-tab="crossapp">Cross-App</button>
+  <button class="tab-btn" data-tab="data">Data &amp; Storage</button>
+</div>
+
+<!-- ============ OVERVIEW ============ -->
+<div class="tab-content active" id="tab-overview" data-tab="overview">
+  <h2 id="overview">Overview</h2>
+  <p>The Log Analyzer provides CDN intelligence through a sub-module architecture. It parses, analyzes, and visualizes CDN log data from multiple providers, generates anomaly alerts, and produces DOCX reports with 21 Plotly charts.</p>
+
+  <div class="info-grid">
+    <div class="info-card"><div class="val">99</div><div class="lbl">Tests Passed</div></div>
+    <div class="info-card"><div class="val">21</div><div class="lbl">Charts</div></div>
+    <div class="info-card"><div class="val">22</div><div class="lbl">Log Fields</div></div>
+    <div class="info-card"><div class="val">12</div><div class="lbl">Agent Tools</div></div>
+    <div class="info-card"><div class="val">S02+S15-16</div><div class="lbl">Sprints</div></div>
+  </div>
+
+  <h3>Core Capabilities</h3>
+  <ul>
+    <li>Sub-module architecture: pluggable CDN provider support (Akamai, Medianova, ...)</li>
+    <li>22-field DataStream 2 parser with auto-detection (TSV/CSV/JSON)</li>
+    <li>Anomaly detection with configurable thresholds</li>
+    <li>21 dark-themed Plotly charts for comprehensive analysis</li>
+    <li>DOCX report generation with charts, metrics, and agent summary</li>
+    <li>Date-range fetch from S3 and BigQuery export</li>
+    <li>Settings UI with encrypted credential storage</li>
+  </ul>
+</div>
+
+<!-- ============ SUB-MODULES ============ -->
+<div class="tab-content" id="tab-submodules" data-tab="submodules">
+  <h2 id="submodules">Sub-Module Architecture</h2>
+
+  <h3>BaseSubModule Pattern</h3>
+  <p>All CDN sub-modules inherit from <code>BaseSubModule</code> and must implement the standard interface:</p>
+<pre>class BaseSubModule(ABC):
+    @abstractmethod
+    def parse(self, content: str) -> list[LogEntry]: ...
+    @abstractmethod
+    def analyze(self, entries: list[LogEntry]) -> Metrics: ...
+    @abstractmethod
+    def detect_anomalies(self, metrics: Metrics) -> list[Anomaly]: ...
+    @abstractmethod
+    def generate_charts(self, metrics, entries) -> dict: ...
+    @abstractmethod
+    def generate_report(self, tenant_id, metrics, anomalies, charts) -> str: ...</pre>
+
+  <h3>SubModuleRegistry</h3>
+  <p>Sub-modules register via <code>REGISTRY</code> dict. The API routes delegate to the appropriate sub-module based on the request.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Sub-Module</th><th>Status</th><th>Source</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Akamai</strong></td><td><span class="risk risk-low">FULL</span></td><td>S3 (DataStream 2)</td><td>22-field TSV parser, 21 charts, DOCX reports, anomaly detection</td></tr>
+      <tr><td><strong>Medianova</strong></td><td><span class="risk risk-medium">PARTIAL</span></td><td>logs.duckdb</td><td>Dashboard, timeseries, anomalies from pre-loaded DuckDB data</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ============ AKAMAI DS2 ============ -->
+<div class="tab-content" id="tab-akamai" data-tab="akamai">
+  <h2 id="akamai">Akamai DataStream 2 — 22-Field Schema</h2>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Field Name</th><th>Type</th><th>Category</th><th>Description</th><th>Example</th><th>PII</th></tr></thead>
+    <tbody>
+      <tr><td>00</td><td><code>version</code></td><td>int</td><td><span class="cat-badge cat-meta">meta</span></td><td>DS2 format version</td><td>2</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>01</td><td><code>cp_code</code></td><td>str</td><td><span class="cat-badge cat-meta">meta</span></td><td>Content Provider code</td><td>123456</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>02</td><td><code>req_time_sec</code></td><td>float</td><td><span class="cat-badge cat-timing">timing</span></td><td>Request Unix epoch timestamp</td><td>1710849600.123</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>03</td><td><code>bytes</code></td><td>int</td><td><span class="cat-badge cat-traffic">traffic</span></td><td>Total bytes transferred (bandwidth metric)</td><td>524288</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>04</td><td><code>client_bytes</code></td><td>int</td><td><span class="cat-badge cat-traffic">traffic</span></td><td>Bytes sent to client</td><td>498000</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>05</td><td><code>content_type</code></td><td>str</td><td><span class="cat-badge cat-content">content</span></td><td>MIME content type</td><td>video/mp4</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>06</td><td><code>response_body_size</code></td><td>int</td><td><span class="cat-badge cat-traffic">traffic</span></td><td>Response body size in bytes</td><td>491520</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>07</td><td><code>user_agent</code></td><td>str</td><td><span class="cat-badge cat-client">client</span></td><td>Raw User-Agent header</td><td>Mozilla/5.0...</td><td><span class="pii-yes">Yes</span></td></tr>
+      <tr><td>08</td><td><code>hostname</code></td><td>str</td><td><span class="cat-badge cat-network">network</span></td><td>Request hostname</td><td>cdn.example.com</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>09</td><td><code>req_path</code></td><td>str</td><td><span class="cat-badge cat-content">content</span></td><td>URL path of the request</td><td>/live/seg_001.ts</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>10</td><td><code>status_code</code></td><td>int</td><td><span class="cat-badge cat-response">response</span></td><td>HTTP response status code</td><td>200</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>11</td><td><code>client_ip</code></td><td>str</td><td><span class="cat-badge cat-client">client</span></td><td>Client IP address</td><td>185.23.x.x</td><td><span class="pii-yes">Yes</span></td></tr>
+      <tr><td>12</td><td><code>req_range</code></td><td>str</td><td><span class="cat-badge cat-client">client</span></td><td>HTTP Range header value</td><td>bytes=0-1023</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>13</td><td><code>cache_status</code></td><td>int</td><td><span class="cat-badge cat-cache">cache</span></td><td>Cache status (0/1/2/3)</td><td>1</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>14</td><td><code>dns_lookup_time_ms</code></td><td>int</td><td><span class="cat-badge cat-timing">timing</span></td><td>DNS resolution time in ms</td><td>12</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>15</td><td><code>transfer_time_ms</code></td><td>int</td><td><span class="cat-badge cat-timing">timing</span></td><td>Content transfer time in ms</td><td>345</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>16</td><td><code>turn_around_time_ms</code></td><td>int</td><td><span class="cat-badge cat-timing">timing</span></td><td>Origin turnaround time in ms</td><td>89</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>17</td><td><code>error_code</code></td><td>str</td><td><span class="cat-badge cat-response">response</span></td><td>Akamai error code</td><td>ERR_CONNECT_FAIL</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>18</td><td><code>cache_hit</code></td><td>int</td><td><span class="cat-badge cat-cache">cache</span></td><td>Binary cache hit flag (0/1)</td><td>1</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>19</td><td><code>edge_ip</code></td><td>str</td><td><span class="cat-badge cat-network">network</span></td><td>Edge server IP</td><td>23.45.67.89</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>20</td><td><code>country</code></td><td>str</td><td><span class="cat-badge cat-geo">geo</span></td><td>Client country code</td><td>TR</td><td><span class="pii-no">No</span></td></tr>
+      <tr><td>21</td><td><code>city</code></td><td>str</td><td><span class="cat-badge cat-geo">geo</span></td><td>Client city name</td><td>Istanbul</td><td><span class="pii-no">No</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="info-box warn">
+    <h4>Critical Metric Calculation Rules</h4>
+    <ul>
+      <li><strong>Bandwidth</strong> is calculated from the <code>bytes</code> field (total transferred), NOT <code>response_body_size</code></li>
+      <li><strong>Cache Hit Rate</strong> uses the <code>cache_hit</code> field (binary 0/1), NOT <code>cache_status</code></li>
+      <li><strong>Error Rate</strong> excludes <code>ERR_CLIENT_ABORT</code> — client aborts are tracked separately as <code>abort_rate</code></li>
+      <li><strong>Transfer Time</strong> analysis applies only to video segment requests (content_type video/* or path *.ts/*.m3u8)</li>
+    </ul>
+  </div>
+
+  <h3>21 Charts</h3>
+  <div class="chart-grid">
+    <div class="chart-item"><span class="chart-num">01</span><div><div class="chart-name">Transfer Time Trend</div><div class="chart-cat">Hourly avg ms, line+markers</div></div></div>
+    <div class="chart-item"><span class="chart-num">02</span><div><div class="chart-name">DNS Latency Distribution</div><div class="chart-cat">Histogram, 50 bins</div></div></div>
+    <div class="chart-item"><span class="chart-num">03</span><div><div class="chart-name">Turnaround Time Trend</div><div class="chart-cat">Origin latency over time</div></div></div>
+    <div class="chart-item"><span class="chart-num">04</span><div><div class="chart-name">Latency Correlation</div><div class="chart-cat">DNS vs Transfer scatter</div></div></div>
+    <div class="chart-item"><span class="chart-num">05</span><div><div class="chart-name">Bandwidth Trend</div><div class="chart-cat">Hourly total bytes</div></div></div>
+    <div class="chart-item"><span class="chart-num">06</span><div><div class="chart-name">Bytes vs Client Bytes</div><div class="chart-cat">Dual-bar comparison</div></div></div>
+    <div class="chart-item"><span class="chart-num">07</span><div><div class="chart-name">Response Size Distribution</div><div class="chart-cat">Body size histogram</div></div></div>
+    <div class="chart-item"><span class="chart-num">08</span><div><div class="chart-name">Status Code Distribution</div><div class="chart-cat">2xx/3xx/4xx/5xx pie</div></div></div>
+    <div class="chart-item"><span class="chart-num">09</span><div><div class="chart-name">Error Rate Trend</div><div class="chart-cat">Hourly error % line</div></div></div>
+    <div class="chart-item"><span class="chart-num">10</span><div><div class="chart-name">Error Code Breakdown</div><div class="chart-cat">Top error codes bar</div></div></div>
+    <div class="chart-item"><span class="chart-num">11</span><div><div class="chart-name">Cache Hit Ratio Trend</div><div class="chart-cat">Hourly hit rate line</div></div></div>
+    <div class="chart-item"><span class="chart-num">12</span><div><div class="chart-name">Cache Status Breakdown</div><div class="chart-cat">0/1/2/3 status pie</div></div></div>
+    <div class="chart-item"><span class="chart-num">13</span><div><div class="chart-name">Cache vs Error</div><div class="chart-cat">Correlation analysis</div></div></div>
+    <div class="chart-item"><span class="chart-num">14</span><div><div class="chart-name">Geographic Distribution</div><div class="chart-cat">Country treemap</div></div></div>
+    <div class="chart-item"><span class="chart-num">15</span><div><div class="chart-name">City Top 20</div><div class="chart-cat">Horizontal bar chart</div></div></div>
+    <div class="chart-item"><span class="chart-num">16</span><div><div class="chart-name">Content Type Breakdown</div><div class="chart-cat">MIME type distribution</div></div></div>
+    <div class="chart-item"><span class="chart-num">17</span><div><div class="chart-name">Top URLs</div><div class="chart-cat">Most requested paths</div></div></div>
+    <div class="chart-item"><span class="chart-num">18</span><div><div class="chart-name">Top Client IPs</div><div class="chart-cat">Highest volume clients</div></div></div>
+    <div class="chart-item"><span class="chart-num">19</span><div><div class="chart-name">Edge Server Load</div><div class="chart-cat">Request distribution by edge</div></div></div>
+    <div class="chart-item"><span class="chart-num">20</span><div><div class="chart-name">Peak Hour Heatmap</div><div class="chart-cat">Hour-of-day traffic heat</div></div></div>
+    <div class="chart-item"><span class="chart-num">21</span><div><div class="chart-name">Anomaly Timeline</div><div class="chart-cat">Detected anomalies over time</div></div></div>
+  </div>
+
+  <h3>DOCX Report Structure</h3>
+  <div class="info-box">
+    <h4>Report Sections</h4>
+    <ol>
+      <li><strong>Executive Summary</strong> — Agent-generated bilingual summary</li>
+      <li><strong>Key Metrics</strong> — Total requests, error rate, cache hit rate, TTFB</li>
+      <li><strong>Charts</strong> — All 21 charts as embedded images (kaleido==0.2.1)</li>
+      <li><strong>Anomalies</strong> — Detected anomalies with severity and recommendations</li>
+      <li><strong>Top Errors</strong> — Error code breakdown with counts</li>
+      <li><strong>Edge & Geo</strong> — Geographic and edge server distribution</li>
+    </ol>
+    <p>Reports saved to: <code>data/reports/{tenant_id}/</code></p>
+  </div>
+</div>
+
+<!-- ============ AGENT & TOOLS ============ -->
+<div class="tab-content" id="tab-agent" data-tab="agent">
+  <h2 id="agent">Agent &amp; Tools</h2>
+
+  <h3>LogAnalyzerAgent(BaseAgent)</h3>
+  <p>CDN log analysis agent with sub-module delegation. Routes to appropriate CDN parser based on project configuration.</p>
+  <div class="info-box">
+    <h4>Model Routing</h4>
+    <ul>
+      <li>Default analysis: Claude Sonnet</li>
+      <li>Anomaly detected (P0/P1): Escalates to Opus</li>
+      <li>Batch parsing/metrics: Haiku</li>
+    </ul>
+  </div>
+
+  <h3>Tools (12)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Tool</th><th>Risk</th><th>Description</th><th>Approval</th></tr></thead>
+    <tbody>
+      <tr><td><code>list_log_projects</code></td><td><span class="risk risk-low">LOW</span></td><td>List all log projects for a tenant</td><td>Auto</td></tr>
+      <tr><td><code>get_analysis_history</code></td><td><span class="risk risk-low">LOW</span></td><td>Get recent analysis results from DuckDB</td><td>Auto</td></tr>
+      <tr><td><code>fetch_s3_logs</code></td><td><span class="risk risk-low">LOW</span></td><td>Fetch logs from S3 bucket</td><td>Auto</td></tr>
+      <tr><td><code>parse_akamai_logs</code></td><td><span class="risk risk-low">LOW</span></td><td>Parse raw log content (TSV/CSV/JSON)</td><td>Auto</td></tr>
+      <tr><td><code>calculate_error_metrics</code></td><td><span class="risk risk-low">LOW</span></td><td>Calculate metrics from parsed log entries</td><td>Auto</td></tr>
+      <tr><td><code>detect_anomalies</code></td><td><span class="risk risk-low">LOW</span></td><td>Detect anomalies from computed metrics</td><td>Auto</td></tr>
+      <tr><td><code>generate_charts</code></td><td><span class="risk risk-low">LOW</span></td><td>Generate all 21 Plotly charts</td><td>Auto</td></tr>
+      <tr><td><code>search_similar_anomalies</code></td><td><span class="risk risk-low">LOW</span></td><td>Search DuckDB for similar past anomalies</td><td>Auto</td></tr>
+      <tr><td><code>write_analysis_to_db</code></td><td><span class="risk risk-medium">MEDIUM</span></td><td>Write analysis result to DuckDB cdn_analysis</td><td>Auto + Notify</td></tr>
+      <tr><td><code>generate_docx_report</code></td><td><span class="risk risk-medium">MEDIUM</span></td><td>Generate DOCX report with charts and summary</td><td>Auto + Notify</td></tr>
+      <tr><td><code>trigger_cdn_alert</code></td><td><span class="risk risk-medium">MEDIUM</span></td><td>Publish cdn_anomaly_detected event to bus</td><td>Auto + Notify</td></tr>
+      <tr><td><code>purge_cdn_cache</code></td><td><span class="risk risk-high">HIGH</span></td><td>Purge CDN cache for given paths</td><td>Required</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ============ API ============ -->
+<div class="tab-content" id="tab-api" data-tab="api">
+  <h2 id="api">API Endpoints</h2>
+  <p>Base prefix: <code>/log-analyzer</code> &mdash; All require <code>Authorization: Bearer JWT</code> and <code>X-Tenant-ID</code> headers.</p>
+
+  <h3>Project Management</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/projects</span>
+      <span class="edesc">List log projects</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+      <p><strong>Query:</strong> <code>tenant_id</code></p>
+      <p><strong>Response:</strong> <code>[LogProject]</code></p>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/projects</span>
+      <span class="edesc">Create log project</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+      <p><strong>Request:</strong> CreateProjectRequest</p>
+      <p><strong>Response:</strong> LogProject</p>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/projects/{id}</span>
+      <span class="edesc">Get project detail</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> LogProjectDetail</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-delete">DELETE</span>
+      <span class="path">/log-analyzer/projects/{id}</span>
+      <span class="edesc">Delete project</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> 204 No Content</p></div>
+  </div>
+
+  <h3>Sub-Modules</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/sub-modules</span>
+      <span class="edesc">List all sub-modules</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> <code>[SubModule]</code> — name, status, provider</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/sub-modules/{name}/status</span>
+      <span class="edesc">Sub-module health status</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> SubModuleStatus with last_run, next_run, error_count</p></div>
+  </div>
+
+  <h3>Akamai Sub-Module</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/akamai/configure</span>
+      <span class="edesc">Configure Akamai S3 source</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{
+  "tenant_id": "bein_sports",
+  "project_id": "proj-001",
+  "s3_bucket": "ssport-datastream",
+  "s3_prefix": "logs/",
+  "schedule_cron": "0 */6 * * *",
+  "enabled": true
+}</pre>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/akamai/fetch</span>
+      <span class="edesc">Trigger log fetch from S3</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Request:</strong> FetchRequest &rarr; <strong>Response:</strong> FetchJob with job_id</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/akamai/fetch-range</span>
+      <span class="edesc">Fetch logs for date range</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "job_id": "job-001", "cp_code": "123456", "start_date": "2026-03-01", "end_date": "2026-03-15" }</pre>
+      <p>Fetches TSV files from S3 for the given date range and caches locally.</p>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/akamai/jobs/{job_id}</span>
+      <span class="edesc">Poll fetch job status</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> FetchJobStatus (queued|running|complete|failed)</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/akamai/analysis/{job_id}</span>
+      <span class="edesc">Get analysis results</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> AkamaiAnalysisResult with metrics, anomalies, chart references</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/akamai/report</span>
+      <span class="edesc">Generate DOCX report</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Request:</strong> ReportRequest &rarr; <strong>Response:</strong> <code>{"download_url": "..."}</code></p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/akamai/charts</span>
+      <span class="edesc">Get chart data</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>job_id</code>, <code>chart_type</code> &rarr; ChartData (Plotly JSON)</p></div>
+  </div>
+
+  <h3>Settings</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/settings</span>
+      <span class="edesc">Get settings (masked credentials)</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p>Returns AWS and GCP credentials with values masked (e.g., <code>****ABCD</code>).</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/settings</span>
+      <span class="edesc">Save credentials (encrypted)</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p>Saves AWS and GCP credentials encrypted in SQLite.</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-delete">DELETE</span>
+      <span class="path">/log-analyzer/settings/credentials</span>
+      <span class="edesc">Delete stored credentials</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> 204 No Content</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/settings/test-connection</span>
+      <span class="edesc">Test S3 or BQ connection</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>type=s3|bq</code> &rarr; Always returns 200 with connection status.</p></div>
+  </div>
+
+  <h3>BigQuery Export</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/bigquery/export</span>
+      <span class="edesc">Export categories to BigQuery</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "job_id": "job-001", "categories": ["timing", "traffic", "cache"], "bq_table_id": "project.dataset.table" }</pre>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/bigquery/jobs/{id}</span>
+      <span class="edesc">Poll export job status</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Response:</strong> Export job status (queued|running|complete|failed)</p></div>
+  </div>
+
+  <h3>Log Structure Analysis</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/structure/analyze</span>
+      <span class="edesc">Analyze log field structure</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "tenant_id": "bein_sports", "start_date": "2026-03-01", "end_date": "2026-03-15", "sample_size": 1000 }</pre>
+      <p><strong>Response:</strong> <code>{ fields: [FieldAnalysis], total_rows_sampled, files_scanned }</code></p>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/structure/mappings</span>
+      <span class="edesc">Upsert field mapping</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "tenant_id": "bein_sports", "field_name": "bytes", "category": "traffic" }</pre>
+      <p>Valid categories: meta | timing | traffic | content | client | network | response | cache | geo | custom</p>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/structure/mappings</span>
+      <span class="edesc">Get field mappings</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>tenant_id</code> &rarr; <code>[{ field_name, category }]</code></p></div>
+  </div>
+
+  <h3>Medianova</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/medianova/dashboard</span>
+      <span class="edesc">CDN metrics dashboard</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>tenant_id</code>, <code>hours</code> &rarr; CDNMetrics + anomalies</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/medianova/timeseries</span>
+      <span class="edesc">Metric timeseries data</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>tenant_id</code>, <code>metric</code>, <code>hours</code> &rarr; <code>[{timestamp, value}]</code></p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/medianova/anomalies</span>
+      <span class="edesc">Detected anomalies</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>tenant_id</code>, <code>hours</code> &rarr; <code>[AnomalyEvent]</code></p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/medianova/analyze</span>
+      <span class="edesc">Trigger Medianova analysis</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body">
+<pre>{ "tenant_id": "bein_sports", "hours": 24, "generate_report": true }</pre>
+      <p><strong>Response:</strong> <code>{ job_id, status, summary }</code></p>
+    </div>
+  </div>
+
+  <h3>Agent Analysis</h3>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-post">POST</span>
+      <span class="path">/log-analyzer/analyze</span>
+      <span class="edesc">Agent-powered analysis</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Request:</strong> LogAnalysisRequest &rarr; AgentDecisionResult</p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-get">GET</span>
+      <span class="path">/log-analyzer/results</span>
+      <span class="edesc">Get analysis results</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p><strong>Query:</strong> <code>tenant_id</code>, <code>project_id</code>, <code>limit</code> &rarr; <code>[AnalysisResult]</code></p></div>
+  </div>
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method method-ws">WS</span>
+      <span class="path">/ws/log-analyzer/stream</span>
+      <span class="edesc">Real-time log ingest stream</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="endpoint-body"><p>WebSocket for real-time log ingestion and processing status updates.</p></div>
+  </div>
+</div>
+
+<!-- ============ CROSS-APP ============ -->
+<div class="tab-content" id="tab-crossapp" data-tab="crossapp">
+  <h2 id="crossapp">Cross-App Integration</h2>
+
+  <div class="event-flow">
+    <div class="event-card">
+      <h4>Outbound Events (OUTPUT)</h4>
+      <ul>
+        <li><code>cdn_anomaly_detected</code> &rarr; ops_center, alert_center</li>
+        <li><code>analysis_complete</code> &rarr; knowledge_base</li>
+      </ul>
+    </div>
+    <div class="event-card">
+      <h4>Inbound Events (INPUT)</h4>
+      <ul>
+        <li><code>live_event_starting</code> &larr; live_intelligence</li>
+      </ul>
+      <p style="margin-top:8px;font-size:12px">When a live event starts, the analyzer increases monitoring frequency and lowers anomaly thresholds.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DATA & STORAGE ============ -->
+<div class="tab-content" id="tab-data" data-tab="data">
+  <h2 id="data">Data &amp; Storage</h2>
+
+  <h3>SQLite DDL (platform.db)</h3>
+<pre>CREATE TABLE log_projects (
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    sub_module    TEXT NOT NULL DEFAULT 'akamai',
+    s3_bucket     TEXT,
+    s3_prefix     TEXT,
+    schedule_cron TEXT DEFAULT '0 */6 * * *',
+    enabled       INTEGER DEFAULT 1,
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE settings (
+    key       TEXT PRIMARY KEY,
+    value     TEXT NOT NULL,          -- encrypted for credentials
+    tenant_id TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE field_mappings (
+    tenant_id   TEXT NOT NULL,
+    field_name  TEXT NOT NULL,
+    category    TEXT NOT NULL,        -- meta|timing|traffic|content|client|network|response|cache|geo|custom
+    PRIMARY KEY (tenant_id, field_name)
+);
+
+CREATE TABLE anomaly_rules (
+    id          TEXT PRIMARY KEY,
+    tenant_id   TEXT NOT NULL,
+    metric      TEXT NOT NULL,
+    operator    TEXT NOT NULL,        -- gt, lt, eq
+    threshold   REAL NOT NULL,
+    severity    TEXT DEFAULT 'P2',
+    enabled     INTEGER DEFAULT 1
+);
+
+CREATE TABLE scheduled_tasks (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL,
+    cron_expr   TEXT NOT NULL,
+    last_run    TEXT,
+    next_run    TEXT,
+    status      TEXT DEFAULT 'idle',
+    FOREIGN KEY (project_id) REFERENCES log_projects(id)
+);</pre>
+
+  <h3>Redis Keys</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Key Pattern</th><th>TTL</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>log:job:{tenant_id}:{job_id}</code></td><td>7200s</td><td>Fetch/analysis job status</td></tr>
+      <tr><td><code>log:metrics:{tenant_id}:{project_id}</code></td><td>3600s</td><td>Cached computed metrics</td></tr>
+      <tr><td><code>log:charts:{tenant_id}:{job_id}</code></td><td>3600s</td><td>Cached chart JSON data</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>File Paths</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Path</th><th>Content</th></tr></thead>
+    <tbody>
+      <tr><td><code>data/logs/{tenant_id}/{cp_code}/{date}/</code></td><td>Cached S3 TSV log files</td></tr>
+      <tr><td><code>data/reports/{tenant_id}/</code></td><td>Generated DOCX reports</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="info-box warn">
+    <h4>kaleido Pin Warning</h4>
+    <p>Chart image export requires <code>kaleido==0.2.1</code>. Version 1.x has breaking API changes with Plotly's <code>write_image()</code>. This is enforced in <code>pyproject.toml</code>.</p>
+  </div>
+
+  <h3>DuckDB — cdn_analysis DDL</h3>
+<pre>CREATE TABLE shared_analytics.cdn_analysis (
+    analysis_id     VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    project_id      VARCHAR,
+    sub_module      VARCHAR NOT NULL DEFAULT 'akamai',
+    analysis_time   TIMESTAMP DEFAULT NOW(),
+    period_start    TIMESTAMP,
+    period_end      TIMESTAMP,
+    total_requests  BIGINT DEFAULT 0,
+    error_rate      DOUBLE DEFAULT 0.0,
+    cache_hit_rate  DOUBLE DEFAULT 0.0,
+    avg_ttfb_ms     DOUBLE DEFAULT 0.0,
+    p99_ttfb_ms     DOUBLE DEFAULT 0.0,
+    top_errors      VARCHAR,            -- JSON array
+    edge_breakdown  VARCHAR,            -- JSON array
+    anomalies       VARCHAR,            -- JSON array
+    agent_summary   VARCHAR,
+    report_path     VARCHAR
+);</pre>
+
+  <h3>AkamaiMetrics Schema</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>total_requests</code></td><td>int</td><td>Total number of log entries processed</td></tr>
+      <tr><td><code>error_rate</code></td><td>float</td><td>System error rate (excl. ERR_CLIENT_ABORT)</td></tr>
+      <tr><td><code>abort_rate</code></td><td>float</td><td>Client abort rate (ERR_CLIENT_ABORT only)</td></tr>
+      <tr><td><code>access_denied_rate</code></td><td>float</td><td>Security denial rate (403/token errors)</td></tr>
+      <tr><td><code>cache_hit_rate</code></td><td>float</td><td>From cache_hit field (binary 0/1)</td></tr>
+      <tr><td><code>avg_ttfb_ms</code></td><td>float</td><td>Average time-to-first-byte</td></tr>
+      <tr><td><code>p99_ttfb_ms</code></td><td>float</td><td>99th percentile TTFB</td></tr>
+      <tr><td><code>total_bytes</code></td><td>int</td><td>From bytes field (actual transferred)</td></tr>
+      <tr><td><code>unique_client_ips</code></td><td>int</td><td>Distinct client IPs</td></tr>
+      <tr><td><code>bandwidth_savings_pct</code></td><td>float</td><td>Cache offload percentage</td></tr>
+      <tr><td><code>top_errors</code></td><td>list[dict]</td><td>Top error codes with counts</td></tr>
+      <tr><td><code>edge_breakdown</code></td><td>list[dict]</td><td>Request distribution by edge server</td></tr>
+      <tr><td><code>geo_breakdown</code></td><td>list[dict]</td><td>Request distribution by country</td></tr>
+      <tr><td><code>status_breakdown</code></td><td>dict</td><td>HTTP status code distribution</td></tr>
+      <tr><td><code>content_type_breakdown</code></td><td>dict</td><td>MIME type distribution</td></tr>
+      <tr><td><code>segment_type_breakdown</code></td><td>dict</td><td>Video segment type distribution</td></tr>
+      <tr><td><code>city_breakdown</code></td><td>list[dict]</td><td>Request distribution by city</td></tr>
+      <tr><td><code>peak_hours</code></td><td>list[dict]</td><td>Hourly request volume for peak detection</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Parser Auto-Detection</h3>
+  <div class="info-box">
+    <h4>Format Detection Logic</h4>
+    <p>The <code>parse_auto()</code> function detects the log format automatically:</p>
+    <ol>
+      <li>If content starts with <code>{</code> or <code>[</code> &rarr; JSON format</li>
+      <li>If first line contains tab characters and exactly 22 fields &rarr; TSV (DataStream 2 native)</li>
+      <li>If first line contains commas with known headers &rarr; CSV (legacy format)</li>
+    </ol>
+    <p>TSV is the primary format for DataStream 2. CSV mapping is maintained for backward compatibility with older log exports.</p>
+  </div>
+
+  <h3>Anomaly Detection Thresholds</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Metric</th><th>Warning (P2)</th><th>Critical (P1)</th><th>Emergency (P0)</th></tr></thead>
+    <tbody>
+      <tr><td>Error Rate</td><td>&gt; 2%</td><td>&gt; 5%</td><td>&gt; 15%</td></tr>
+      <tr><td>Cache Hit Rate</td><td>&lt; 80%</td><td>&lt; 60%</td><td>&lt; 40%</td></tr>
+      <tr><td>Avg TTFB</td><td>&gt; 500ms</td><td>&gt; 1000ms</td><td>&gt; 3000ms</td></tr>
+      <tr><td>Abort Rate</td><td>&gt; 5%</td><td>&gt; 10%</td><td>&gt; 20%</td></tr>
+    </tbody>
+  </table></div>
+  <p>Thresholds are configurable per tenant via the <code>anomaly_rules</code> SQLite table. The agent respects custom thresholds when they exist and falls back to defaults otherwise.</p>
+</div>
+
+</main>
+</div>
+
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+btn.getAttribute('data-tab')).classList.add('active')})});
+function toggleEndpoint(el){el.classList.toggle('open');el.nextElementSibling.classList.toggle('open')}
+document.querySelectorAll('.faq-q').forEach(q=>{q.addEventListener('click',()=>{q.classList.toggle('open');q.nextElementSibling.classList.toggle('open')})});
+const searchInput=document.getElementById('searchInput'),searchCount=document.getElementById('searchCount');let searchTimeout;
+searchInput.addEventListener('input',()=>{clearTimeout(searchTimeout);searchTimeout=setTimeout(doSearch,200)});
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.focus()}});
+function doSearch(){const q=searchInput.value.trim().toLowerCase();document.querySelectorAll('mark[data-search]').forEach(m=>{const p=m.parentNode;p.replaceChild(document.createTextNode(m.textContent),m);p.normalize()});if(!q||q.length<2){searchCount.textContent='';return}const w=document.createTreeWalker(document.querySelector('.main'),NodeFilter.SHOW_TEXT),nodes=[];while(w.nextNode()){if(w.currentNode.nodeValue.toLowerCase().includes(q))nodes.push(w.currentNode)}let c=0;nodes.forEach(n=>{const t=n.nodeValue,parts=t.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'));if(parts.length<=1)return;const f=document.createDocumentFragment();parts.forEach(p=>{if(p.toLowerCase()===q){const m=document.createElement('mark');m.setAttribute('data-search','1');m.textContent=p;f.appendChild(m);c++}else f.appendChild(document.createTextNode(p))});n.parentNode.replaceChild(f,n)});searchCount.textContent=c+' match'+(c!==1?'es':'');const first=document.querySelector('mark[data-search]');if(first)first.scrollIntoView({behavior:'smooth',block:'center'})}
+</script>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || !data.type) return;
+  if (data.type === 'showTab') {
+    var tabId = data.tabId;
+    var btn = document.querySelector('[data-tab="' + tabId + '"]') ||
+              document.querySelector('.chip[onclick*="' + tabId + '"]');
+    if (btn) { btn.click(); }
+    else if (typeof switchTab === 'function') { switchTab(tabId); }
+    else if (typeof activateTab === 'function') { activateTab(tabId); }
+  }
+  if (data.type === 'scrollTo') {
+    var el = document.getElementById(data.sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Growth &amp; Retention — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10; --bg2: #0f1117; --bg3: #151820;
+  --text: #e2e8f0; --text2: #94a3b8;
+  --accent: #38bdf8; --accent2: #7c3aed;
+  --low: #10b981; --medium: #f59e0b; --high: #ef4444;
+  --border: #1e2433; --border2: #2a3244;
+  --radius: 10px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); } .breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chip-bar { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 32px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.chip { padding: 4px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 140px); }
+.sidebar { width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 6px 20px 6px 28px; font-size: 0.85rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-links { padding: 8px 20px; }
+.quick-link { display: block; padding: 5px 0 5px 8px; font-size: 0.82rem; color: var(--text2); transition: color 0.15s; }
+.quick-link:hover { color: var(--accent); }
+.quick-link::before { content: "# "; color: var(--accent2); font-weight: 600; }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.88rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card-grid .card { margin-bottom: 0; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+.badge-method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.badge-get { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-post { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem; }
+.data-table th { text-align: left; padding: 10px 14px; background: var(--bg3); color: var(--text2); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; color: var(--text2); }
+code.inline { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 0.84rem; color: var(--accent); }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.info-box strong { color: var(--accent); }
+.warn-box { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-left: 3px solid var(--high); border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: var(--text2); }
+.warn-box strong { color: var(--high); }
+
+.accordion { margin: 16px 0; }
+.accordion-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.accordion-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg3); cursor: pointer; transition: background 0.2s; font-weight: 500; font-size: 0.9rem; }
+.accordion-header:hover { background: var(--bg2); }
+.accordion-header .ep-meta { display: flex; align-items: center; gap: 8px; }
+.accordion-header .arrow-acc { transition: transform 0.2s; color: var(--text2); }
+.accordion-header.open .arrow-acc { transform: rotate(180deg); }
+.accordion-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--bg2); }
+.accordion-body-inner { padding: 16px; }
+
+.flow-diagram { display: flex; align-items: center; gap: 0; margin: 20px 0; overflow-x: auto; padding: 10px 0; }
+.flow-step { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; min-width: 130px; text-align: center; flex-shrink: 0; }
+.flow-step:hover { border-color: var(--accent); }
+.flow-step .step-num { font-size: 0.7rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.flow-step .step-title { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+.flow-step .step-desc { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+.flow-arrow { color: var(--text2); font-size: 1.2rem; margin: 0 8px; flex-shrink: 0; }
+
+.section-title { font-size: 1.3rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.section-subtitle { color: var(--text2); font-size: 0.92rem; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="breadcrumb">
+      <a href="index.html">&larr; Platform Overview</a>
+      <span class="sep">/</span> Growth &amp; Retention
+    </div>
+    <h1><span style="font-size:1.3rem;">&#128200;</span> Growth &amp; Retention</h1>
+    <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+      <span class="badge badge-accent">M18 Growth + M03 Data Analyst</span>
+      <span class="badge badge-purple">P1</span>
+      <span class="badge" style="background:rgba(16,185,129,0.12);color:var(--low);">Buyume Analisti</span>
+    </div>
+  </div>
+  <div style="text-align:right; font-size:0.8rem; color:var(--text2);">
+    <div>Sprint S07 + S20</div>
+    <div><strong style="color:var(--low);">51 tests</strong></div>
+  </div>
+</div>
+
+<!-- SEARCH BAR -->
+<div class="search-bar">
+  <span style="color:var(--text2);font-size:1.1rem;">&#128269;</span>
+  <input type="text" id="globalSearch" placeholder="Search Growth &amp; Retention docs...">
+  <span class="search-no-result" id="searchNoResult">No results found</span>
+</div>
+
+<!-- QUICK NAV CHIPS -->
+<div class="chip-bar">
+  <span class="chip" onclick="switchTab('overview')">Overview</span>
+  <span class="chip" onclick="switchTab('growth')">Growth Agent</span>
+  <span class="chip" onclick="switchTab('analyst')">Data Analyst Agent</span>
+  <span class="chip" onclick="switchTab('tools')">Tools</span>
+  <span class="chip" onclick="switchTab('api')">API</span>
+  <span class="chip" onclick="switchTab('crossapp')">Cross-App</span>
+  <span class="chip" onclick="switchTab('data')">Data</span>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" onclick="toggleSection(this)">Navigation <span class="arrow">&#9660;</span></div>
+    <div class="sidebar-section-content">
+      <a class="sidebar-link" href="#" onclick="switchTab('overview')">Overview</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('growth')">Growth Agent</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('analyst')">Data Analyst Agent</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('tools')">Tools Reference</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('api')">API Endpoints</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('crossapp')">Cross-App Events</a>
+      <a class="sidebar-link" href="#" onclick="switchTab('data')">Data Model</a>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" onclick="toggleSection(this)">FAQ <span class="arrow">&#9660;</span></div>
+    <div class="sidebar-section-content">
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">What is the churn risk threshold?</button>
+        <div class="faq-a">A churn probability score of 0.7 or higher triggers a churn_risk_detected event. The model considers inactivity days, QoE history, complaint frequency, and subscription age.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">How does NL-to-SQL work?</button>
+        <div class="faq-a">DataAnalystAgent converts natural language questions into DuckDB SQL queries. It uses Sonnet LLM with schema context. All generated queries are read-only (SELECT only).</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">What PII protections are in place?</button>
+        <div class="faq-a">Only user_id_hash is exposed. The PII scrubber runs before any LLM call. DataAnalystAgent queries cannot access raw user PII columns.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">Can the campaign tool send emails?</button>
+        <div class="faq-a">The send_retention_campaign tool (HIGH risk) queues campaign definitions but does not directly send emails. It requires admin approval and integrates with the external campaign service.</div>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" onclick="toggleSection(this)">Quick Links <span class="arrow">&#9660;</span></div>
+    <div class="sidebar-section-content quick-links">
+      <a class="quick-link" href="index.html">Platform Overview</a>
+      <a class="quick-link" href="viewer_experience.html">Viewer Experience</a>
+      <a class="quick-link" href="live_intelligence.html">Live Intelligence</a>
+      <a class="quick-link" href="capacity_cost.html">Capacity &amp; Cost</a>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+  <button class="tab-btn" onclick="switchTab('growth')">Growth Agent</button>
+  <button class="tab-btn" onclick="switchTab('analyst')">Data Analyst Agent</button>
+  <button class="tab-btn" onclick="switchTab('tools')">Tools</button>
+  <button class="tab-btn" onclick="switchTab('api')">API</button>
+  <button class="tab-btn" onclick="switchTab('crossapp')">Cross-App</button>
+  <button class="tab-btn" onclick="switchTab('data')">Data</button>
+</div>
+
+<!-- ==================== OVERVIEW ==================== -->
+<div class="tab-content active" id="tab-overview">
+  <h2 class="section-title">Growth &amp; Retention Overview</h2>
+  <p class="section-subtitle">Subscriber growth analytics, churn prediction, and natural-language data exploration.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>Growth Agent (M18)</h4>
+      <p>Tracks subscriber lifecycle metrics, predicts churn risk, and manages retention campaigns. Emits churn_risk_detected events when risk probability exceeds 0.7.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-high">1 HIGH tool</span></div>
+    </div>
+    <div class="card">
+      <h4>Data Analyst Agent (M03)</h4>
+      <p>Natural language to SQL converter for DuckDB analytics. Enables business users to query data without SQL knowledge. Read-only, PII-safe.</p>
+      <div style="margin-top:10px;"><span class="badge badge-accent">Sonnet LLM</span> <span class="badge badge-low">All LOW tools</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>Churn Risk Model:</strong> When a subscriber's churn probability score reaches <code class="inline">0.7</code>, the system emits a <code class="inline">churn_risk_detected</code> event. This triggers automated retention workflows and campaign suggestions.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Churn Prediction Pipeline</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Input</div><div class="step-title">User Activity</div><div class="step-desc">Sessions, content, billing</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Model</div><div class="step-title">Risk Score</div><div class="step-desc">0.0 to 1.0 probability</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Threshold</div><div class="step-title">Check &ge; 0.7</div><div class="step-desc">Emit event if true</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Action</div><div class="step-title">Campaign</div><div class="step-desc">Retention offer</div></div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Churn Risk Factors</h3>
+  <table class="data-table">
+    <thead><tr><th>Factor</th><th>Weight</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>Inactivity days</td><td><code class="inline">0.30</code></td><td>Days since last playback session</td></tr>
+      <tr><td>QoE history</td><td><code class="inline">0.25</code></td><td>Average QoE score in last 30 days</td></tr>
+      <tr><td>Complaint frequency</td><td><code class="inline">0.20</code></td><td>Number of complaints in last 60 days</td></tr>
+      <tr><td>Subscription age</td><td><code class="inline">0.15</code></td><td>Newer subscribers churn more (< 90 days)</td></tr>
+      <tr><td>Content engagement</td><td><code class="inline">0.10</code></td><td>Content diversity and completion rate</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== GROWTH AGENT ==================== -->
+<div class="tab-content" id="tab-growth">
+  <h2 class="section-title">Growth Agent (M18)</h2>
+  <p class="section-subtitle">Subscriber growth tracking, churn prediction, and retention campaign orchestration.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (default)</td></tr>
+      <tr><td style="color:var(--text2);">Base Class</td><td><code class="inline">BaseAgent</code> (LangGraph 4-step)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/growth_retention/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>5 tools (3 LOW, 1 MEDIUM, 1 HIGH)</td></tr>
+      <tr><td style="color:var(--text2);">Primary DB</td><td>DuckDB (analytics.duckdb)</td></tr>
+    </table>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Retention Campaign Types</h3>
+  <div class="card-grid">
+    <div class="card"><h4>Win-Back</h4><p>Targets churned users with special offers. Triggered 7 days after subscription cancellation.</p></div>
+    <div class="card"><h4>At-Risk</h4><p>Proactive offer for users with churn score &ge; 0.7 but still active. Personalized content recommendations.</p></div>
+    <div class="card"><h4>Engagement Boost</h4><p>For users with declining session frequency. Highlights new content matching their watch history.</p></div>
+  </div>
+
+  <div class="warn-box">
+    <strong>HIGH Risk Tool:</strong> <code class="inline">send_retention_campaign</code> queues a campaign for batch delivery. Requires admin approval. Campaign targets are defined by user_id_hash segments, never raw PII.
+  </div>
+</div>
+
+<!-- ==================== DATA ANALYST AGENT ==================== -->
+<div class="tab-content" id="tab-analyst">
+  <h2 class="section-title">Data Analyst Agent (M03)</h2>
+  <p class="section-subtitle">Natural language to SQL conversion for DuckDB analytics queries.</p>
+
+  <div class="card">
+    <h4>Agent Configuration</h4>
+    <table class="data-table">
+      <tr><td style="width:160px;color:var(--text2);">LLM Model</td><td>Sonnet (default)</td></tr>
+      <tr><td style="color:var(--text2);">Source File</td><td><code class="inline">apps/growth_retention/agent.py</code></td></tr>
+      <tr><td style="color:var(--text2);">Tools Count</td><td>4 tools (all LOW)</td></tr>
+      <tr><td style="color:var(--text2);">Query Mode</td><td>Read-only (SELECT only)</td></tr>
+      <tr><td style="color:var(--text2);">PII Handling</td><td>user_id_hash only, no raw PII</td></tr>
+    </table>
+  </div>
+
+  <div class="info-box">
+    <strong>Safety Constraints:</strong> DataAnalystAgent only generates SELECT queries. INSERT, UPDATE, DELETE, DROP, and DDL statements are blocked at the query parser level. All queries are validated before execution.
+  </div>
+
+  <h3 style="margin:20px 0 12px;">NL-to-SQL Pipeline</h3>
+  <div class="flow-diagram">
+    <div class="flow-step"><div class="step-num">Input</div><div class="step-title">Natural Language</div><div class="step-desc">"Show churn rate by region"</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Context</div><div class="step-title">Schema Inject</div><div class="step-desc">Table + column defs</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Generate</div><div class="step-title">SQL via Sonnet</div><div class="step-desc">SELECT only</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="step-num">Execute</div><div class="step-title">DuckDB Query</div><div class="step-desc">Read-only</div></div>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">Example Queries</h3>
+  <pre class="code-block"># User asks: "What is the churn rate by region in the last 30 days?"
+
+# Generated SQL:
+SELECT
+    region,
+    COUNT(CASE WHEN churned = true THEN 1 END) * 100.0 / COUNT(*) as churn_rate_pct,
+    COUNT(*) as total_subscribers
+FROM subscriber_metrics
+WHERE recorded_at >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY region
+ORDER BY churn_rate_pct DESC;</pre>
+</div>
+
+<!-- ==================== TOOLS ==================== -->
+<div class="tab-content" id="tab-tools">
+  <h2 class="section-title">Tools Reference</h2>
+  <p class="section-subtitle">9 tools total: 7 LOW, 1 MEDIUM, 1 HIGH risk.</p>
+
+  <table class="data-table">
+    <thead><tr><th>Tool Name</th><th>Risk</th><th>Agent</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">get_growth_dashboard</code></td><td><span class="badge badge-low">LOW</span></td><td>Growth</td><td>Subscriber growth metrics summary</td></tr>
+      <tr><td><code class="inline">get_churn_predictions</code></td><td><span class="badge badge-low">LOW</span></td><td>Growth</td><td>List users with churn risk scores</td></tr>
+      <tr><td><code class="inline">get_cohort_analysis</code></td><td><span class="badge badge-low">LOW</span></td><td>Growth</td><td>Subscriber cohort retention analysis</td></tr>
+      <tr><td><code class="inline">get_campaign_history</code></td><td><span class="badge badge-medium">MEDIUM</span></td><td>Growth</td><td>Past retention campaign performance</td></tr>
+      <tr><td><code class="inline">send_retention_campaign</code></td><td><span class="badge badge-high">HIGH</span></td><td>Growth</td><td>Queue retention campaign for delivery (approval required)</td></tr>
+      <tr><td><code class="inline">run_analytics_query</code></td><td><span class="badge badge-low">LOW</span></td><td>Data Analyst</td><td>Execute NL-to-SQL query on DuckDB</td></tr>
+      <tr><td><code class="inline">get_query_history</code></td><td><span class="badge badge-low">LOW</span></td><td>Data Analyst</td><td>Previous queries and results</td></tr>
+      <tr><td><code class="inline">get_available_tables</code></td><td><span class="badge badge-low">LOW</span></td><td>Data Analyst</td><td>List available DuckDB tables and columns</td></tr>
+      <tr><td><code class="inline">explain_query</code></td><td><span class="badge badge-low">LOW</span></td><td>Data Analyst</td><td>Explain generated SQL in plain language</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== API ==================== -->
+<div class="tab-content" id="tab-api">
+  <h2 class="section-title">API Endpoints</h2>
+  <p class="section-subtitle">Router prefix: <code class="inline">/growth</code> &mdash; 6 REST endpoints.</p>
+
+  <div class="accordion">
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/growth/dashboard</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Growth metrics dashboard: subscriber count, MRR, churn rate, net growth.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">period</code> (7d|30d|90d)</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/growth/churn/predictions</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>List subscribers with churn risk scores, filterable by risk level.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">min_score</code>, <code class="inline">page</code>, <code class="inline">limit</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/growth/cohorts</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Cohort retention analysis by signup month.</p>
+        <p style="margin-top:8px;"><strong>Query Params:</strong> <code class="inline">tenant_id</code>, <code class="inline">cohort_start</code>, <code class="inline">cohort_end</code></p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/growth/campaigns</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Create and queue a retention campaign. Requires admin approval.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ tenant_id, campaign_type, target_segment, offer_details }</code></p>
+        <div class="warn-box" style="margin-top:10px;"><strong>HIGH Risk:</strong> approval_required=True</div>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-post">POST</span> <code class="inline">/growth/analytics/query</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>Execute a natural language analytics query. Converted to DuckDB SQL internally.</p>
+        <p style="margin-top:8px;"><strong>Body:</strong> <code class="inline">{ tenant_id, question }</code></p>
+        <p><strong>Response:</strong> 200 &mdash; Generated SQL + query results + explanation</p>
+      </div></div>
+    </div>
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <div class="ep-meta"><span class="badge-method badge-get">GET</span> <code class="inline">/growth/analytics/tables</code></div>
+        <span class="arrow-acc">&#9660;</span>
+      </div>
+      <div class="accordion-body"><div class="accordion-body-inner">
+        <p>List available DuckDB tables and their column schemas for the Data Analyst.</p>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CROSS-APP ==================== -->
+<div class="tab-content" id="tab-crossapp">
+  <h2 class="section-title">Cross-App Events</h2>
+  <p class="section-subtitle">Event Bus integration for inter-app communication.</p>
+
+  <h3 style="margin:20px 0 12px;">OUTPUT Events (Published)</h3>
+  <div class="card">
+    <h4>churn_risk_detected</h4>
+    <p>Emitted when a subscriber's churn probability score reaches or exceeds 0.7.</p>
+    <pre class="code-block">{
+  "event_type": "churn_risk_detected",
+  "tenant_id": "tenant_abc",
+  "user_id_hash": "sha256_abc123...",
+  "churn_score": 0.82,
+  "risk_factors": ["inactivity_14d", "low_qoe_avg_2.1", "2_complaints"],
+  "suggested_action": "at_risk_campaign",
+  "timestamp": "2026-03-28T10:15:00Z"
+}</pre>
+    <p style="margin-top:8px;"><strong>Consumers:</strong> Alert Center (notification), Admin &amp; Governance (reporting)</p>
+  </div>
+
+  <h3 style="margin:20px 0 12px;">INPUT Events (Consumed)</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h4>analysis_complete</h4>
+      <p>From Log Analyzer. Enriches growth analysis with log-derived insights about service quality impacts on subscriber behavior.</p>
+    </div>
+    <div class="card">
+      <h4>external_data_updated</h4>
+      <p>From Live Intelligence. Correlates live event engagement data with subscriber retention patterns.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DATA ==================== -->
+<div class="tab-content" id="tab-data">
+  <h2 class="section-title">Data Model</h2>
+  <p class="section-subtitle">DuckDB tables for growth analytics and subscriber metrics.</p>
+
+  <div class="card">
+    <h4>subscriber_metrics (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE subscriber_metrics (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    user_id_hash    VARCHAR NOT NULL,
+    region          VARCHAR,
+    subscription_plan VARCHAR,
+    subscription_start DATE,
+    churn_score     DOUBLE DEFAULT 0.0,
+    churned         BOOLEAN DEFAULT FALSE,
+    last_active     TIMESTAMP,
+    total_sessions  INTEGER DEFAULT 0,
+    avg_qoe_30d     DOUBLE,
+    complaint_count INTEGER DEFAULT 0,
+    recorded_at     TIMESTAMP NOT NULL
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>retention_campaigns (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE retention_campaigns (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    campaign_type   VARCHAR NOT NULL,  -- win_back|at_risk|engagement_boost
+    target_segment  TEXT NOT NULL,
+    status          VARCHAR DEFAULT 'pending',  -- pending|approved|sent|completed
+    target_count    INTEGER,
+    conversion_rate DOUBLE,
+    created_at      TIMESTAMP NOT NULL,
+    approved_at     TIMESTAMP,
+    sent_at         TIMESTAMP
+);</pre>
+  </div>
+
+  <div class="card">
+    <h4>analytics_queries (DuckDB)</h4>
+    <pre class="code-block">CREATE TABLE analytics_queries (
+    id              VARCHAR PRIMARY KEY,
+    tenant_id       VARCHAR NOT NULL,
+    question        TEXT NOT NULL,
+    generated_sql   TEXT NOT NULL,
+    row_count       INTEGER,
+    execution_ms    INTEGER,
+    created_at      TIMESTAMP NOT NULL
+);</pre>
+  </div>
+
+  <div class="info-box">
+    <strong>PII Policy:</strong> All subscriber data uses <code class="inline">user_id_hash</code> only. The DataAnalystAgent's query validator blocks any SELECT that attempts to join with PII-containing tables outside the analytics schema.
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  var target = document.getElementById('tab-' + name);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    var attr = b.getAttribute('onclick');
+    if (attr && attr.indexOf("'" + name + "'") !== -1) b.classList.add('active');
+  });
+}
+function toggleSection(el) { el.classList.toggle('collapsed'); var c = el.nextElementSibling; if (c) c.classList.toggle('collapsed'); }
+function toggleFaq(btn) { btn.nextElementSibling.classList.toggle('open'); }
+function toggleAccordion(header) {
+  var body = header.nextElementSibling;
+  header.classList.toggle('open');
+  body.style.maxHeight = header.classList.contains('open') ? body.scrollHeight + 'px' : '0';
+}
+
+var searchInput = document.getElementById('globalSearch');
+var noResultMsg = document.getElementById('searchNoResult');
+var mainContent = document.querySelector('.main-content');
+function clearMarks() {
+  mainContent.querySelectorAll('mark.search-highlight').forEach(function(m) {
+    var p = m.parentNode; p.replaceChild(document.createTextNode(m.textContent), m); p.normalize();
+  });
+}
+function searchInTextNodes(node, term, results) {
+  if (node.nodeType === 3) {
+    var idx = node.textContent.toLowerCase().indexOf(term.toLowerCase());
+    if (idx >= 0) {
+      var span = document.createElement('mark'); span.className = 'search-highlight';
+      var after = node.splitText(idx); var matched = after.splitText(term.length);
+      span.appendChild(after.cloneNode(true)); after.parentNode.replaceChild(span, after);
+      results.push(span); searchInTextNodes(matched, term, results);
+    }
+  } else if (node.nodeType === 1 && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE' && !node.classList.contains('search-highlight')) {
+    Array.prototype.slice.call(node.childNodes).forEach(function(c) { searchInTextNodes(c, term, results); });
+  }
+}
+searchInput.addEventListener('keyup', function() {
+  clearMarks(); var term = searchInput.value.trim();
+  if (term.length < 2) { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; return; }
+  var results = []; searchInTextNodes(mainContent, term, results);
+  if (results.length === 0) { searchInput.classList.add('no-results'); noResultMsg.style.display = 'inline'; }
+  else { searchInput.classList.remove('no-results'); noResultMsg.style.display = 'none'; results[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+});
+</script>
+</body>
+</html>

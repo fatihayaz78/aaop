@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Base — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #7c3aed;
+  --low: #10b981;
+  --medium: #f59e0b;
+  --high: #ef4444;
+  --border: #1e2433;
+  --border2: #2a3244;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+
+mark {
+  background: var(--accent2);
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* HEADER */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.header h1 span.icon { font-size: 1.3rem; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+/* SEARCH BAR */
+.search-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.search-bar input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-bar .search-icon { color: var(--text2); font-size: 1.1rem; }
+.search-no-result {
+  display: none;
+  color: var(--high);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* LAYOUT */
+.layout {
+  display: flex;
+  min-height: calc(100vh - 120px);
+}
+
+/* LEFT SIDEBAR */
+.sidebar {
+  display: none;
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+  position: sticky;
+  top: 58px;
+  height: calc(100vh - 58px);
+  overflow-y: auto;
+}
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text2);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+
+.sidebar-link {
+  display: block;
+  padding: 6px 20px 6px 28px;
+  font-size: 0.85rem;
+  color: var(--text2);
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+
+/* FAQ Accordion */
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q {
+  display: block;
+  width: 100%;
+  padding: 10px 20px 10px 28px;
+  font-size: 0.82rem;
+  color: var(--text2);
+  cursor: pointer;
+  text-align: left;
+  background: none;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.15s;
+  line-height: 1.4;
+}
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 20px 0 28px;
+  font-size: 0.78rem;
+  color: var(--text2);
+  line-height: 1.5;
+  background: rgba(56,189,248,0.02);
+}
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+/* Sprint form in sidebar */
+.sprint-form { padding: 12px 20px; }
+.sprint-form label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text2);
+  margin-bottom: 4px;
+  margin-top: 10px;
+}
+.sprint-form input, .sprint-form select, .sprint-form textarea {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+}
+.sprint-form input:focus, .sprint-form select:focus, .sprint-form textarea:focus {
+  border-color: var(--accent);
+}
+.sprint-form textarea { resize: vertical; min-height: 60px; }
+.sprint-form .radio-group { display: flex; gap: 10px; margin-top: 4px; }
+.sprint-form .radio-group label { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 0.78rem; cursor: pointer; }
+.sprint-form .radio-group input[type="radio"] { width: auto; accent-color: var(--accent); }
+.sprint-form button {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.sprint-form button:hover { opacity: 0.9; }
+
+/* Document links in sidebar */
+.doc-group-title {
+  padding: 6px 20px 4px 28px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent2);
+  font-weight: 600;
+}
+.doc-link {
+  display: block;
+  padding: 5px 20px 5px 36px;
+  font-size: 0.82rem;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.doc-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.doc-link::before { content: ""; margin-right: 6px; font-size: 0.75rem; }
+.add-doc-btn {
+  display: block;
+  margin: 12px 20px;
+  padding: 6px 12px;
+  background: var(--bg3);
+  border: 1px dashed var(--border2);
+  border-radius: 6px;
+  color: var(--text2);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+.add-doc-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* MAIN CONTENT */
+.main-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* TAB BAR */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+}
+.tab-btn {
+  padding: 10px 24px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text2);
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* CARDS */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); transform: translateY(-1px); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card-grid .card { margin-bottom: 0; }
+
+.mini-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.mini-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(56,189,248,0.1); }
+
+/* BADGES */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+
+/* TABLES */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.88rem;
+}
+.data-table th {
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--bg3);
+  color: var(--text2);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+
+/* CODE BLOCKS */
+pre.code-block {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text2);
+}
+pre.code-block .key { color: var(--accent); }
+pre.code-block .str { color: var(--low); }
+pre.code-block .num { color: var(--medium); }
+pre.code-block .comment { color: #4a5568; font-style: italic; }
+
+code.inline {
+  background: var(--bg3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.84rem;
+  color: var(--accent);
+}
+
+/* INFO BOX */
+.info-box {
+  background: rgba(56,189,248,0.06);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 0.88rem;
+  color: var(--text2);
+}
+.info-box strong { color: var(--accent); }
+
+/* ACCORDION */
+.accordion { margin: 16px 0; }
+.accordion-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg3);
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+.accordion-header:hover { background: var(--bg2); }
+.accordion-header .method { margin-right: 10px; font-weight: 700; font-size: 0.8rem; }
+.accordion-header .method.post { color: var(--low); }
+.accordion-header .method.get { color: var(--accent); }
+.accordion-header .arrow-acc { transition: transform 0.2s; color: var(--text2); }
+.accordion-header.open .arrow-acc { transform: rotate(180deg); }
+.accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  background: var(--bg2);
+}
+.accordion-body-inner { padding: 16px; }
+
+/* FLOW DIAGRAM */
+.flow-diagram {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 20px 0;
+  overflow-x: auto;
+  padding: 10px 0;
+}
+.flow-step {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  min-width: 140px;
+  text-align: center;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+}
+.flow-step:hover { border-color: var(--accent); }
+.flow-step .step-num { font-size: 0.7rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.flow-step .step-title { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+.flow-step .step-desc { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+.flow-arrow { color: var(--text2); font-size: 1.2rem; margin: 0 8px; flex-shrink: 0; }
+
+/* FORM in main */
+.demo-form { max-width: 600px; }
+.demo-form .form-group { margin-bottom: 16px; }
+.demo-form label { display: block; font-size: 0.85rem; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+.demo-form input, .demo-form select, .demo-form textarea {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.demo-form input:focus, .demo-form select:focus, .demo-form textarea:focus { border-color: var(--accent); }
+.demo-form textarea { resize: vertical; min-height: 100px; }
+.demo-form .submit-btn {
+  padding: 10px 28px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.demo-form .submit-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+/* MODAL */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 720px;
+  width: 100%;
+  padding: 28px;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  animation: modalIn 0.2s ease;
+}
+@keyframes modalIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+.modal-close:hover { background: var(--high); color: #fff; border-color: var(--high); }
+.modal h2 { font-size: 1.3rem; margin-bottom: 16px; padding-right: 40px; }
+.modal h3 { font-size: 1rem; margin: 16px 0 8px; color: var(--accent); }
+.modal p, .modal li { color: var(--text2); font-size: 0.9rem; line-height: 1.6; }
+.modal ul, .modal ol { padding-left: 20px; margin: 8px 0; }
+.modal li { margin-bottom: 6px; }
+
+/* SECTION TITLE */
+.section-title {
+  font-size: 1.4rem;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-subtitle { color: var(--text2); font-size: 0.92rem; margin-bottom: 20px; }
+
+/* VIEW BTN */
+.view-btn {
+  padding: 6px 16px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+}
+.view-btn:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+/* CONTENT TYPE CARDS */
+.ct-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
+.ct-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.ct-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.ct-card .ct-icon { font-size: 1.8rem; margin-bottom: 8px; }
+.ct-card .ct-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+.ct-card .ct-desc { font-size: 0.78rem; color: var(--text2); }
+
+/* RUNBOOK CARDS */
+.runbook-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 16px 0; }
+.runbook-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: all 0.2s;
+}
+.runbook-card:hover { border-color: var(--accent2); box-shadow: 0 4px 20px rgba(124,58,237,0.15); }
+.runbook-card h4 { margin-bottom: 8px; }
+.runbook-card p { font-size: 0.85rem; color: var(--text2); margin-bottom: 12px; }
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main-content { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+<!-- LEFT SIDEBAR -->
+
+
+<!-- MAIN -->
+<main class="main-content">
+
+  <!-- TAB BAR -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('search')">Search</button>
+    <button class="tab-btn" onclick="switchTab('incidents')">Incidents</button>
+    <button class="tab-btn" onclick="switchTab('runbooks')">Runbooks</button>
+    <button class="tab-btn" onclick="switchTab('ingest')">Ingest</button>
+  </div>
+
+  <!-- ==================== TAB 1: SEARCH ==================== -->
+  <div class="tab-content active" id="tab-search">
+
+    <!-- OVERVIEW -->
+    <div id="section-overview">
+      <h2 class="section-title">&#128214; Overview</h2>
+      <p class="section-subtitle">M15 Knowledge Base &mdash; Platform genelinde bilgi birikimi, arama ve ingest islemleri</p>
+
+      <div class="card" style="margin-bottom:24px;">
+        <table class="data-table" style="margin:0;">
+          <tr><td style="color:var(--text2);width:180px;">User Profile</td><td>M15 &mdash; Knowledge Base Agent</td></tr>
+          <tr><td style="color:var(--text2);">Priority</td><td><span class="badge badge-purple">P2</span></td></tr>
+          <tr><td style="color:var(--text2);">Sprint</td><td>S11 &mdash; P2 Apps</td></tr>
+          <tr><td style="color:var(--text2);">Spec File</td><td><code class="inline">apps/knowledge_base/knowledge_base.spec.md</code></td></tr>
+          <tr><td style="color:var(--text2);">Chunking</td><td>500 token / 50 overlap</td></tr>
+          <tr><td style="color:var(--text2);">Embedding Model</td><td><code class="inline">all-MiniLM-L6-v2</code></td></tr>
+        </table>
+      </div>
+
+      <div class="card-grid">
+        <div class="card">
+          <h4>&#128680; incidents</h4>
+          <p>Otomatik indekslenen incident kayitlari. Ops Center'dan gelen incident_created ve rca_completed event'leri uzerinden beslenir.</p>
+          <div style="margin-top:10px;"><span class="badge badge-accent">Auto-indexed</span></div>
+        </div>
+        <div class="card">
+          <h4>&#128221; runbooks</h4>
+          <p>Manuel yuklenen operasyonel prosedurler. CDN Outage, DRM yenileme, P0 mudahale gibi standart runbook'lar icerir.</p>
+          <div style="margin-top:10px;"><span class="badge badge-purple">Manual Upload</span></div>
+        </div>
+        <div class="card">
+          <h4>&#128218; platform</h4>
+          <p>Mimari dokumanlar, API sozlesmeleri, design system kurallari. Platform bilgi bankasi olarak gorev yapar.</p>
+          <div style="margin-top:10px;"><span class="badge badge-low">Reference</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AGENT -->
+    <div id="section-agent" style="margin-top:36px;">
+      <h2 class="section-title">&#129302; KnowledgeBaseAgent</h2>
+      <p class="section-subtitle">LangGraph 4-adim dongusu ile calisan bilgi yonetim ajani</p>
+
+      <div class="card">
+        <h4>Class Info</h4>
+        <pre class="code-block"><span class="key">class</span> KnowledgeBaseAgent(<span class="str">BaseAgent</span>):
+    <span class="comment"># apps/knowledge_base/agent.py</span>
+    <span class="key">llm_tier</span>: <span class="str">"sonnet"</span>  <span class="comment"># P2 app default</span>
+    <span class="key">collections</span>: [<span class="str">"incidents"</span>, <span class="str">"runbooks"</span>, <span class="str">"platform"</span>]</pre>
+      </div>
+
+      <h4 style="margin:20px 0 10px;">4-Step Agent Loop</h4>
+      <table class="data-table">
+        <thead><tr><th>Step</th><th>Name</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-accent">1</span></td><td>Perceive</td><td>Kullanici sorgusunu al, intent siniflandirmasi yap (search / ingest / delete)</td></tr>
+          <tr><td><span class="badge badge-accent">2</span></td><td>Reason</td><td>Collection sec, query embedding olustur, arama stratejisi belirle</td></tr>
+          <tr><td><span class="badge badge-accent">3</span></td><td>Act</td><td>ChromaDB'de semantic search calistir veya dokuman ingest/delete et</td></tr>
+          <tr><td><span class="badge badge-accent">4</span></td><td>Reflect</td><td>Sonuclari degerlendir, relevance skoru kontrol et, response olustur</td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="margin:20px 0 10px;">Tools</h4>
+      <table class="data-table">
+        <thead><tr><th>Tool</th><th>Risk</th><th>Approval</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">semantic_search</code></td><td><span class="badge badge-low">LOW</span></td><td>Auto</td><td>ChromaDB collection'larinda semantic arama yapar</td></tr>
+          <tr><td><code class="inline">ingest_document</code></td><td><span class="badge badge-low">LOW</span></td><td>Auto</td><td>Yeni dokuman chunk'lar ve ChromaDB'ye kaydeder</td></tr>
+          <tr><td><code class="inline">get_related_incidents</code></td><td><span class="badge badge-low">LOW</span></td><td>Auto</td><td>Benzer incident kayitlarini getirir</td></tr>
+          <tr><td><code class="inline">get_runbook</code></td><td><span class="badge badge-low">LOW</span></td><td>Auto</td><td>Belirli bir runbook'u tam metin olarak dondurur</td></tr>
+          <tr><td><code class="inline">delete_document</code></td><td><span class="badge badge-high">HIGH</span></td><td>Approval Required</td><td>ChromaDB'den dokuman siler (geri alinamaz)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- COLLECTIONS -->
+    <div id="section-collections" style="margin-top:36px;">
+      <h2 class="section-title">&#128451; ChromaDB Collections</h2>
+      <p class="section-subtitle">3 ayri collection, farkli kaynaklardan beslenir</p>
+
+      <div class="card" style="margin-bottom:16px;">
+        <h4>incidents</h4>
+        <table class="data-table">
+          <tr><td style="color:var(--text2);width:160px;">Source</td><td>Ops Center &rarr; Event Bus (incident_created, rca_completed)</td></tr>
+          <tr><td style="color:var(--text2);">Indexed Fields</td><td>title, description, severity, service_name, rca_summary, resolution</td></tr>
+          <tr><td style="color:var(--text2);">Metadata Filters</td><td>severity, service_name, created_at, status</td></tr>
+        </table>
+        <pre class="code-block"><span class="comment">// Example query</span>
+{
+  <span class="key">"collection"</span>: <span class="str">"incidents"</span>,
+  <span class="key">"query"</span>: <span class="str">"CDN latency spike during live match"</span>,
+  <span class="key">"n_results"</span>: <span class="num">5</span>,
+  <span class="key">"where"</span>: { <span class="key">"severity"</span>: <span class="str">"P0"</span> }
+}</pre>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <h4>runbooks</h4>
+        <table class="data-table">
+          <tr><td style="color:var(--text2);width:160px;">Source</td><td>Manual ingest via API or UI</td></tr>
+          <tr><td style="color:var(--text2);">Indexed Fields</td><td>title, content, tags, category</td></tr>
+          <tr><td style="color:var(--text2);">Metadata Filters</td><td>category, tags, author, updated_at</td></tr>
+        </table>
+        <pre class="code-block"><span class="comment">// Example query</span>
+{
+  <span class="key">"collection"</span>: <span class="str">"runbooks"</span>,
+  <span class="key">"query"</span>: <span class="str">"How to renew DRM certificates"</span>,
+  <span class="key">"n_results"</span>: <span class="num">3</span>,
+  <span class="key">"where"</span>: { <span class="key">"category"</span>: <span class="str">"drm"</span> }
+}</pre>
+      </div>
+
+      <div class="card">
+        <h4>platform</h4>
+        <table class="data-table">
+          <tr><td style="color:var(--text2);width:160px;">Source</td><td>ARCHITECTURE.md, API_CONTRACTS.md, UI_SYSTEM.md, spec files</td></tr>
+          <tr><td style="color:var(--text2);">Indexed Fields</td><td>title, content, section, file_path</td></tr>
+          <tr><td style="color:var(--text2);">Metadata Filters</td><td>file_path, section, doc_type</td></tr>
+        </table>
+        <pre class="code-block"><span class="comment">// Example query</span>
+{
+  <span class="key">"collection"</span>: <span class="str">"platform"</span>,
+  <span class="key">"query"</span>: <span class="str">"event bus architecture and event types"</span>,
+  <span class="key">"n_results"</span>: <span class="num">5</span>,
+  <span class="key">"where"</span>: { <span class="key">"doc_type"</span>: <span class="str">"architecture"</span> }
+}</pre>
+      </div>
+    </div>
+
+    <!-- API ENDPOINTS -->
+    <div id="section-api" style="margin-top:36px;">
+      <h2 class="section-title">&#128279; API Endpoints</h2>
+      <p class="section-subtitle">Knowledge Base REST API &mdash; prefix: <code class="inline">/knowledge</code></p>
+
+      <div class="accordion">
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div><span class="method post">POST</span> /knowledge/search</div>
+            <span class="arrow-acc">&#9660;</span>
+          </div>
+          <div class="accordion-body">
+            <div class="accordion-body-inner">
+              <p style="margin-bottom:12px;">Semantic arama endpointi. ChromaDB collection'larinda embedding tabanli arama yapar.</p>
+              <h4 style="font-size:0.85rem;margin-bottom:8px;">Request Body</h4>
+              <pre class="code-block">{
+  <span class="key">"query"</span>: <span class="str">"CDN outage during live match"</span>,
+  <span class="key">"collection"</span>: <span class="str">"incidents"</span>,
+  <span class="key">"n_results"</span>: <span class="num">5</span>,
+  <span class="key">"where"</span>: { <span class="key">"severity"</span>: <span class="str">"P0"</span> },
+  <span class="key">"tenant_id"</span>: <span class="str">"aaop_company"</span>
+}</pre>
+              <h4 style="font-size:0.85rem;margin:12px 0 8px;">Response</h4>
+              <pre class="code-block">{
+  <span class="key">"results"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="str">"inc-2026-0042"</span>,
+      <span class="key">"title"</span>: <span class="str">"Medianova CDN P0 Outage"</span>,
+      <span class="key">"content"</span>: <span class="str">"CDN latency exceeded 2s threshold..."</span>,
+      <span class="key">"distance"</span>: <span class="num">0.23</span>,
+      <span class="key">"metadata"</span>: { <span class="key">"severity"</span>: <span class="str">"P0"</span>, <span class="key">"service"</span>: <span class="str">"cdn"</span> }
+    }
+  ],
+  <span class="key">"total"</span>: <span class="num">1</span>,
+  <span class="key">"query_time_ms"</span>: <span class="num">45</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div><span class="method post">POST</span> /knowledge/ingest</div>
+            <span class="arrow-acc">&#9660;</span>
+          </div>
+          <div class="accordion-body">
+            <div class="accordion-body-inner">
+              <p style="margin-bottom:12px;">Yeni dokuman ingest endpointi. Icerigi chunk'layip embedding olusturur ve ChromaDB'ye kaydeder.</p>
+              <h4 style="font-size:0.85rem;margin-bottom:8px;">Request Body</h4>
+              <pre class="code-block">{
+  <span class="key">"title"</span>: <span class="str">"DRM Certificate Renewal Guide"</span>,
+  <span class="key">"content"</span>: <span class="str">"Step 1: Check certificate expiry date..."</span>,
+  <span class="key">"collection"</span>: <span class="str">"runbooks"</span>,
+  <span class="key">"metadata"</span>: {
+    <span class="key">"category"</span>: <span class="str">"drm"</span>,
+    <span class="key">"tags"</span>: [<span class="str">"drm"</span>, <span class="str">"certificate"</span>, <span class="str">"fairplay"</span>],
+    <span class="key">"author"</span>: <span class="str">"ops-team"</span>
+  },
+  <span class="key">"tenant_id"</span>: <span class="str">"aaop_company"</span>
+}</pre>
+              <h4 style="font-size:0.85rem;margin:12px 0 8px;">Response</h4>
+              <pre class="code-block">{
+  <span class="key">"id"</span>: <span class="str">"doc-kb-00189"</span>,
+  <span class="key">"chunks_created"</span>: <span class="num">4</span>,
+  <span class="key">"collection"</span>: <span class="str">"runbooks"</span>,
+  <span class="key">"status"</span>: <span class="str">"indexed"</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div><span class="method get">GET</span> /knowledge/documents</div>
+            <span class="arrow-acc">&#9660;</span>
+          </div>
+          <div class="accordion-body">
+            <div class="accordion-body-inner">
+              <p style="margin-bottom:12px;">Collection'daki dokumanlari listeler. Sayfalama ve filtreleme destekler.</p>
+              <h4 style="font-size:0.85rem;margin-bottom:8px;">Query Parameters</h4>
+              <table class="data-table">
+                <thead><tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code class="inline">collection</code></td><td>string</td><td>incidents</td><td>Hedef collection</td></tr>
+                  <tr><td><code class="inline">page</code></td><td>int</td><td>1</td><td>Sayfa numarasi</td></tr>
+                  <tr><td><code class="inline">per_page</code></td><td>int</td><td>20</td><td>Sayfa basi kayit</td></tr>
+                  <tr><td><code class="inline">tenant_id</code></td><td>string</td><td>&mdash;</td><td>Zorunlu tenant ID</td></tr>
+                </tbody>
+              </table>
+              <h4 style="font-size:0.85rem;margin:12px 0 8px;">Response</h4>
+              <pre class="code-block">{
+  <span class="key">"documents"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="str">"doc-kb-00189"</span>,
+      <span class="key">"title"</span>: <span class="str">"DRM Certificate Renewal Guide"</span>,
+      <span class="key">"collection"</span>: <span class="str">"runbooks"</span>,
+      <span class="key">"chunks"</span>: <span class="num">4</span>,
+      <span class="key">"created_at"</span>: <span class="str">"2026-03-15T10:30:00Z"</span>
+    }
+  ],
+  <span class="key">"total"</span>: <span class="num">42</span>,
+  <span class="key">"page"</span>: <span class="num">1</span>,
+  <span class="key">"per_page"</span>: <span class="num">20</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CROSS-APP WIRING -->
+    <div id="section-crossapp" style="margin-top:36px;">
+      <h2 class="section-title">&#128268; Cross-App Wiring</h2>
+      <p class="section-subtitle">Knowledge Base'in diger uygulamalarla entegrasyonu</p>
+
+      <table class="data-table">
+        <thead><tr><th>Direction</th><th>Source</th><th>Event / Table</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-low">INPUT</span></td>
+            <td>Ops Center</td>
+            <td><code class="inline">incident_created</code></td>
+            <td>Yeni incident otomatik olarak incidents collection'ina indekslenir</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-low">INPUT</span></td>
+            <td>Ops Center</td>
+            <td><code class="inline">rca_completed</code></td>
+            <td>RCA tamamlaninca incident dokumani guncellenir</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-accent">DuckDB Read</span></td>
+            <td>analytics.duckdb</td>
+            <td><code class="inline">shared_analytics.incidents</code></td>
+            <td>Incident metadata'si icin ek bilgi cekilir</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-purple">DuckDB Write</span></td>
+            <td>analytics.duckdb</td>
+            <td><code class="inline">shared_analytics.kb_search_log</code></td>
+            <td>Arama loglarini kaydeder (query, results, latency)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box">
+        <strong>&#9432; Passive Consumer:</strong> Knowledge Base pasif bir tuketicidir &mdash; baska uygulamalara event gondermez. Sadece incident_created ve rca_completed event'lerini dinler ve kendi collection'larini gunceller.
+      </div>
+    </div>
+
+    <!-- REDIS KEYS -->
+    <div id="section-redis" style="margin-top:36px;">
+      <h2 class="section-title">&#128273; Redis Key Patterns</h2>
+      <p class="section-subtitle">Knowledge Base tarafindan kullanilan Redis cache key'leri</p>
+
+      <table class="data-table">
+        <thead><tr><th>Key Pattern</th><th>TTL</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">kb:search:{query_hash}</code></td><td>600s</td><td>Arama sonuc cache'i &mdash; ayni sorgu tekrarinda ChromaDB'ye gitmez</td></tr>
+          <tr><td><code class="inline">kb:doc:count:{collection}</code></td><td>300s</td><td>Collection basi dokuman sayisi cache'i</td></tr>
+          <tr><td><code class="inline">kb:recent:{tenant_id}</code></td><td>1800s</td><td>Son eklenen dokumanlar listesi (UI widget icin)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- BUSINESS RULES -->
+    <div id="section-business" style="margin-top:36px;">
+      <h2 class="section-title">&#128220; Business Rules</h2>
+      <p class="section-subtitle">Knowledge Base isleyis kurallari ve konfigurasyon</p>
+
+      <div class="card">
+        <table class="data-table" style="margin:0;">
+          <thead><tr><th>Rule</th><th>Value</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Chunking Strategy</td><td>500 token / 50 overlap</td><td>RecursiveCharacterTextSplitter</td></tr>
+            <tr><td>Embedding Model</td><td>all-MiniLM-L6-v2</td><td>384-dim, sentence-transformers</td></tr>
+            <tr><td>Top-K Results</td><td>5 (default)</td><td>Ayarlanabilir, max 20</td></tr>
+            <tr><td>Similarity Threshold</td><td>0.7</td><td>Altindaki sonuclar filtrelenir</td></tr>
+            <tr><td>Auto-Index Events</td><td>incident_created, rca_completed</td><td>Event Bus uzerinden otomatik</td></tr>
+            <tr><td>ChromaDB Path</td><td><code class="inline">data/chromadb/</code></td><td>Persist directory, gitignore'da</td></tr>
+            <tr><td>Max Document Size</td><td>50,000 token</td><td>Asarsa chunk sayisi artar</td></tr>
+            <tr><td>Duplicate Detection</td><td>Title + content hash</td><td>Ayni dokuman tekrar indekslenmez</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==================== TAB 2: INCIDENTS ==================== -->
+  <div class="tab-content" id="tab-incidents">
+    <h2 class="section-title">&#128680; Incident Knowledge</h2>
+    <p class="section-subtitle">Ops Center'dan gelen incident kayitlari otomatik olarak indekslenir ve aranabilir hale gelir</p>
+
+    <h4 style="margin:20px 0 12px;">Indexing Flow</h4>
+    <div class="flow-diagram">
+      <div class="flow-step">
+        <div class="step-num">Step 1</div>
+        <div class="step-title">Incident Created</div>
+        <div class="step-desc">Ops Center event</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="step-num">Step 2</div>
+        <div class="step-title">Event Bus</div>
+        <div class="step-desc">incident_created</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="step-num">Step 3</div>
+        <div class="step-title">KB Agent</div>
+        <div class="step-desc">Perceive &amp; chunk</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="step-num">Step 4</div>
+        <div class="step-title">Embedding</div>
+        <div class="step-desc">all-MiniLM-L6-v2</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="step-num">Step 5</div>
+        <div class="step-title">ChromaDB</div>
+        <div class="step-desc">incidents collection</div>
+      </div>
+    </div>
+
+    <h4 style="margin:24px 0 12px;">Indexed Fields</h4>
+    <table class="data-table">
+      <thead><tr><th>Field</th><th>Type</th><th>Searchable</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code class="inline">incident_id</code></td><td>string</td><td><span class="badge badge-low">Filter</span></td><td>Benzersiz incident kimlik numarasi</td></tr>
+        <tr><td><code class="inline">title</code></td><td>string</td><td><span class="badge badge-accent">Semantic</span></td><td>Incident basligi</td></tr>
+        <tr><td><code class="inline">description</code></td><td>text</td><td><span class="badge badge-accent">Semantic</span></td><td>Detayli aciklama</td></tr>
+        <tr><td><code class="inline">severity</code></td><td>enum</td><td><span class="badge badge-low">Filter</span></td><td>P0, P1, P2, P3</td></tr>
+        <tr><td><code class="inline">service_name</code></td><td>string</td><td><span class="badge badge-low">Filter</span></td><td>Etkilenen servis (cdn, drm, player...)</td></tr>
+        <tr><td><code class="inline">rca_summary</code></td><td>text</td><td><span class="badge badge-accent">Semantic</span></td><td>Root Cause Analysis ozeti</td></tr>
+        <tr><td><code class="inline">resolution</code></td><td>text</td><td><span class="badge badge-accent">Semantic</span></td><td>Cozum adimlari</td></tr>
+        <tr><td><code class="inline">status</code></td><td>enum</td><td><span class="badge badge-low">Filter</span></td><td>open, investigating, resolved, closed</td></tr>
+        <tr><td><code class="inline">created_at</code></td><td>datetime</td><td><span class="badge badge-low">Filter</span></td><td>Olusturulma zamani</td></tr>
+        <tr><td><code class="inline">resolved_at</code></td><td>datetime</td><td><span class="badge badge-low">Filter</span></td><td>Cozulme zamani</td></tr>
+        <tr><td><code class="inline">affected_users</code></td><td>int</td><td><span class="badge badge-low">Filter</span></td><td>Etkilenen kullanici sayisi</td></tr>
+        <tr><td><code class="inline">tags</code></td><td>list</td><td><span class="badge badge-low">Filter</span></td><td>Etiketler (cdn, drm, live-event...)</td></tr>
+      </tbody>
+    </table>
+
+    <h4 style="margin:24px 0 12px;">Example ChromaDB Document</h4>
+    <pre class="code-block">{
+  <span class="key">"id"</span>: <span class="str">"inc-2026-0042-chunk-001"</span>,
+  <span class="key">"document"</span>: <span class="str">"Medianova CDN P0 Outage - 28 Feb 2026. Tum Turkiye trafigi icin latency 2 saniyeyi asti. Origin server'lar 5xx donmeye basladi. Etkilenen kullanici: ~45,000. Sebep: Medianova Istanbul POP'ta routing loop. Cozum: Trafik Akamai'ye yonlendirildi."</span>,
+  <span class="key">"metadata"</span>: {
+    <span class="key">"incident_id"</span>: <span class="str">"inc-2026-0042"</span>,
+    <span class="key">"title"</span>: <span class="str">"Medianova CDN P0 Outage"</span>,
+    <span class="key">"severity"</span>: <span class="str">"P0"</span>,
+    <span class="key">"service_name"</span>: <span class="str">"cdn"</span>,
+    <span class="key">"status"</span>: <span class="str">"resolved"</span>,
+    <span class="key">"created_at"</span>: <span class="str">"2026-02-28T14:23:00Z"</span>,
+    <span class="key">"resolved_at"</span>: <span class="str">"2026-02-28T15:47:00Z"</span>,
+    <span class="key">"affected_users"</span>: <span class="num">45000</span>,
+    <span class="key">"tags"</span>: [<span class="str">"cdn"</span>, <span class="str">"medianova"</span>, <span class="str">"latency"</span>, <span class="str">"p0"</span>],
+    <span class="key">"chunk_index"</span>: <span class="num">0</span>,
+    <span class="key">"total_chunks"</span>: <span class="num">3</span>
+  },
+  <span class="key">"embedding"</span>: [<span class="num">0.023</span>, <span class="num">-0.145</span>, <span class="num">0.089</span>, <span class="str">"... (384 dims)"</span>]
+}</pre>
+  </div>
+
+  <!-- ==================== TAB 3: RUNBOOKS ==================== -->
+  <div class="tab-content" id="tab-runbooks">
+    <h2 class="section-title">&#128221; Runbook Library</h2>
+    <p class="section-subtitle">Operasyonel prosedurler &mdash; manuel yuklenir, semantic arama ile bulunur</p>
+
+    <div class="card" style="margin-bottom:24px;">
+      <h4>Runbook Format Specification</h4>
+      <p style="margin:8px 0;">Her runbook asagidaki alanlari icermelidir:</p>
+      <table class="data-table" style="margin-bottom:0;">
+        <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">title</code></td><td><span class="badge badge-high">Required</span></td><td>Runbook basligi</td></tr>
+          <tr><td><code class="inline">category</code></td><td><span class="badge badge-high">Required</span></td><td>cdn, drm, player, incident, general</td></tr>
+          <tr><td><code class="inline">severity_scope</code></td><td><span class="badge badge-high">Required</span></td><td>P0, P1, P2, P3 veya ALL</td></tr>
+          <tr><td><code class="inline">steps</code></td><td><span class="badge badge-high">Required</span></td><td>Siralanmis adimlar listesi</td></tr>
+          <tr><td><code class="inline">tags</code></td><td><span class="badge badge-medium">Optional</span></td><td>Arama icin etiketler</td></tr>
+          <tr><td><code class="inline">author</code></td><td><span class="badge badge-medium">Optional</span></td><td>Yazan kisi/takim</td></tr>
+          <tr><td><code class="inline">last_used</code></td><td><span class="badge badge-medium">Optional</span></td><td>Son kullanim tarihi</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4 style="margin:20px 0 12px;">Available Runbooks</h4>
+    <div class="runbook-cards">
+      <div class="runbook-card">
+        <h4>&#128293; CDN Outage Response</h4>
+        <p>Medianova veya Akamai CDN kesintisi durumunda izlenecek 9 adimli prosedur.</p>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <span class="badge badge-high">P0</span>
+          <span class="badge badge-accent">CDN</span>
+          <button class="view-btn" onclick="openModal('modal-rb-cdn')">View Runbook</button>
+        </div>
+      </div>
+      <div class="runbook-card">
+        <h4>&#128274; DRM Certificate Renewal</h4>
+        <p>FairPlay ve Widevine DRM sertifika yenileme sureci icin 5 adimli kilavuz.</p>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <span class="badge badge-medium">P1</span>
+          <span class="badge badge-accent">DRM</span>
+          <button class="view-btn" onclick="openModal('modal-rb-drm')">View Runbook</button>
+        </div>
+      </div>
+      <div class="runbook-card">
+        <h4>&#127384; P0 Incident Response</h4>
+        <p>P0 seviyesinde incident durumunda genel mudahale sureci ve eskalasyon adimlari.</p>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <span class="badge badge-high">P0</span>
+          <span class="badge badge-purple">General</span>
+          <button class="view-btn" onclick="openModal('modal-rb-p0')">View Runbook</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:20px;">
+      <strong>API ile Runbook Ekleme:</strong> POST /knowledge/ingest endpointini kullanarak programatik olarak runbook ekleyebilirsiniz. Collection olarak <code class="inline">"runbooks"</code> secin ve metadata'da category, tags ve severity_scope alanlarini doldurun.
+    </div>
+  </div>
+
+  <!-- ==================== TAB 4: INGEST ==================== -->
+  <div class="tab-content" id="tab-ingest">
+    <h2 class="section-title">&#128229; Document Ingest</h2>
+    <p class="section-subtitle">Yeni dokumanlar ekleyin &mdash; otomatik chunk'lama ve embedding ile indekslenir</p>
+
+    <h4 style="margin:0 0 16px;">Demo Ingest Form</h4>
+    <div class="card" style="margin-bottom:28px;">
+      <form class="demo-form" onsubmit="submitIngest(event)">
+        <div class="form-group">
+          <label>Document Title</label>
+          <input type="text" id="ingestTitle" required placeholder="Dokuman basligi...">
+        </div>
+        <div class="form-group">
+          <label>Collection</label>
+          <select id="ingestCollection" required>
+            <option value="incidents">incidents</option>
+            <option value="runbooks" selected>runbooks</option>
+            <option value="platform">platform</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tags (comma separated)</label>
+          <input type="text" id="ingestTags" placeholder="cdn, outage, medianova">
+        </div>
+        <div class="form-group">
+          <label>Author</label>
+          <input type="text" id="ingestAuthor" placeholder="ops-team">
+        </div>
+        <div class="form-group">
+          <label>Content</label>
+          <textarea id="ingestContent" required placeholder="Dokuman icerigi buraya yazilir..."></textarea>
+        </div>
+        <button type="submit" class="submit-btn">Ingest Document</button>
+      </form>
+    </div>
+
+    <h4 style="margin:0 0 12px;">Supported Content Types</h4>
+    <div class="ct-cards">
+      <div class="ct-card">
+        <div class="ct-icon">&#128196;</div>
+        <div class="ct-title">Plain Text</div>
+        <div class="ct-desc">Markdown, TXT dosyalari veya ham metin</div>
+      </div>
+      <div class="ct-card">
+        <div class="ct-icon">&#128202;</div>
+        <div class="ct-title">Incident Report</div>
+        <div class="ct-desc">Structured JSON formatinda incident verisi</div>
+      </div>
+      <div class="ct-card">
+        <div class="ct-icon">&#128214;</div>
+        <div class="ct-title">Runbook</div>
+        <div class="ct-desc">Adimli operasyonel prosedur dokumanlari</div>
+      </div>
+      <div class="ct-card">
+        <div class="ct-icon">&#9881;</div>
+        <div class="ct-title">Platform Doc</div>
+        <div class="ct-desc">Mimari, API ve konfigrasyon dokumanlari</div>
+      </div>
+    </div>
+
+    <h4 style="margin:24px 0 12px;">Chunking Parameters</h4>
+    <div class="card">
+      <table class="data-table" style="margin:0;">
+        <tbody>
+          <tr><td style="color:var(--text2);width:180px;">Strategy</td><td>RecursiveCharacterTextSplitter</td></tr>
+          <tr><td style="color:var(--text2);">Chunk Size</td><td>500 tokens</td></tr>
+          <tr><td style="color:var(--text2);">Chunk Overlap</td><td>50 tokens</td></tr>
+          <tr><td style="color:var(--text2);">Separators</td><td><code class="inline">["\n\n", "\n", ". ", " "]</code></td></tr>
+          <tr><td style="color:var(--text2);">Length Function</td><td>tiktoken (cl100k_base)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4 style="margin:24px 0 12px;">API Usage (curl)</h4>
+    <pre class="code-block"><span class="comment"># Ingest a new runbook via API</span>
+curl -X POST http://localhost:8000/knowledge/ingest \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -H <span class="str">"X-Tenant-ID: aaop_company"</span> \
+  -d <span class="str">'{
+    "title": "New CDN Failover Procedure",
+    "content": "Step 1: Detect CDN anomaly via alert...\nStep 2: Verify with Log Analyzer...",
+    "collection": "runbooks",
+    "metadata": {
+      "category": "cdn",
+      "tags": ["cdn", "failover", "procedure"],
+      "author": "ops-team"
+    }
+  }'</span>
+
+<span class="comment"># Response:</span>
+<span class="comment"># {"id": "doc-kb-00190", "chunks_created": 2, "collection": "runbooks", "status": "indexed"}</span></pre>
+  </div>
+
+</main>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- ARCHITECTURE.md Modal -->
+<div class="modal-overlay" id="modal-architecture">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-architecture')">&times;</button>
+    <h2>ARCHITECTURE.md</h2>
+    <h3>Architecture Decision Records</h3>
+    <ul>
+      <li><strong>ADR-001:</strong> Local-first with GCP migration path (SQLite &rarr; Spanner, DuckDB &rarr; BigQuery, ChromaDB &rarr; Vertex AI VS)</li>
+      <li><strong>ADR-002:</strong> LangGraph 4-step agent loop (Perceive &rarr; Reason &rarr; Act &rarr; Reflect)</li>
+      <li><strong>ADR-003:</strong> Event Bus via asyncio.Queue (9 event types, fan-out, cross-app wiring)</li>
+      <li><strong>ADR-004:</strong> Multi-tenant via X-Tenant-ID header injection middleware</li>
+      <li><strong>ADR-005:</strong> LLM Gateway with 3-tier routing (Haiku/Sonnet/Opus) + retry + cache + cost tracking</li>
+      <li><strong>ADR-006:</strong> Tool risk labeling (LOW/MEDIUM/HIGH) with approval gate for HIGH</li>
+      <li><strong>ADR-007:</strong> DuckDB for analytics, SQLite for metadata, ChromaDB for vector search</li>
+      <li><strong>ADR-008:</strong> Redis for cache/TTL, pub/sub for real-time events</li>
+      <li><strong>ADR-009:</strong> Next.js 14 with shadcn/ui + Recharts for frontend</li>
+      <li><strong>ADR-010:</strong> structlog for all logging, PII scrubbing before LLM calls</li>
+      <li><strong>ADR-011:</strong> CI pipeline: ruff + mypy + pytest (coverage &ge; 80%)</li>
+    </ul>
+    <h3>Migration Map</h3>
+    <p>shared/clients/ adaptor pattern sayesinde GCP gecisi sadece client dosyalarini degistirerek yapilir: sqlite_client &rarr; Spanner, duckdb_client &rarr; BigQuery, chroma_client &rarr; Vertex AI Vector Search, redis_client &rarr; Memorystore.</p>
+    <h3>Event Bus</h3>
+    <p>9 event type: incident_created, incident_updated, rca_completed, alert_fired, alert_resolved, qoe_degradation, cdn_anomaly, live_event_started, live_event_ended. Fan-out: Tek event birden fazla consumer tarafindan dinlenebilir.</p>
+    <h3>Red Lines</h3>
+    <ul>
+      <li>Agent icerisinde dogrudan DB erisimi YASAK (sadece tools uzerinden)</li>
+      <li>tenant_id olmadan tool cagrisi YASAK</li>
+      <li>print() yerine structlog kullanilmali</li>
+      <li>Python 3.14 YASAK, kaleido 1.x YASAK</li>
+    </ul>
+  </div>
+</div>
+
+<!-- API_CONTRACTS.md Modal -->
+<div class="modal-overlay" id="modal-api">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-api')">&times;</button>
+    <h2>API_CONTRACTS.md</h2>
+    <h3>API Prefixes</h3>
+    <ul>
+      <li><strong>/ops</strong> &mdash; Ops Center (incidents, decisions, RCA)</li>
+      <li><strong>/log-analyzer</strong> &mdash; Log Analyzer (parse, analyze, reports)</li>
+      <li><strong>/alerts</strong> &mdash; Alert Center (rules, fire, resolve, storm)</li>
+      <li><strong>/viewer</strong> &mdash; Viewer Experience (QoE scores, complaints)</li>
+      <li><strong>/live</strong> &mdash; Live Intelligence (events, external data)</li>
+      <li><strong>/growth</strong> &mdash; Growth &amp; Retention (metrics, cohorts, churn)</li>
+      <li><strong>/capacity</strong> &mdash; Capacity &amp; Cost (resources, scaling, cost)</li>
+      <li><strong>/admin</strong> &mdash; Admin Governance (tenants, compliance, audit)</li>
+      <li><strong>/ai-lab</strong> &mdash; AI Lab (experiments, models, A/B tests)</li>
+      <li><strong>/knowledge</strong> &mdash; Knowledge Base (search, ingest, documents)</li>
+      <li><strong>/devops</strong> &mdash; DevOps Assistant (pipelines, deployments, health)</li>
+    </ul>
+    <h3>Common Headers</h3>
+    <ul>
+      <li><code>X-Tenant-ID</code> &mdash; Zorunlu. Tenant context inject eder.</li>
+      <li><code>Authorization: Bearer {jwt}</code> &mdash; JWT token, /auth/login'den alinir.</li>
+    </ul>
+    <h3>Knowledge Base Endpoints</h3>
+    <ul>
+      <li><strong>POST /knowledge/search</strong> &mdash; Semantic arama (query, collection, n_results, where)</li>
+      <li><strong>POST /knowledge/ingest</strong> &mdash; Dokuman ingest (title, content, collection, metadata)</li>
+      <li><strong>GET /knowledge/documents</strong> &mdash; Dokuman listeleme (collection, page, per_page)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- UI_SYSTEM.md Modal -->
+<div class="modal-overlay" id="modal-ui">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-ui')">&times;</button>
+    <h2>UI_SYSTEM.md</h2>
+    <h3>Design Tokens</h3>
+    <p>CSS variables globals.css'de tanimlanir. Dark theme default. Renkler: bg (#0a0c10), bg2 (#0f1117), bg3 (#151820), text (#e2e8f0), text2 (#94a3b8), accent (#38bdf8), accent2 (#7c3aed).</p>
+    <h3>Component Rules</h3>
+    <ul>
+      <li>shadcn/ui tabanli component library</li>
+      <li>Tum chart'lar Recharts wrapper'lari uzerinden</li>
+      <li>Font stack: Syne (headings), JetBrains Mono (code), Inter (body)</li>
+      <li>Border radius: 10px (cards), 8px (inputs), 6px (badges)</li>
+      <li>Transitions: 0.2s ease default</li>
+      <li>Card hover: border-color degisimi + subtle shadow + translateY(-1px)</li>
+      <li>Mobile breakpoint: 900px (sidebar gizlenir)</li>
+    </ul>
+    <h3>Layout</h3>
+    <p>Sidebar (260px fixed) + Main content (flex:1). Sidebar sticky, main scrollable. Tab bar ile section gecisi. Breadcrumb header'da.</p>
+  </div>
+</div>
+
+<!-- CDN Outage Runbook Modal -->
+<div class="modal-overlay" id="modal-rb-cdn">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-rb-cdn')">&times;</button>
+    <h2>CDN Outage Response Runbook</h2>
+    <p><span class="badge badge-high">P0</span> <span class="badge badge-accent" style="margin-left:4px;">CDN</span></p>
+    <ol>
+      <li><strong>Alert Teyidi:</strong> Alert Center'dan gelen CDN anomaly alert'ini dogrula. Grafana/New Relic dashboard'larini kontrol et.</li>
+      <li><strong>Etki Analizi:</strong> Log Analyzer'dan son 15 dakikanin CDN latency ve error rate metriklerini cek. Etkilenen kullanici sayisini belirle.</li>
+      <li><strong>Incident Olustur:</strong> Ops Center'da P0 incident ac. Tum ilgili taraflar otomatik bilgilendirilir.</li>
+      <li><strong>CDN Provider Iletisim:</strong> Medianova/Akamai NOC'a ticket ac. Escalation: 15dk icinde cevap gelmezse manager'a bildir.</li>
+      <li><strong>Trafik Yonlendirme:</strong> Medianova kesintisinde trafigi Akamai'ye yonlendir (DNS CNAME degisikligi veya load balancer rule).</li>
+      <li><strong>Monitoring:</strong> Trafik yonlendirme sonrasi 5dk boyunca latency ve error rate'i izle. QoE skorlarini kontrol et.</li>
+      <li><strong>Kullanici Bildirimi:</strong> Push notification ve in-app banner ile kullanicilari bilgilendir (kisa kesinti yasandigini, cozuldugunu belirt).</li>
+      <li><strong>Post-Mortem Baslat:</strong> Incident resolved sonrasi 24 saat icinde RCA toplantisi planla. Ops Center'da RCA baslat.</li>
+      <li><strong>KB Guncelle:</strong> RCA tamamlaninca Knowledge Base'e incident raporu ve guncel runbook ekle.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- DRM Certificate Renewal Modal -->
+<div class="modal-overlay" id="modal-rb-drm">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-rb-drm')">&times;</button>
+    <h2>DRM Certificate Renewal Runbook</h2>
+    <p><span class="badge badge-medium">P1</span> <span class="badge badge-accent" style="margin-left:4px;">DRM</span></p>
+    <ol>
+      <li><strong>Sertifika Kontrolu:</strong> FairPlay ve Widevine sertifika bitiS tarihlerini kontrol et. Alert Center'dan 30 gun oncesinden uyari gelir.</li>
+      <li><strong>Yeni Sertifika Talebi:</strong> Apple Developer Portal (FairPlay) veya Google Widevine Portal'dan yeni sertifika talep et. CSR olustur ve gonder.</li>
+      <li><strong>Test Ortami:</strong> Yeni sertifikayi staging ortaminda test et. Player'da DRM korumali icerik oynatmayI dogrula. iOS (FairPlay) ve Android (Widevine) cihazlarda test yap.</li>
+      <li><strong>Production Deploy:</strong> Maintenance window icinde sertifika degisikligini production'a al. Rollback plani hazir olsun.</li>
+      <li><strong>Dogrulama:</strong> Production'da DRM korumali icerik oynatmayi dogrula. Hata orani izle, QoE skorlarini kontrol et. 24 saat monitoring.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- P0 Incident Response Modal -->
+<div class="modal-overlay" id="modal-rb-p0">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-rb-p0')">&times;</button>
+    <h2>P0 Incident Response Runbook</h2>
+    <p><span class="badge badge-high">P0</span> <span class="badge badge-purple" style="margin-left:4px;">General</span></p>
+    <ol>
+      <li><strong>Incident Tanimla:</strong> Alert'i dogrula, P0 seviyesini onayla. >1000 kullanici etkileniyorsa veya core servis down ise P0.</li>
+      <li><strong>Incident Commander Ata:</strong> On-call muhendis Incident Commander (IC) olur. IC tum koordinasyonu yonetir.</li>
+      <li><strong>War Room Ac:</strong> Slack #incident-war-room kanalini aktive et. Tum ilgili muhendisleri davet et.</li>
+      <li><strong>Etki Belirle:</strong> Etkilenen servisler, kullanici sayisi, gelir etkisi. Log Analyzer ve Viewer Experience dashboard'larinI kullan.</li>
+      <li><strong>Mitigation Baslat:</strong> Hizli cozum uygula (traffic shift, rollback, restart). Kalici cozum sonra yapilir.</li>
+      <li><strong>Stakeholder Bilgilendirme:</strong> Her 15 dakikada status update. CTO/VP-Eng'e dogrudan bildirim.</li>
+      <li><strong>Cozum Dogrula:</strong> Metrikler normale dondu mu? QoE skorlari recovery gosteriyor mu? 15dk stability window bekle.</li>
+      <li><strong>Incident Kapat:</strong> Ops Center'da incident'i resolved yap. Timeline'i tamamla.</li>
+      <li><strong>RCA Planla:</strong> 24-48 saat icinde blameless post-mortem toplantisi. RCA dokkmanini Knowledge Base'e ekle.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- CDN Outage Incident Report Modal -->
+<div class="modal-overlay" id="modal-ir-cdn">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-ir-cdn')">&times;</button>
+    <h2>Incident Report: CDN Outage (28 Feb 2026)</h2>
+    <p><span class="badge badge-high">P0</span> <span class="badge badge-accent" style="margin-left:4px;">Resolved</span></p>
+    <h3>Summary</h3>
+    <p>28 Subat 2026, 14:23 UTC'de Medianova Istanbul POP'ta routing loop tespit edildi. Turkiye trafiginin %100'u etkilendi. Latency 2 saniyeyi asti, origin server'lar 5xx hatasi dondurmeye basladi.</p>
+    <h3>Timeline</h3>
+    <ul>
+      <li><strong>14:23</strong> &mdash; Alert Center: CDN latency anomaly (auto-detected)</li>
+      <li><strong>14:25</strong> &mdash; Ops Center: P0 incident olusturuldu (inc-2026-0042)</li>
+      <li><strong>14:28</strong> &mdash; IC atandi, war room acildi</li>
+      <li><strong>14:35</strong> &mdash; Medianova NOC'a ticket acildi</li>
+      <li><strong>14:42</strong> &mdash; Karar: Trafik Akamai'ye yonlendirildi</li>
+      <li><strong>14:55</strong> &mdash; Akamai trafik almaya basladi, latency dusuyor</li>
+      <li><strong>15:10</strong> &mdash; QoE skorlari recovery gosteriyor</li>
+      <li><strong>15:47</strong> &mdash; Incident resolved</li>
+    </ul>
+    <h3>Impact</h3>
+    <p>Etkilenen kullanici: ~45,000. Toplam downtime: 84 dakika. Estimated revenue impact: ~$12,000.</p>
+    <h3>Root Cause</h3>
+    <p>Medianova Istanbul POP'ta BGP routing konfigurasyonundaki bir degisiklik routing loop olusturdu. Tum trafik loop'a girdi ve timeout'a dustu.</p>
+    <h3>Action Items</h3>
+    <ul>
+      <li>Medianova ile SLA review toplantisi planla</li>
+      <li>Otomatik CDN failover mekanizmasi gelistir</li>
+      <li>Multi-CDN active-active yapisina gec</li>
+    </ul>
+  </div>
+</div>
+
+<!-- FairPlay Cert Expire Incident Report Modal -->
+<div class="modal-overlay" id="modal-ir-fp">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-ir-fp')">&times;</button>
+    <h2>Incident Report: FairPlay Cert Expire (15 Mar 2026)</h2>
+    <p><span class="badge badge-medium">P1</span> <span class="badge badge-accent" style="margin-left:4px;">Resolved</span></p>
+    <h3>Summary</h3>
+    <p>15 Mart 2026, 09:15 UTC'de FairPlay DRM sertifikasinin suresi doldu. iOS cihazlarda DRM korumali icerik oynatimi basarisiz oldu. Android (Widevine) etkilenmedi.</p>
+    <h3>Timeline</h3>
+    <ul>
+      <li><strong>09:15</strong> &mdash; Alert Center: DRM error rate spike (iOS only)</li>
+      <li><strong>09:18</strong> &mdash; Ops Center: P1 incident olusturuldu</li>
+      <li><strong>09:22</strong> &mdash; Root cause belirlendi: FairPlay cert expired</li>
+      <li><strong>09:30</strong> &mdash; Apple Developer Portal'dan yeni sertifika indirildi</li>
+      <li><strong>09:45</strong> &mdash; Staging'de test edildi, basarili</li>
+      <li><strong>09:55</strong> &mdash; Production'a deploy edildi</li>
+      <li><strong>10:05</strong> &mdash; iOS DRM oynatim normale dondu</li>
+      <li><strong>10:20</strong> &mdash; Incident resolved</li>
+    </ul>
+    <h3>Impact</h3>
+    <p>Etkilenen kullanici: ~18,000 (iOS users). Toplam downtime: 65 dakika. Sadece DRM korumali icerik etkilendi, ucretsiz icerikler normal calisti.</p>
+    <h3>Root Cause</h3>
+    <p>FairPlay sertifika yenileme hatirlatici alert'i 30 gun oncesinden tetiklenmisti ancak aksiyona alinmamisti. Cert yenileme sureci manuel oldugu icin unutuldu.</p>
+    <h3>Action Items</h3>
+    <ul>
+      <li>Cert expiry alert'ini P0 seviyesine yukselt (son 7 gun)</li>
+      <li>Otomatik cert renewal pipeline olustur</li>
+      <li>DRM cert durumunu health check'e ekle</li>
+    </ul>
+  </div>
+</div>
+
+
+<script>
+// ==================== TAB SWITCHING ====================
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
+
+  var tabMap = { search: 0, incidents: 1, runbooks: 2, ingest: 3 };
+  var idx = tabMap[tabId];
+  if (idx !== undefined) {
+    document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+  }
+  var el = document.getElementById('tab-' + tabId);
+  if (el) el.classList.add('active');
+}
+
+// ==================== SIDEBAR COLLAPSE ====================
+function toggleSidebarSection(titleEl) {
+  titleEl.classList.toggle('collapsed');
+  var content = titleEl.nextElementSibling;
+  content.classList.toggle('collapsed');
+}
+
+// ==================== FAQ ACCORDION ====================
+function toggleFaq(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('open');
+}
+
+// ==================== MAIN ACCORDION ====================
+function toggleAccordion(header) {
+  header.classList.toggle('open');
+  var body = header.nextElementSibling;
+  if (body.style.maxHeight) {
+    body.style.maxHeight = null;
+  } else {
+    body.style.maxHeight = body.scrollHeight + 'px';
+  }
+}
+
+// ==================== MODAL ====================
+function openModal(id) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+}
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+}
+
+// Close on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  });
+});
+
+// Close on ESC
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(function(overlay) {
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    });
+  }
+});
+
+// ==================== SEARCH ====================
+var searchInput = document.getElementById('globalSearch');
+var noResultMsg = document.getElementById('searchNoResult');
+var mainContent = document.querySelector('.main-content');
+
+function clearMarks() {
+  var marks = mainContent.querySelectorAll('mark.search-highlight');
+  marks.forEach(function(m) {
+    var parent = m.parentNode;
+    parent.replaceChild(document.createTextNode(m.textContent), m);
+    parent.normalize();
+  });
+}
+
+function searchInTextNodes(node, term, results) {
+  if (node.nodeType === 3) { // TEXT_NODE
+    var idx = node.textContent.toLowerCase().indexOf(term.toLowerCase());
+    if (idx >= 0) {
+      var span = document.createElement('mark');
+      span.className = 'search-highlight';
+      var after = node.splitText(idx);
+      var matched = after.splitText(term.length);
+      var clone = after.cloneNode(true);
+      span.appendChild(clone);
+      after.parentNode.replaceChild(span, after);
+      results.push(span);
+      // continue searching in remaining text
+      searchInTextNodes(matched, term, results);
+    }
+  } else if (node.nodeType === 1 && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE' && !node.classList.contains('search-highlight')) {
+    var children = Array.prototype.slice.call(node.childNodes);
+    for (var i = 0; i < children.length; i++) {
+      searchInTextNodes(children[i], term, results);
+    }
+  }
+}
+
+searchInput.addEventListener('keyup', function() {
+  clearMarks();
+  var term = searchInput.value.trim();
+  if (term.length < 2) {
+    searchInput.classList.remove('no-results');
+    noResultMsg.style.display = 'none';
+    return;
+  }
+  var results = [];
+  searchInTextNodes(mainContent, term, results);
+  if (results.length === 0) {
+    searchInput.classList.add('no-results');
+    noResultMsg.style.display = 'inline';
+  } else {
+    searchInput.classList.remove('no-results');
+    noResultMsg.style.display = 'none';
+    results[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+
+// ==================== SPRINT FORM ====================
+function submitSprint(e) {
+  e.preventDefault();
+  var title = document.getElementById('sprintTitle').value;
+  var app = document.getElementById('sprintApp').value;
+  var desc = document.getElementById('sprintDesc').value;
+  var priority = document.querySelector('input[name="sprintPriority"]:checked');
+  if (!title || !app || !desc || !priority) {
+    alert('Lutfen tum alanlari doldurun.');
+    return;
+  }
+  alert('\u2705 Sprint talebi alindi!');
+  e.target.reset();
+  // Re-check P2 default
+  document.querySelector('input[name="sprintPriority"][value="P2"]').checked = true;
+}
+
+// ==================== INGEST FORM ====================
+function submitIngest(e) {
+  e.preventDefault();
+  var title = document.getElementById('ingestTitle').value;
+  var collection = document.getElementById('ingestCollection').value;
+  var content = document.getElementById('ingestContent').value;
+  if (!title || !content) {
+    alert('Title ve Content alanlari zorunludur.');
+    return;
+  }
+  alert('\u2705 Document ingested! Collection: ' + collection + ', Title: ' + title);
+  e.target.reset();
+}
+</script>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || !data.type) return;
+  if (data.type === 'showTab') {
+    var tabId = data.tabId;
+    var btn = document.querySelector('[data-tab="' + tabId + '"]') ||
+              document.querySelector('.chip[onclick*="' + tabId + '"]');
+    if (btn) { btn.click(); }
+    else if (typeof switchTab === 'function') { switchTab(tabId); }
+    else if (typeof activateTab === 'function') { activateTab(tabId); }
+  }
+  if (data.type === 'scrollTo') {
+    var el = document.getElementById(data.sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+</script>
+</body>
+</html>

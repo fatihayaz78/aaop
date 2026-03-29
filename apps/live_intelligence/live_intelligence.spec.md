@@ -130,3 +130,9 @@ Senaryolar: MATCH_DAY (30dk önce start event) | DRM_OUTAGE (approval_required) 
 - Frontend: 6 tabs
 - Tests: 51 passed, 0 failures
 - Status: ✅ Complete
+
+---
+## Sprint Progress — S-DI-04 (2026-03-28)
+### logs.duckdb Entegrasyonu
+- GET /live/dashboard: drm_status (widevine_drm_logs + fairplay_drm_logs), epg_summary (epg_logs)
+- DuckDB OKUMA: logs.duckdb aaop_company schema (widevine_drm_logs, fairplay_drm_logs, epg_logs)

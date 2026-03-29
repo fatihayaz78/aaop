@@ -94,3 +94,8 @@ Senaryolar: Semantic search ("CDN error rate" → benzer incident) | Auto ingest
 - Frontend: 4 tabs
 - Tests: 36 passed, 0 failures
 - Status: ✅ Complete
+
+### S-KB-09 — 2026-03-28
+- frontend/public/kb/ altındaki 11 modül HTML dosyasından NAVIGATION sidebar, FAQ accordion ve Quick Links bölümleri kaldırıldı
+- Navigasyon Next.js page.tsx içindeki tab bar üzerinden sağlanıyor
+- HTML dosyalar sadece içerik gösteriyor, kendi navigasyon barı yok

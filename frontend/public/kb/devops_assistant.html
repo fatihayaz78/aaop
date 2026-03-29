@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevOps Assistant — AAOP Captain logAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #7c3aed;
+  --low: #10b981;
+  --medium: #f59e0b;
+  --high: #ef4444;
+  --border: #1e2433;
+  --border2: #2a3244;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+h1, h2, h3, h4, h5 { font-family: 'Syne', sans-serif; font-weight: 700; }
+code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #7dd3fc; }
+mark { background: var(--accent2); color: #fff; padding: 1px 4px; border-radius: 3px; }
+
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 1.5rem; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.header h1 span.icon { font-size: 1.3rem; }
+.breadcrumb { font-size: 0.85rem; color: var(--text2); }
+.breadcrumb a { color: var(--text2); }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+.search-bar { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 32px; display: flex; align-items: center; gap: 12px; }
+.search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+.search-bar input.no-results { border-color: var(--high); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.search-bar .search-icon { color: var(--text2); font-size: 1.1rem; }
+.search-no-result { display: none; color: var(--high); font-size: 0.85rem; white-space: nowrap; }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 32px 0; }
+.chip { padding: 4px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; font-size: 0.78rem; color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.layout { display: flex; min-height: calc(100vh - 120px); }
+
+.sidebar { display: none; width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.sidebar-section { margin-bottom: 8px; }
+.sidebar-section-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); cursor: pointer; user-select: none; transition: color 0.2s; }
+.sidebar-section-title:hover { color: var(--text); }
+.sidebar-section-title .arrow { transition: transform 0.2s; font-size: 0.65rem; }
+.sidebar-section-title.collapsed .arrow { transform: rotate(-90deg); }
+.sidebar-section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-section-content.collapsed { max-height: 0 !important; }
+.sidebar-link { display: block; padding: 6px 20px 6px 28px; font-size: 0.85rem; color: var(--text2); transition: all 0.15s; border-left: 2px solid transparent; }
+.sidebar-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); border-left-color: var(--accent); }
+.sidebar-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(56,189,248,0.08); }
+
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q { display: block; width: 100%; padding: 10px 20px 10px 28px; font-size: 0.82rem; color: var(--text2); cursor: pointer; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+.faq-q:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+.faq-q::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 20px 0 28px; font-size: 0.78rem; color: var(--text2); line-height: 1.5; background: rgba(56,189,248,0.02); }
+.faq-a.open { max-height: 400px; padding: 8px 20px 12px 28px; }
+
+.quick-link { display: block; padding: 5px 20px 5px 28px; font-size: 0.82rem; color: var(--text2); transition: all 0.15s; }
+.quick-link:hover { color: var(--accent); background: rgba(56,189,248,0.05); }
+
+.main-content { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; overflow-x: auto; }
+.tab-btn { padding: 10px 24px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); font-size: 0.9rem; font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
+.card:hover { border-color: var(--border2); box-shadow: var(--shadow); transform: translateY(-1px); }
+.card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent); }
+.card p { color: var(--text2); font-size: 0.9rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-low { background: rgba(16,185,129,0.15); color: var(--low); }
+.badge-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+.badge-high { background: rgba(239,68,68,0.15); color: var(--high); }
+.badge-accent { background: rgba(56,189,248,0.15); color: var(--accent); }
+.badge-purple { background: rgba(124,58,237,0.15); color: var(--accent2); }
+
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem; }
+.data-table th { text-align: left; padding: 10px 14px; background: var(--bg3); color: var(--text2); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+.data-table tr:hover td { background: rgba(56,189,248,0.03); }
+.data-table code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 0.82rem; color: var(--accent); }
+
+.info-box { background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 0.88rem; }
+.info-box .label { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.warning-box { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 0.88rem; }
+.warning-box .label { font-weight: 600; color: var(--medium); margin-bottom: 4px; }
+.danger-box { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 0.88rem; }
+.danger-box .label { font-weight: 600; color: var(--high); margin-bottom: 4px; }
+
+pre.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.83rem; line-height: 1.5; margin: 12px 0; color: var(--text2); }
+
+.section-title { font-size: 1.25rem; margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.section-title:first-child { margin-top: 0; }
+
+.method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.method-get { background: rgba(16,185,129,0.15); color: var(--low); }
+.method-post { background: rgba(56,189,248,0.15); color: var(--accent); }
+.method-put { background: rgba(245,158,11,0.15); color: var(--medium); }
+.method-delete { background: rgba(239,68,68,0.15); color: var(--high); }
+
+.flow-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0; padding: 12px; background: var(--bg3); border-radius: var(--radius); border: 1px solid var(--border); }
+.flow-step { padding: 8px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; background: rgba(56,189,248,0.12); color: var(--accent); border: 1px solid rgba(56,189,248,0.25); }
+.flow-arrow { color: var(--text2); font-size: 1.1rem; }
+.flow-step.highlight { background: rgba(124,58,237,0.15); color: var(--accent2); border-color: rgba(124,58,237,0.3); }
+
+.stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.stat-item { flex: 1; min-width: 140px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; text-align: center; }
+.stat-item .stat-val { font-size: 1.4rem; font-weight: 700; color: var(--accent); font-family: 'Syne', sans-serif; }
+.stat-item .stat-label { font-size: 0.78rem; color: var(--text2); margin-top: 2px; }
+
+.safety-safe { color: var(--low); }
+.safety-danger { color: var(--high); }
+</style>
+</head>
+<body>
+
+<div class="chips">
+  <span class="chip" onclick="activateTab('tab-overview')">Overview</span>
+  <span class="chip" onclick="activateTab('tab-agent')">Agent</span>
+  <span class="chip" onclick="activateTab('tab-tools')">Tools</span>
+  <span class="chip" onclick="activateTab('tab-api')">API</span>
+  <span class="chip" onclick="activateTab('tab-data')">Data</span>
+</div>
+
+<div class="layout">
+  
+
+  <main class="main-content" id="mainContent">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-overview">Overview</button>
+      <button class="tab-btn" data-tab="tab-agent">Agent</button>
+      <button class="tab-btn" data-tab="tab-tools">Tools</button>
+      <button class="tab-btn" data-tab="tab-api">API</button>
+      <button class="tab-btn" data-tab="tab-data">Data</button>
+    </div>
+
+    <!-- =================== OVERVIEW =================== -->
+    <div class="tab-content active" id="tab-overview">
+      <h2 class="section-title">DevOps Assistant Overview</h2>
+
+      <div class="stat-row">
+        <div class="stat-item"><div class="stat-val">M08</div><div class="stat-label">Module</div></div>
+        <div class="stat-item"><div class="stat-val">P2</div><div class="stat-label">Priority</div></div>
+        <div class="stat-item"><div class="stat-val">8</div><div class="stat-label">Tools</div></div>
+        <div class="stat-item"><div class="stat-val">36</div><div class="stat-label">Tests</div></div>
+        <div class="stat-item"><div class="stat-val">S08+S22</div><div class="stat-label">Sprints</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Purpose</h3>
+        <p>The DevOps Assistant provides platform engineers with an intelligent conversational interface for platform operations. It translates natural language queries into diagnostic insights, suggests relevant runbooks, and can execute approved operational procedures under strict safety controls.</p>
+      </div>
+
+      <div class="card">
+        <h3>Key Capabilities</h3>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
+          <div class="info-box"><div class="label">Natural Language Queries</div>Ask questions about platform health, service status, or recent incidents in plain English. The agent translates into the appropriate diagnostic queries.</div>
+          <div class="info-box"><div class="label">Runbook Suggestions</div>Automatically matches symptoms to relevant runbooks via ChromaDB similarity search and presents step-by-step remediation procedures.</div>
+          <div class="info-box"><div class="label">Command Safety Analysis</div>Every suggested command is classified as safe or dangerous. Safe commands get a green indicator; dangerous ones get a red flag with required approval.</div>
+          <div class="info-box"><div class="label">Diagnostic Pipeline</div>Automated health checks, log correlation, and metric analysis to quickly identify root causes of platform issues.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Target Persona</h3>
+        <p><span class="badge badge-purple">Platform Engineer</span> &mdash; Engineers responsible for maintaining AAOP infrastructure, handling incidents, deploying services, and ensuring platform reliability. They need quick access to operational knowledge and safe command execution.</p>
+      </div>
+
+      <div class="card">
+        <h3>Command Safety Classification</h3>
+        <div class="flow-row">
+          <div class="flow-step">User Input</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Safety Checker</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step" style="background:rgba(16,185,129,0.15); color:var(--low); border-color:rgba(16,185,129,0.3);">Safe &rarr; Suggest</div>
+          <div class="flow-arrow">|</div>
+          <div class="flow-step" style="background:rgba(239,68,68,0.15); color:var(--high); border-color:rgba(239,68,68,0.3);">Dangerous &rarr; Flag</div>
+        </div>
+        <table class="data-table" style="margin-top:12px;">
+          <thead><tr><th>Category</th><th>Examples</th><th>Classification</th></tr></thead>
+          <tbody>
+            <tr><td>Read-only queries</td><td><code>kubectl get pods</code>, <code>docker ps</code>, <code>SELECT * FROM ...</code></td><td><span class="safety-safe">SAFE</span></td></tr>
+            <tr><td>Log inspection</td><td><code>tail -f /var/log/...</code>, <code>journalctl -u ...</code></td><td><span class="safety-safe">SAFE</span></td></tr>
+            <tr><td>Config changes</td><td><code>kubectl apply</code>, <code>docker-compose up</code></td><td><span class="safety-danger">DANGEROUS</span></td></tr>
+            <tr><td>Service restarts</td><td><code>systemctl restart</code>, <code>docker restart</code></td><td><span class="safety-danger">DANGEROUS</span></td></tr>
+            <tr><td>Destructive ops</td><td><code>rm -rf</code>, <code>DROP TABLE</code>, <code>kubectl delete</code></td><td><span class="safety-danger">DANGEROUS</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- =================== AGENT =================== -->
+    <div class="tab-content" id="tab-agent">
+      <h2 class="section-title">DevOpsAssistantAgent</h2>
+
+      <div class="card">
+        <h3>Agent Profile</h3>
+        <table class="data-table">
+          <tr><td style="width:180px;font-weight:600;">Class</td><td><code>DevOpsAssistantAgent(BaseAgent)</code></td></tr>
+          <tr><td style="font-weight:600;">Default LLM</td><td>Claude Sonnet</td></tr>
+          <tr><td style="font-weight:600;">Module</td><td>M08 &mdash; DevOps Assistant</td></tr>
+          <tr><td style="font-weight:600;">Location</td><td><code>apps/devops_assistant/agent.py</code></td></tr>
+          <tr><td style="font-weight:600;">System Prompt</td><td><code>apps/devops_assistant/prompts.py</code></td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Agent Loop (4-Step)</h3>
+        <div class="flow-row">
+          <div class="flow-step">1. Plan</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">2. Act</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">3. Observe</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">4. Respond</div>
+        </div>
+        <ul style="margin:12px 0 0 20px; color:var(--text2); font-size:0.88rem;">
+          <li><strong>Plan:</strong> Parse user intent (diagnostic query, runbook request, command execution). Determine which tools are needed.</li>
+          <li><strong>Act:</strong> Execute selected tools. For HIGH risk tools, pause and request human approval before proceeding.</li>
+          <li><strong>Observe:</strong> Aggregate tool outputs, cross-reference with platform state. Run safety classification on any suggested commands.</li>
+          <li><strong>Respond:</strong> Present findings in structured format: diagnosis, suggested runbook, commands with safety labels, next steps.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Knowledge Base Integration (ChromaDB)</h3>
+        <p>The agent maintains a persistent connection to the ChromaDB <code>runbooks</code> collection for semantic search across operational knowledge.</p>
+        <table class="data-table" style="margin-top:10px;">
+          <thead><tr><th>Collection</th><th>Document Types</th><th>Embedding Model</th><th>Search Threshold</th></tr></thead>
+          <tbody>
+            <tr><td><code>runbooks</code></td><td>Runbooks, SOPs, incident post-mortems</td><td>Claude Haiku (via LLM Gateway)</td><td>cosine &gt; 0.75</td></tr>
+            <tr><td><code>architecture_docs</code></td><td>ARCHITECTURE.md chunks, ADR documents</td><td>Claude Haiku</td><td>cosine &gt; 0.70</td></tr>
+          </tbody>
+        </table>
+        <div class="info-box" style="margin-top:12px;">
+          <div class="label">Retrieval Strategy</div>
+          Top-3 results are returned for each query. If the best match scores &lt; 0.75, the agent falls back to general LLM reasoning instead of presenting potentially irrelevant runbook matches.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Diagnostic Pipeline</h3>
+        <div class="flow-row">
+          <div class="flow-step">Parse Symptom</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Check Service Health</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Correlate Logs</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">Query Metrics</div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step highlight">Generate Diagnosis</div>
+        </div>
+        <p style="margin-top:10px; color:var(--text2); font-size:0.88rem;">The pipeline runs in sequence, each step feeding context to the next. Total latency target: &lt; 5 seconds for standard diagnostics.</p>
+      </div>
+    </div>
+
+    <!-- =================== TOOLS =================== -->
+    <div class="tab-content" id="tab-tools">
+      <h2 class="section-title">Tools Reference</h2>
+      <p style="color:var(--text2); margin-bottom:16px;">8 tools total: <span class="badge badge-low">4 LOW</span> <span class="badge badge-medium">1 MEDIUM</span> <span class="badge badge-high">2 HIGH</span> + 1 internal</p>
+
+      <table class="data-table">
+        <thead><tr><th>Tool</th><th>Risk</th><th>Description</th><th>Approval</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>search_runbooks</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>Semantic search across ChromaDB runbooks collection</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>get_service_health</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>Check current health status of platform services via Redis cache</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>query_platform_logs</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>Search DuckDB for recent log entries with filters</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>get_incident_history</code></td>
+            <td><span class="badge badge-low">LOW</span></td>
+            <td>Retrieve past incidents from DuckDB for pattern matching</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>analyze_command_safety</code></td>
+            <td><span class="badge badge-medium">MEDIUM</span></td>
+            <td>Classify a command as safe or dangerous with reasoning</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><code>execute_runbook</code></td>
+            <td><span class="badge badge-high">HIGH</span></td>
+            <td>Execute a runbook's command sequence on the target environment</td>
+            <td><strong>Yes</strong></td>
+          </tr>
+          <tr>
+            <td><code>restart_service</code></td>
+            <td><span class="badge badge-high">HIGH</span></td>
+            <td>Restart a specific platform service with pre/post health checks</td>
+            <td><strong>Yes</strong></td>
+          </tr>
+          <tr>
+            <td><code>classify_intent</code></td>
+            <td><span class="badge badge-accent">INTERNAL</span></td>
+            <td>Internal: parse user message to determine intent category</td>
+            <td>No</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="danger-box" style="margin-top:16px;">
+        <div class="label">HIGH Risk Tools</div>
+        <code>execute_runbook</code> and <code>restart_service</code> require explicit human approval (<code>approval_required=True</code>). Before execution, the agent displays the full command list, expected impact, and rollback plan. All executions are logged to the immutable audit trail.
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h4>Tool Schema Example: search_runbooks</h4>
+<pre class="code-block">{
+  "name": "search_runbooks",
+  "risk_level": "LOW",
+  "parameters": {
+    "query": "string",           // Natural language description of the problem
+    "collection": "runbooks",    // ChromaDB collection name
+    "top_k": 3,                  // Number of results to return
+    "min_similarity": 0.75,      // Minimum cosine similarity threshold
+    "tenant_id": "string"
+  },
+  "returns": {
+    "results": [
+      {
+        "runbook_id": "string",
+        "title": "string",
+        "summary": "string",
+        "steps": ["string"],
+        "similarity_score": 0.89
+      }
+    ]
+  }
+}</pre>
+      </div>
+
+      <div class="card">
+        <h4>Tool Schema Example: restart_service</h4>
+<pre class="code-block">{
+  "name": "restart_service",
+  "risk_level": "HIGH",
+  "approval_required": true,
+  "parameters": {
+    "service_name": "string",    // e.g., "fastapi-backend", "redis", "next-frontend"
+    "reason": "string",          // Why the restart is needed
+    "pre_check": true,           // Run health check before restart
+    "post_check": true,          // Run health check after restart
+    "timeout_seconds": 60,       // Max wait for service to come back
+    "tenant_id": "string"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <!-- =================== API =================== -->
+    <div class="tab-content" id="tab-api">
+      <h2 class="section-title">API Endpoints</h2>
+      <p style="color:var(--text2); margin-bottom:16px;">All endpoints under <code>/devops</code> prefix. 5 endpoints total.</p>
+
+      <table class="data-table">
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method method-get">GET</span></td>
+            <td><code>/devops/health</code></td>
+            <td>Aggregate platform service health status</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-post">POST</span></td>
+            <td><code>/devops/chat</code></td>
+            <td>Send a natural language query to the DevOps agent</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-get">GET</span></td>
+            <td><code>/devops/runbooks</code></td>
+            <td>List available runbooks with metadata</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-post">POST</span></td>
+            <td><code>/devops/runbooks</code></td>
+            <td>Upload a new runbook (auto-embeds in ChromaDB)</td>
+            <td>JWT</td>
+          </tr>
+          <tr>
+            <td><span class="method method-get">GET</span></td>
+            <td><code>/devops/diagnostics/{service}</code></td>
+            <td>Run diagnostic pipeline for a specific service</td>
+            <td>JWT</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="card" style="margin-top:20px;">
+        <h4>Example: Chat with DevOps Agent</h4>
+<pre class="code-block">POST /devops/chat
+Content-Type: application/json
+Authorization: Bearer &lt;JWT&gt;
+X-Tenant-ID: tenant_001
+
+{
+  "message": "The FastAPI backend is returning 502 errors since 10 minutes ago. What should I check?",
+  "session_id": "sess_xyz789",
+  "context": { "service": "fastapi-backend" }
+}</pre>
+<pre class="code-block">// Response 200
+{
+  "response": "Based on the symptoms, here are the diagnostic results...",
+  "suggested_runbooks": [
+    {
+      "id": "rb_fastapi_502",
+      "title": "FastAPI 502 Gateway Error Troubleshooting",
+      "similarity": 0.92,
+      "steps": [
+        "1. Check uvicorn process: `ps aux | grep uvicorn`",
+        "2. Check port binding: `ss -tlnp | grep 8000`",
+        "3. Review recent logs: `journalctl -u aaop-backend --since '10 min ago'`"
+      ]
+    }
+  ],
+  "commands": [
+    { "cmd": "ps aux | grep uvicorn", "safety": "SAFE" },
+    { "cmd": "systemctl restart aaop-backend", "safety": "DANGEROUS", "requires_approval": true }
+  ],
+  "session_id": "sess_xyz789"
+}</pre>
+      </div>
+    </div>
+
+    <!-- =================== DATA =================== -->
+    <div class="tab-content" id="tab-data">
+      <h2 class="section-title">Data &amp; Schemas</h2>
+
+      <div class="card">
+        <h3>Storage Architecture</h3>
+        <table class="data-table">
+          <thead><tr><th>Store</th><th>Purpose</th><th>GCP Equivalent</th></tr></thead>
+          <tbody>
+            <tr><td><code>analytics.duckdb</code></td><td>Diagnostic results, command history, service health time series</td><td>BigQuery</td></tr>
+            <tr><td><code>platform.db</code> (SQLite)</td><td>Runbook metadata, agent sessions, approval records</td><td>Spanner</td></tr>
+            <tr><td>ChromaDB <code>runbooks</code></td><td>Embedded runbook content for semantic search</td><td>Vertex AI Vector Search</td></tr>
+            <tr><td>Redis</td><td>Real-time service health cache (TTL: 30s), active session state</td><td>Memorystore</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>DuckDB Schema: devops_commands</h3>
+<pre class="code-block">CREATE TABLE devops_commands (
+  id            VARCHAR PRIMARY KEY,
+  tenant_id     VARCHAR NOT NULL,
+  session_id    VARCHAR NOT NULL,
+  user_message  TEXT NOT NULL,
+  agent_response TEXT,
+  commands_suggested JSON,       -- [{cmd, safety, executed}]
+  runbooks_matched  JSON,        -- [{id, title, similarity}]
+  intent_category   VARCHAR,     -- diagnostic|runbook|command|general
+  created_at    TIMESTAMP DEFAULT now()
+);</pre>
+      </div>
+
+      <div class="card">
+        <h3>DuckDB Schema: service_health</h3>
+<pre class="code-block">CREATE TABLE service_health (
+  id            VARCHAR PRIMARY KEY,
+  service_name  VARCHAR NOT NULL,
+  status        VARCHAR NOT NULL,  -- healthy|degraded|down
+  response_ms   INTEGER,
+  error_rate    FLOAT,
+  cpu_pct       FLOAT,
+  memory_pct    FLOAT,
+  checked_at    TIMESTAMP DEFAULT now()
+);</pre>
+      </div>
+
+      <div class="card">
+        <h3>Event Bus Integration</h3>
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Direction</th><th>Payload</th></tr></thead>
+          <tbody>
+            <tr><td><code>service_restarted</code></td><td>Published</td><td>service_name, reason, pre_health, post_health</td></tr>
+            <tr><td><code>runbook_executed</code></td><td>Published</td><td>runbook_id, steps_completed, outcome</td></tr>
+            <tr><td><code>incident_created</code></td><td>Subscribed</td><td>Triggers diagnostic pipeline for the affected service</td></tr>
+            <tr><td><code>alert_fired</code></td><td>Subscribed</td><td>Pre-loads relevant runbooks for quick response</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-box">
+        <div class="label">Sprint &amp; Test Info</div>
+        Developed in <strong>S08</strong> (initial) + <strong>S22</strong> (enhanced diagnostics). Test suite: <strong>36 tests</strong> across <code>apps/devops_assistant/tests/</code>. Coverage target: &ge; 80%.
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+function activateTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const content = document.getElementById(tabId);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+}
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+  const content = el.nextElementSibling;
+  if (content) content.classList.toggle('collapsed');
+}
+
+function toggleFaq(el) {
+  const answer = el.nextElementSibling;
+  answer.classList.toggle('open');
+}
+
+const searchInput = document.getElementById('searchInput');
+const mainContent = document.getElementById('mainContent');
+const noResult = document.getElementById('noResult');
+
+searchInput.addEventListener('input', function() {
+  const query = this.value.trim().toLowerCase();
+  clearMarks();
+  noResult.style.display = 'none';
+  searchInput.classList.remove('no-results');
+  if (query.length < 2) return;
+
+  let found = false;
+  const walker = document.createTreeWalker(mainContent, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(node => {
+    const text = node.textContent;
+    const idx = text.toLowerCase().indexOf(query);
+    if (idx === -1) return;
+    found = true;
+    const span = document.createElement('span');
+    span.appendChild(document.createTextNode(text.substring(0, idx)));
+    const mark = document.createElement('mark');
+    mark.textContent = text.substring(idx, idx + query.length);
+    span.appendChild(mark);
+    span.appendChild(document.createTextNode(text.substring(idx + query.length)));
+    node.parentNode.replaceChild(span, node);
+  });
+
+  if (!found) {
+    searchInput.classList.add('no-results');
+    noResult.style.display = 'inline';
+  } else {
+    const firstMark = mainContent.querySelector('mark');
+    if (firstMark) {
+      const tabContent = firstMark.closest('.tab-content');
+      if (tabContent && !tabContent.classList.contains('active')) activateTab(tabContent.id);
+      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+});
+
+function clearMarks() {
+  mainContent.querySelectorAll('mark').forEach(mark => {
+    const parent = mark.parentNode;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  });
+  mainContent.querySelectorAll('span:not([class]):not([id])').forEach(span => {
+    if (!span.className && !span.id) {
+      const frag = document.createDocumentFragment();
+      while (span.firstChild) frag.appendChild(span.firstChild);
+      if (span.parentNode) span.parentNode.replaceChild(frag, span);
+    }
+  });
+}
+</script>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || !data.type) return;
+  if (data.type === 'showTab') {
+    var tabId = data.tabId;
+    var btn = document.querySelector('[data-tab="' + tabId + '"]') ||
+              document.querySelector('.chip[onclick*="' + tabId + '"]');
+    if (btn) { btn.click(); }
+    else if (typeof switchTab === 'function') { switchTab(tabId); }
+    else if (typeof activateTab === 'function') { activateTab(tabId); }
+  }
+  if (data.type === 'scrollTo') {
+    var el = document.getElementById(data.sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+</script>
+</body>
+</html>

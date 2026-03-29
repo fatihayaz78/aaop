@@ -51,6 +51,9 @@ curl http://localhost:8000/health
 | `API_CONTRACTS.md` | API yazarken | Tüm endpoint sözleşmeleri |
 | `CHANGELOG.md` | Sprint bitince | Sürüm geçmişi |
 | `apps/{app}/{app}.spec.md` | Sadece o app sprint'inde | Agent, tools, DB, cross-app |
+| `docs/AUDIT_REPORT.md` | Platform sağlık değerlendirmesinde | Platform audit, puan kartı, kritik eksikler |
+| `docs/DOC_GAP_REPORT.md` | Dokümantasyon güncellemesinde | MD dosyaları vs code base tutarsızlıkları |
+| `docs/kb/` | Platform dokümantasyonu için | 15 standalone HTML, her modül detayı |
 
 ---
 
@@ -75,9 +78,10 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S-DI-04 complete — P1/P2 Module Integration
-**Önceki:** S-MDG-08 complete — run_all.py + validate.py + frontend
-**Son commit:** S-DI-04 — tüm modüller logs.duckdb entegrasyonu
+**Aktif Sprint:** S-DOC-02 — Dokümantasyon Sync
+**Önceki tamamlanan:** S-KB-09 (sidebar kaldırma) → S-AUDIT-01 (audit raporu) → S-DOC-01 (gap analizi)
+**Baseline:** 135 test, 0 failure (28 Mart 2026)
+**Sıradaki:** S-SEC-01 (rate limiting + PII scrubber)
 
 ---
 
@@ -99,7 +103,13 @@ AAOP/
 │
 ├── docs/
 │   ├── SPRINT_PLAN.md               ← Sprint yönetimi (S01–S09)
-│   └── DATA_FLOW.md                 ← Cross-app veri mimarisi
+│   ├── DATA_FLOW.md                 ← Cross-app veri mimarisi
+│   ├── AUDIT_REPORT.md              ← Platform audit (28 Mart 2026)
+│   ├── DOC_GAP_REPORT.md            ← Dokümantasyon gap analizi
+│   └── kb/                          ← Standalone HTML dokümantasyon (15 dosya)
+│       ├── index.html               ← Platform genel bakış
+│       ├── ops_center.html ... (11 modül + architecture + api_reference + log_schemas)
+│       └── knowledge_base.html
 │
 ├── .github/
 │   └── workflows/
@@ -120,9 +130,14 @@ AAOP/
 │   │   ├── ai_lab.py                ← /ai-lab prefix
 │   │   ├── knowledge_base.py        ← /knowledge prefix
 │   │   ├── devops_assistant.py      ← /devops prefix
-│   │   └── admin_governance.py      ← /admin prefix
+│   │   ├── admin_governance.py      ← /admin prefix
+│   │   ├── data_sources.py          ← /data-sources prefix, 10 endpoint
+│   │   └── mock_data_gen.py         ← /mock-data-gen prefix, 13 endpoint
 │   ├── websocket/
 │   │   └── manager.py               ← Socket.IO broadcast manager
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── export_schema.py         ← ExportSchema Pydantic model
 │   └── middleware/
 │       ├── rate_limit.py
 │       └── tenant_context.py        ← X-Tenant-ID header inject
@@ -160,6 +175,9 @@ AAOP/
 │       │   └── socket.ts             ← Socket.IO client
 │       └── types/
 │           └── index.ts              ← Shared TypeScript types
+│   └── public/
+│       ├── captain-logar.png
+│       └── kb/                      ← docs/kb/ kopyası (Next.js serving, 15 HTML)
 │
 ├── apps/                            ← 11 app (agent implementasyonları)
 │   ├── ops_center/
@@ -299,7 +317,18 @@ AAOP/
 │   │   ├── sqlite_client.py         ← → GCP: Spanner adaptor
 │   │   ├── duckdb_client.py         ← → GCP: BigQuery adaptor
 │   │   ├── chroma_client.py         ← → GCP: Vertex AI VS adaptor
-│   │   └── redis_client.py          ← redis.asyncio wrapper
+│   │   ├── redis_client.py          ← redis.asyncio wrapper
+│   │   └── logs_duckdb_client.py   ← logs.duckdb hot cache client
+│   ├── ingest/
+│   │   ├── __init__.py
+│   │   ├── source_config.py        ← SourceConfig Pydantic modeli + SQLite DDL
+│   │   ├── log_schemas.py          ← 13 kaynak DuckDB tablo şemaları
+│   │   ├── jsonl_parser.py         ← JSONL.gz parser, directory scanner
+│   │   ├── sync_engine.py          ← Sync orchestration, file tracking
+│   │   ├── query_router.py         ← Hot/cold query routing
+│   │   ├── watch_folder.py         ← File system watcher (watchdog)
+│   │   ├── log_queries.py          ← 12 query helper (tüm app'ler okur)
+│   │   └── default_configs.py      ← aaop_company default source config seed
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── base_event.py            ← BaseEvent, SeverityLevel, RiskLevel
@@ -312,7 +341,8 @@ AAOP/
 │   ├── sqlite/
 │   │   └── platform.db              ← Platform metadata
 │   ├── duckdb/
-│   │   └── analytics.duckdb         ← Paylaşımlı analiz DB
+│   │   ├── analytics.duckdb         ← Paylaşımlı analiz DB
+│   │   └── logs.duckdb             ← Log data hot cache (≤30 gün)
 │   ├── chromadb/                    ← Vector store kalıcı depolama
 │   ├── logs/                        ← S3'ten çekilen log cache
 │   └── reports/                     ← Üretilen DOCX raporlar
