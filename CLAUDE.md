@@ -78,9 +78,9 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S-DOC-02 — Dokümantasyon Sync
-**Önceki tamamlanan:** S-KB-09 (sidebar kaldırma) → S-AUDIT-01 (audit raporu) → S-DOC-01 (gap analizi)
-**Baseline:** 135 test, 0 failure (28 Mart 2026)
+**Aktif Sprint:** S-AGENT-01 complete — BaseAgent LangGraph 4-step cycle
+**Önceki:** S-WS-01 → S-SEC-01 → S-DOC-02
+**Baseline:** 148 test, 0 failure (29 Mart 2026)
 **Sıradaki:** S-SEC-01 (rate limiting + PII scrubber)
 
 ---
