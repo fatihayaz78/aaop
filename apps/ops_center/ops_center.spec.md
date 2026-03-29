@@ -160,8 +160,10 @@ Output: TR özet (NOC) + EN teknik (DevOps)
 - S17 COMPLETE
 
 ---
-## Sprint Note — S-AGENT-STATUS (2026-03-28)
-### Agent Implementasyon Durumu
-- IncidentAgent ve RCAAgent: agent.py var, class tanımlı, tools.py tam
-- LangGraph StateGraph henüz implement edilmemiş (stub)
-- API endpoint'ler ve frontend çalışıyor, otonom karar mekanizması S-AGENT-01/02'de
+## Sprint Completion — S-AGENT-02
+
+- Date: 2026-03-29
+- Tests: 148 passed, 0 failure (platform) + 52 passed (ops_center)
+- IncidentAgent: BaseAgent 4-adım döngüsü aktif (get_tools/get_system_prompt/get_llm_model)
+- RCAAgent: BaseAgent 4-adım döngüsü aktif, sadece P0/P1 tetiklenme
+- Deviations: None

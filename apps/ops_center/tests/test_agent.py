@@ -34,12 +34,12 @@ async def test_incident_agent_p1(mock_llm: LLMGateway, event_bus: EventBus):
     await asyncio.sleep(0.1)
     await event_bus.stop()
 
-    assert result["error"] is None
-    decision = result["decision"]
-    assert decision["severity"] == "P1"
-    assert decision["rca_triggered"] is True
-    assert decision["incident_id"]
-    assert decision["summary_tr"]  # Turkish summary present
+    assert result.get("error") is None
+    output = result["output"]
+    assert output["severity"] == "P1"
+    assert output["rca_triggered"] is True
+    assert output["incident_id"]
+    assert output["summary_tr"]  # Turkish summary present
 
 
 @pytest.mark.asyncio
@@ -52,7 +52,7 @@ async def test_incident_agent_p3_no_rca(mock_llm: LLMGateway, event_bus: EventBu
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["rca_triggered"] is False
+    assert result["output"]["rca_triggered"] is False
 
 
 @pytest.mark.asyncio
@@ -65,7 +65,7 @@ async def test_incident_agent_p0_triggers_rca(mock_llm: LLMGateway, event_bus: E
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["rca_triggered"] is True
+    assert result["output"]["rca_triggered"] is True
 
 
 @pytest.mark.asyncio
@@ -96,7 +96,6 @@ async def test_incident_model_routing_p1(mock_llm: LLMGateway, event_bus: EventB
     await agent.run(ctx, input_data={"severity": "P1", "title": "Test"})
     await event_bus.stop()
 
-    # Check that invoke was called with P1 severity
     call_kwargs = mock_llm._anthropic.messages.create.call_args
     model_used = call_kwargs.kwargs.get("model", "")
     assert "opus" in model_used
@@ -151,10 +150,11 @@ async def test_rca_agent_run(mock_llm_rca: LLMGateway, event_bus: EventBus):
     await asyncio.sleep(0.1)
     await event_bus.stop()
 
-    assert result["error"] is None
-    assert result["decision"]["rca_id"]
-    assert result["decision"]["incident_id"] == "INC-test123"
-    assert result["decision"]["confidence_score"] == 0.85
+    assert result.get("error") is None
+    output = result["output"]
+    assert output["rca_id"]
+    assert output["incident_id"] == "INC-test123"
+    assert output["confidence_score"] == 0.85
 
 
 @pytest.mark.asyncio
@@ -189,6 +189,17 @@ async def test_rca_publishes_event(mock_llm_rca: LLMGateway, event_bus: EventBus
     assert len(received) == 1
     assert received[0].event_type == "rca_completed"
     assert received[0].payload["incident_id"] == "INC-1"
+
+
+@pytest.mark.asyncio
+async def test_rca_skips_p3(mock_llm_rca: LLMGateway, event_bus: EventBus):
+    """RCA should skip non-P0/P1 incidents."""
+    agent = RCAAgent(llm_gateway=mock_llm_rca, event_bus=event_bus)
+    ctx = TenantContext(tenant_id="test_tenant")
+    result = await agent.run(ctx, input_data={"incident_id": "INC-1", "severity": "P3", "title": "Minor"})
+
+    output = result["output"]
+    assert output["action"] == "skipped"
 
 
 # ── Bilingual parser tests ──────────────────────────────

@@ -8,6 +8,22 @@
 
 ---
 
+### S-AGENT-02 — 2026-03-29
+- apps/ops_center/agent.py: IncidentAgent + RCAAgent concrete implementation
+  - IncidentAgent.get_tools(): 10 tool (4 LOW + 4 MEDIUM + 2 HIGH) BaseAgent-uyumlu wrapper
+  - IncidentAgent.get_system_prompt(): INCIDENT_SYSTEM_PROMPT
+  - IncidentAgent.get_llm_model(): P0/P1→Opus, P2→Sonnet, P3→Haiku
+  - IncidentAgent._memory_update_node(): bilingual output (summary_tr + detail_en), incident_created event publish
+  - RCAAgent.get_tools(): 5 tool (4 LOW + 1 MEDIUM)
+  - RCAAgent.get_system_prompt(): RCA_SYSTEM_PROMPT
+  - RCAAgent.get_llm_model(): her zaman Opus
+  - RCAAgent.invoke(): P0/P1 dışında erken dönüş
+  - RCAAgent._memory_update_node(): rca_completed event publish, confidence_score
+- apps/ops_center/tests/test_agent.py: 15 test (model routing, event publish, bilingual, RCA skip)
+- Tests: 148 passed, 0 failure (tests/ altında) + 52 passed (apps/ops_center/tests/)
+
+---
+
 ### S-AGENT-01 — 2026-03-29
 - shared/agents/base_agent.py: LangGraph StateGraph 4-adım cycle tam implementasyon
   - context_loader: Redis cache → DuckDB recent decisions → ChromaDB RAG
