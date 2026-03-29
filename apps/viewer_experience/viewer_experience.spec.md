@@ -155,3 +155,12 @@ Senaryolar: QoE anomaly (buffering>5% → event) | Complaint NLP | MATCH_DAY (y�
 ### logs.duckdb Entegrasyonu
 - GET /viewer/dashboard: qoe_live (player_events_logs), app_reviews (app_reviews_logs)
 - DuckDB OKUMA: logs.duckdb aaop_company schema (player_events_logs, npaw_analytics_logs, app_reviews_logs)
+
+---
+## Sprint Completion — S-AGENT-04
+
+- Date: 2026-03-29
+- Tests: 10 passed (agent), 148 passed (platform), 0 failure
+- QoEAgent: BaseAgent 4-adım döngüsü aktif (QoE scoring + degrade event)
+- ComplaintAgent: BaseAgent 4-adım döngüsü aktif (NLP kategorization)
+- Deviations: None

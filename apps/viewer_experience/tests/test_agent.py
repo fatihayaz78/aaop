@@ -33,10 +33,10 @@ async def test_qoe_agent_degradation(mock_llm: LLMGateway, event_bus: EventBus):
     await asyncio.sleep(0.1)
     await event_bus.stop()
 
-    assert result["error"] is None
-    assert result["decision"]["action"] == "qoe_degradation"
-    assert result["decision"]["degradation_published"] is True
-    assert result["decision"]["quality_score"] < 2.5
+    assert result.get("error") is None
+    assert result["output"]["action"] == "qoe_degradation"
+    assert result["output"]["degradation_published"] is True
+    assert result["output"]["quality_score"] < 2.5
 
 
 @pytest.mark.asyncio
@@ -51,9 +51,9 @@ async def test_qoe_agent_normal(mock_llm: LLMGateway, event_bus: EventBus):
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "qoe_normal"
-    assert result["decision"]["quality_score"] == 5.0
-    assert result["decision"]["degradation_published"] is False
+    assert result["output"]["action"] == "qoe_normal"
+    assert result["output"]["quality_score"] == 5.0
+    assert result["output"]["degradation_published"] is False
 
 
 @pytest.mark.asyncio
@@ -70,7 +70,7 @@ async def test_qoe_agent_dedup(mock_llm: LLMGateway, event_bus: EventBus):
     result = await agent.run(ctx, input_data={"session": session})
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "dedup_skip"
+    assert result["output"]["action"] == "dedup_skip"
 
 
 @pytest.mark.asyncio
@@ -81,7 +81,7 @@ async def test_qoe_agent_no_session(mock_llm: LLMGateway, event_bus: EventBus):
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "no_session"
+    assert result["output"]["action"] == "no_session"
 
 
 @pytest.mark.asyncio
@@ -119,11 +119,11 @@ async def test_complaint_agent_categorize(mock_llm: LLMGateway, event_bus: Event
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["error"] is None
-    assert result["decision"]["category"] == "buffering"
-    assert result["decision"]["sentiment"] == "negative"
-    assert result["decision"]["priority"] in ("P0", "P1", "P2", "P3")
-    assert result["decision"]["complaint_id"].startswith("CMP-")
+    assert result.get("error") is None
+    assert result["output"]["category"] == "buffering"
+    assert result["output"]["sentiment"] == "negative"
+    assert result["output"]["priority"] in ("P0", "P1", "P2", "P3")
+    assert result["output"]["complaint_id"].startswith("CMP-")
 
 
 @pytest.mark.asyncio
@@ -134,7 +134,7 @@ async def test_complaint_agent_no_content(mock_llm: LLMGateway, event_bus: Event
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
 
-    assert result["llm_response"]["action"] == "no_content"
+    assert result["output"]["action"] == "no_content"
 
 
 # ── NLP parser tests ──

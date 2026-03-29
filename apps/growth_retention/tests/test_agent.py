@@ -23,7 +23,7 @@ async def test_growth_agent_no_segment(mock_llm: LLMGateway, event_bus: EventBus
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "no_segment"
+    assert result["output"]["action"] == "no_segment"
 
 
 @pytest.mark.asyncio
@@ -50,9 +50,9 @@ async def test_growth_agent_high_churn(mock_llm: LLMGateway, event_bus: EventBus
     await asyncio.sleep(0.2)
     await event_bus.stop()
 
-    assert result["error"] is None
-    assert result["decision"]["churn_risk"] > 0.7
-    assert result["decision"]["churn_alert_published"] is True
+    assert result.get("error") is None
+    assert result["output"]["churn_risk"] > 0.7
+    assert result["output"]["churn_alert_published"] is True
     assert len(received) == 1
 
 
@@ -78,8 +78,8 @@ async def test_growth_agent_low_churn(mock_llm: LLMGateway, event_bus: EventBus)
     await asyncio.sleep(0.1)
     await event_bus.stop()
 
-    assert result["decision"]["churn_risk"] < 0.7
-    assert result["decision"]["churn_alert_published"] is False
+    assert result["output"]["churn_risk"] < 0.7
+    assert result["output"]["churn_alert_published"] is False
     assert len(received) == 0
 
 
@@ -110,7 +110,7 @@ async def test_data_analyst_no_question(mock_llm: LLMGateway, event_bus: EventBu
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "no_question"
+    assert result["output"]["action"] == "no_question"
 
 
 @pytest.mark.asyncio
@@ -124,9 +124,9 @@ async def test_data_analyst_valid_query(mock_llm: LLMGateway, event_bus: EventBu
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "execute_query"
-    assert result["decision"]["valid"] is True
-    assert "SELECT" in result["decision"]["generated_sql"]
+    assert result["output"]["action"] == "execute_query"
+    assert result["output"]["valid"] is True
+    assert "SELECT" in result["output"]["generated_sql"]
 
 
 @pytest.mark.asyncio
@@ -141,4 +141,4 @@ async def test_data_analyst_pii_protection(mock_llm: LLMGateway, event_bus: Even
     await event_bus.stop()
 
     # Generated SQL from mock contains SELECT → valid
-    assert result["decision"]["valid"] is True
+    assert result["output"]["valid"] is True

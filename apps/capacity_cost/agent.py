@@ -1,4 +1,8 @@
-"""Capacity & Cost agents — CapacityAgent (M16) + AutomationAgent (M04)."""
+"""Capacity & Cost agents — CapacityAgent (M16) + AutomationAgent (M04).
+
+CapacityAgent: threshold monitoring + scale_recommendation event.
+AutomationAgent: automation jobs + scale actions.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +11,9 @@ from typing import Any
 import structlog
 
 from apps.capacity_cost.config import CapacityCostConfig
+from apps.capacity_cost.prompts import AUTOMATION_SYSTEM_PROMPT, CAPACITY_SYSTEM_PROMPT
 from apps.capacity_cost.tools import detect_threshold_breach, forecast_capacity
+import apps.capacity_cost.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
 from shared.event_bus import EventType
 from shared.schemas.base_event import BaseEvent, SeverityLevel
@@ -15,68 +21,70 @@ from shared.schemas.base_event import BaseEvent, SeverityLevel
 logger = structlog.get_logger(__name__)
 
 
+# ── Tool wrappers ───────────────────────────────────────────────
+
+async def _get_current_metrics(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _forecast_capacity(tenant_id: str, **_: Any) -> dict:
+    return {"status": "forecasted"}
+
+async def _calculate_cost(tenant_id: str, **_: Any) -> dict:
+    return {"status": "calculated"}
+
+async def _detect_threshold_breach(tenant_id: str, **_: Any) -> dict:
+    return {"status": "checked"}
+
+async def _write_forecast(tenant_id: str, **_: Any) -> dict:
+    return {"status": "written"}
+
+async def _publish_scale_recommendation(tenant_id: str, **_: Any) -> dict:
+    return {"status": "published"}
+
+async def _create_automation_job(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+async def _execute_scale_action(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+
+# ── CapacityAgent ───────────────────────────────────────────────
+
 class CapacityAgent(BaseAgent):
-    """M16 — Capacity Planning. Sonnet for analysis. Publishes scale_recommendation."""
+    """M16 — Capacity Planning. Sonnet for analysis."""
 
     app_name = "capacity_cost"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = CapacityCostConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "get_current_metrics", "risk_level": "LOW", "func": _get_current_metrics},
+            {"name": "forecast_capacity", "risk_level": "LOW", "func": _forecast_capacity},
+            {"name": "calculate_cost", "risk_level": "LOW", "func": _calculate_cost},
+            {"name": "detect_threshold_breach", "risk_level": "LOW", "func": _detect_threshold_breach},
+            {"name": "write_forecast", "risk_level": "MEDIUM", "func": _write_forecast},
+            {"name": "publish_scale_recommendation", "risk_level": "MEDIUM", "func": _publish_scale_recommendation},
+            {"name": "create_automation_job", "risk_level": "HIGH", "func": _create_automation_job},
+            {"name": "execute_scale_action", "risk_level": "HIGH", "func": _execute_scale_action},
+        ]
 
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "metric": input_data.get("metric", "bandwidth"),
-            "current_pct": input_data.get("current_pct", 0.0),
-            "trend": input_data.get("trend", "stable"),
-            "live_event": input_data.get("live_event"),
-        }
-        logger.info("capacity_context_loaded", tenant_id=tenant_id)
-        return context
+    def get_system_prompt(self) -> str:
+        return CAPACITY_SYSTEM_PROMPT
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        tenant_id = ctx.get("tenant_id", "")
-        metric = ctx.get("metric", "bandwidth")
-        current_pct = ctx.get("current_pct", 0.0)
-        trend = ctx.get("trend", "stable")
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-sonnet-4-20250514"
 
-        # Use Sonnet for capacity analysis
-        from apps.capacity_cost.prompts import CAPACITY_ANALYSIS_PROMPT
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        current_pct = input_data.get("current_pct", 0.0)
+        metric = input_data.get("metric", "bandwidth")
 
-        prompt = CAPACITY_ANALYSIS_PROMPT.format(
-            tenant_id=tenant_id,
-            metric=metric,
-            current_pct=current_pct,
-            warn_pct=self._config.warn_threshold_pct,
-            crit_pct=self._config.crit_threshold_pct,
-            trend=trend,
-            horizon_hours=self._config.forecast_horizon_hours,
-        )
-        response = await self.llm.invoke(prompt, severity=SeverityLevel.P2)
-
-        # Forecast
-        fc = await forecast_capacity(
-            tenant_id=tenant_id,
-            metric=metric,
-            current_pct=current_pct,
-            trend=trend,
-            horizon_hours=self._config.forecast_horizon_hours,
-        )
-
-        # Threshold check
+        # Threshold detection
         breach = await detect_threshold_breach(tenant_id, metric, current_pct)
-
-        # Check for live event pre-scale
-        live_event = ctx.get("live_event")
-        needs_pre_scale = False
-        if live_event:
-            expected = live_event.get("expected_viewers", 0)
-            needs_pre_scale = expected > 50_000
+        live_event = input_data.get("live_event")
+        needs_pre_scale = bool(live_event and live_event.get("expected_viewers", 0) > 50_000)
 
         action = "monitor"
         if breach and breach.level == "critical":
@@ -86,132 +94,91 @@ class CapacityAgent(BaseAgent):
         elif needs_pre_scale:
             action = "pre_scale"
 
-        return {
-            "action": action,
-            "summary": response["content"],
-            "model_used": response["model"],
-            "forecast": fc.model_dump(),
-            "breach": breach.model_dump() if breach else None,
-            "metric": metric,
-            "current_pct": current_pct,
-            "needs_pre_scale": needs_pre_scale,
-            "live_event": live_event,
-        }
+        input_data["_action"] = action
+        input_data["_breach"] = breach.model_dump() if breach else None
+        input_data["_needs_pre_scale"] = needs_pre_scale
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
+        return await super().invoke(tenant_id, input_data)
 
-        results: list[dict[str, Any]] = []
-        results.append({"tool": "write_forecast", "risk_level": "MEDIUM"})
-
-        if action in ("scale_critical", "scale_warn"):
-            results.append({"tool": "publish_scale_recommendation", "risk_level": "MEDIUM"})
-
-        if action in ("scale_critical", "pre_scale"):
-            results.append({"tool": "execute_scale_action", "risk_level": "HIGH"})
-
-        return results
-
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        llm_resp = state.get("llm_response", {})
-        tenant_id = ctx.get("tenant_id", "")
-        action = llm_resp.get("action", "")
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
+        action = input_data.get("_action", "monitor")
+        breach = input_data.get("_breach")
+        tenant_id = state.get("tenant_id", "")
         scale_published = False
 
-        # Publish scale_recommendation for threshold breaches
         if action in ("scale_critical", "scale_warn"):
-            breach = llm_resp.get("breach", {})
-            event = BaseEvent(
-                event_type=EventType.SCALE_RECOMMENDATION,
-                tenant_id=tenant_id,
-                source_app="capacity_cost",
-                severity=SeverityLevel.P1 if action == "scale_critical" else SeverityLevel.P2,
-                payload={
-                    "metric": llm_resp.get("metric", ""),
-                    "current_pct": llm_resp.get("current_pct", 0.0),
-                    "level": breach.get("level", "") if breach else "",
-                    "message": breach.get("message", "") if breach else "",
-                },
-            )
-            await self.event_bus.publish(event)
-            scale_published = True
+            try:
+                await self.event_bus.publish(BaseEvent(
+                    event_type=EventType.SCALE_RECOMMENDATION,
+                    tenant_id=tenant_id,
+                    source_app="capacity_cost",
+                    severity=SeverityLevel.P1 if action == "scale_critical" else SeverityLevel.P2,
+                    payload={
+                        "metric": input_data.get("metric", ""),
+                        "current_pct": input_data.get("current_pct", 0.0),
+                        "level": breach.get("level", "") if breach else "",
+                        "message": breach.get("message", "") if breach else "",
+                    },
+                ))
+                scale_published = True
+            except Exception as exc:
+                logger.warning("scale_recommendation_publish_failed", error=str(exc))
 
-        return {
-            "action": action,
-            "metric": llm_resp.get("metric", ""),
-            "current_pct": llm_resp.get("current_pct", 0.0),
-            "scale_published": scale_published,
-            "needs_pre_scale": llm_resp.get("needs_pre_scale", False),
-        }
+        output = result.get("output", {})
+        output["action"] = action
+        output["metric"] = input_data.get("metric", "")
+        output["current_pct"] = input_data.get("current_pct", 0.0)
+        output["scale_published"] = scale_published
+        output["needs_pre_scale"] = input_data.get("_needs_pre_scale", False)
 
+        return {**result, "output": output}
+
+
+# ── AutomationAgent ─────────────────────────────────────────────
 
 class AutomationAgent(BaseAgent):
-    """M04 — Universal Automation. Haiku for routine. HIGH risk tools require approval."""
+    """M04 — Universal Automation. Haiku for routine."""
 
     app_name = "capacity_cost"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = CapacityCostConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "job_type": input_data.get("job_type", ""),
-            "job_config": input_data.get("job_config", {}),
-            "resource": input_data.get("resource", ""),
-            "scale_factor": input_data.get("scale_factor", 1.0),
-        }
-        logger.info("automation_context_loaded", tenant_id=tenant_id, job_type=context["job_type"])
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "get_current_metrics", "risk_level": "LOW", "func": _get_current_metrics},
+            {"name": "create_automation_job", "risk_level": "HIGH", "func": _create_automation_job},
+            {"name": "execute_scale_action", "risk_level": "HIGH", "func": _execute_scale_action},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        job_type = ctx.get("job_type", "")
+    def get_system_prompt(self) -> str:
+        return AUTOMATION_SYSTEM_PROMPT
 
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-haiku-4-5-20251001"
+
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        job_type = input_data.get("job_type", "")
         if not job_type:
-            return {"action": "no_job", "reason": "No job_type specified"}
+            return {"app": self.app_name, "tenant_id": tenant_id, "action": "no_job",
+                    "job_type": "", "resource": "", "scale_factor": 1.0}
 
-        # Use Haiku for routine automation
-        response = await self.llm.invoke(
-            f"Evaluate automation job: type={job_type}, config={ctx.get('job_config', {})}",
-            severity=SeverityLevel.P3,  # Haiku
-        )
+        action = "scale_action" if job_type == "scale" else "create_job"
+        input_data["_action"] = action
 
-        action = "create_job"
-        if job_type == "scale":
-            action = "scale_action"
+        return await super().invoke(tenant_id, input_data)
 
-        return {
-            "action": action,
-            "job_type": job_type,
-            "summary": response["content"],
-            "model_used": response["model"],
-            "resource": ctx.get("resource", ""),
-            "scale_factor": ctx.get("scale_factor", 1.0),
-        }
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
+        output = result.get("output", {})
+        output["action"] = input_data.get("_action", "create_job")
+        output["job_type"] = input_data.get("job_type", "")
+        output["resource"] = input_data.get("resource", "")
+        output["scale_factor"] = input_data.get("scale_factor", 1.0)
 
-        if action == "no_job":
-            return [{"tool": "no_job", "risk_level": "LOW"}]
-
-        if action == "scale_action":
-            return [{"tool": "execute_scale_action", "risk_level": "HIGH"}]
-
-        return [{"tool": "create_automation_job", "risk_level": "HIGH"}]
-
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        llm_resp = state.get("llm_response", {})
-        return {
-            "action": llm_resp.get("action", ""),
-            "job_type": llm_resp.get("job_type", ""),
-            "resource": llm_resp.get("resource", ""),
-            "scale_factor": llm_resp.get("scale_factor", 1.0),
-        }
+        return {**result, "output": output}

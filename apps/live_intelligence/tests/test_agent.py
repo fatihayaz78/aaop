@@ -46,7 +46,7 @@ async def test_live_event_agent_no_event(mock_llm: LLMGateway, event_bus: EventB
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "no_event"
+    assert result["output"]["action"] == "no_event"
 
 
 @pytest.mark.asyncio
@@ -76,9 +76,9 @@ async def test_live_event_agent_triggers_start(mock_llm: LLMGateway, event_bus: 
     await asyncio.sleep(0.2)
     await event_bus.stop()
 
-    assert result["error"] is None
-    assert result["decision"]["action"] == "trigger_event_start"
-    assert result["decision"]["event_start_published"] is True
+    assert result.get("error") is None
+    assert result["output"]["action"] == "trigger_event_start"
+    assert result["output"]["event_start_published"] is True
     assert len(received) == 1
 
 
@@ -99,8 +99,8 @@ async def test_live_event_agent_monitor_only(mock_llm: LLMGateway, event_bus: Ev
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "monitor_event"
-    assert result["decision"]["event_start_published"] is False
+    assert result["output"]["action"] == "monitor_event"
+    assert result["output"]["event_start_published"] is False
 
 
 @pytest.mark.asyncio
@@ -115,7 +115,7 @@ async def test_live_event_scale_factor(mock_llm: LLMGateway, event_bus: EventBus
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["scale_factor"] == 3.0
+    assert result["output"]["scale_factor"] == 3.0
 
 
 # ── ExternalDataAgent tests ──
@@ -142,7 +142,7 @@ async def test_external_agent_with_change(mock_llm: LLMGateway, event_bus: Event
     await asyncio.sleep(0.2)
     await event_bus.stop()
 
-    assert result["decision"]["update_published"] is True
+    assert result["output"]["update_published"] is True
     assert len(received) == 1
 
 
@@ -156,7 +156,7 @@ async def test_external_agent_no_change(mock_llm: LLMGateway, event_bus: EventBu
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["update_published"] is False
+    assert result["output"]["update_published"] is False
 
 
 @pytest.mark.asyncio
@@ -167,7 +167,7 @@ async def test_external_agent_no_connector(mock_llm: LLMGateway, event_bus: Even
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "no_connector"
+    assert result["output"]["action"] == "no_connector"
 
 
 @pytest.mark.asyncio

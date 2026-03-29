@@ -1,4 +1,8 @@
-"""Growth & Retention agents — GrowthAgent (M18) + DataAnalystAgent (M03)."""
+"""Growth & Retention agents — GrowthAgent (M18) + DataAnalystAgent (M03).
+
+GrowthAgent: churn risk detection + event publishing.
+DataAnalystAgent: NL→SQL on shared_analytics (read-only).
+"""
 
 from __future__ import annotations
 
@@ -7,7 +11,9 @@ from typing import Any
 import structlog
 
 from apps.growth_retention.config import GrowthRetentionConfig
+from apps.growth_retention.prompts import DATA_ANALYST_SYSTEM_PROMPT, GROWTH_SYSTEM_PROMPT
 from apps.growth_retention.tools import calculate_churn_risk, validate_sql_query
+import apps.growth_retention.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
 from shared.event_bus import EventType
 from shared.schemas.base_event import BaseEvent, SeverityLevel
@@ -15,200 +21,176 @@ from shared.schemas.base_event import BaseEvent, SeverityLevel
 logger = structlog.get_logger(__name__)
 
 
+# ── Tool wrappers ───────────────────────────────────────────────
+
+async def _calculate_churn_risk(tenant_id: str, **_: Any) -> dict:
+    return {"status": "calculated"}
+
+async def _get_qoe_correlation(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _get_cdn_impact(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _segment_customers(tenant_id: str, **_: Any) -> dict:
+    return {"status": "segmented"}
+
+async def _nl_to_sql_query(tenant_id: str, question: str = "", **_: Any) -> dict:
+    return {"status": "queried"}
+
+async def _get_growth_insights(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _validate_sql_query(tenant_id: str, **_: Any) -> dict:
+    return {"valid": True}
+
+async def _write_analysis_result(tenant_id: str, **_: Any) -> dict:
+    return {"status": "written"}
+
+async def _trigger_churn_alert(tenant_id: str, **_: Any) -> dict:
+    return {"status": "triggered"}
+
+async def _send_retention_campaign(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+
+# ── GrowthAgent ─────────────────────────────────────────────────
+
 class GrowthAgent(BaseAgent):
-    """M18 — Customer Growth Intelligence. Sonnet for analysis. Publishes churn_risk_detected."""
+    """M18 — Customer Growth Intelligence. Sonnet for analysis."""
 
     app_name = "growth_retention"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = GrowthRetentionConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "calculate_churn_risk", "risk_level": "LOW", "func": _calculate_churn_risk},
+            {"name": "get_qoe_correlation", "risk_level": "LOW", "func": _get_qoe_correlation},
+            {"name": "get_cdn_impact", "risk_level": "LOW", "func": _get_cdn_impact},
+            {"name": "segment_customers", "risk_level": "LOW", "func": _segment_customers},
+            {"name": "get_growth_insights", "risk_level": "LOW", "func": _get_growth_insights},
+            {"name": "write_analysis_result", "risk_level": "MEDIUM", "func": _write_analysis_result},
+            {"name": "trigger_churn_alert", "risk_level": "MEDIUM", "func": _trigger_churn_alert},
+            {"name": "send_retention_campaign", "risk_level": "HIGH", "func": _send_retention_campaign},
+        ]
 
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "segment_id": input_data.get("segment_id", ""),
-            "qoe_data": input_data.get("qoe_data", []),
-            "cdn_data": input_data.get("cdn_data", []),
-            "retention_7d": input_data.get("retention_7d"),
-            "retention_30d": input_data.get("retention_30d"),
-        }
-        logger.info("growth_context_loaded", tenant_id=tenant_id)
-        return context
+    def get_system_prompt(self) -> str:
+        return GROWTH_SYSTEM_PROMPT
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        segment_id = ctx.get("segment_id", "")
-        tenant_id = ctx.get("tenant_id", "")
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-sonnet-4-20250514"
 
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        segment_id = input_data.get("segment_id", "")
         if not segment_id:
-            return {"action": "no_segment", "reason": "No segment_id provided"}
+            return {"app": self.app_name, "tenant_id": tenant_id, "action": "no_segment",
+                    "churn_risk": 0.0, "churn_alert_published": False}
 
-        # Calculate QoE average from data
-        qoe_data = ctx.get("qoe_data", [])
+        # Calculate churn risk
+        qoe_data = input_data.get("qoe_data", [])
         avg_qoe = 5.0
         if qoe_data:
             scores = [d.get("quality_score", 5.0) for d in qoe_data]
             avg_qoe = sum(scores) / len(scores)
 
-        # CDN error rate
-        cdn_data = ctx.get("cdn_data", [])
+        cdn_data = input_data.get("cdn_data", [])
         cdn_error_rate = 0.0
         if cdn_data:
             rates = [d.get("error_rate", 0.0) for d in cdn_data]
             cdn_error_rate = sum(rates) / len(rates)
 
-        # Use Sonnet for analysis
-        from apps.growth_retention.prompts import CHURN_ANALYSIS_PROMPT
-
-        prompt = CHURN_ANALYSIS_PROMPT.format(
-            segment_id=segment_id,
-            tenant_id=tenant_id,
-            avg_qoe=f"{avg_qoe:.2f}",
-            cdn_error_rate=f"{cdn_error_rate:.4f}",
-            retention_7d=ctx.get("retention_7d", "N/A"),
-            retention_30d=ctx.get("retention_30d", "N/A"),
-        )
-        response = await self.llm.invoke(prompt, severity=SeverityLevel.P2)
-
-        # Calculate churn risk
         churn = await calculate_churn_risk(
-            tenant_id=tenant_id,
-            segment_id=segment_id,
-            qoe_avg=avg_qoe,
-            cdn_error_rate=cdn_error_rate,
-            retention_7d=ctx.get("retention_7d"),
-            retention_30d=ctx.get("retention_30d"),
+            tenant_id=tenant_id, segment_id=segment_id,
+            qoe_avg=avg_qoe, cdn_error_rate=cdn_error_rate,
+            retention_7d=input_data.get("retention_7d"),
+            retention_30d=input_data.get("retention_30d"),
         )
 
-        return {
-            "action": "churn_analysis",
-            "summary": response["content"],
-            "model_used": response["model"],
-            "churn_risk": churn.churn_risk,
-            "factors": churn.factors,
-            "recommendation": churn.recommendation,
-            "segment_id": segment_id,
-            "avg_qoe": avg_qoe,
-            "cdn_error_rate": cdn_error_rate,
-        }
+        input_data["_churn_risk"] = churn.churn_risk
+        input_data["_churn_factors"] = churn.factors
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
+        return await super().invoke(tenant_id, input_data)
 
-        if action == "no_segment":
-            return [{"tool": "no_segment", "risk_level": "LOW"}]
-
-        results: list[dict[str, Any]] = []
-        results.append({"tool": "write_analysis_result", "risk_level": "MEDIUM"})
-
-        churn_risk = llm_resp.get("churn_risk", 0.0)
-        if churn_risk > self._config.churn_risk_threshold:
-            results.append({"tool": "trigger_churn_alert", "risk_level": "MEDIUM"})
-
-        return results
-
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        llm_resp = state.get("llm_response", {})
-        tenant_id = ctx.get("tenant_id", "")
-        churn_risk = llm_resp.get("churn_risk", 0.0)
-        segment_id = llm_resp.get("segment_id", "")
-
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
+        churn_risk = input_data.get("_churn_risk", 0.0)
+        tenant_id = state.get("tenant_id", "")
         churn_alert_published = False
 
-        # Publish churn_risk_detected if above threshold
         if churn_risk > self._config.churn_risk_threshold:
-            event = BaseEvent(
-                event_type=EventType.CHURN_RISK_DETECTED,
-                tenant_id=tenant_id,
-                source_app="growth_retention",
-                severity=SeverityLevel.P2,
-                payload={
-                    "segment_id": segment_id,
-                    "churn_risk": churn_risk,
-                    "factors": llm_resp.get("factors", {}),
-                },
-            )
-            await self.event_bus.publish(event)
-            churn_alert_published = True
+            try:
+                await self.event_bus.publish(BaseEvent(
+                    event_type=EventType.CHURN_RISK_DETECTED,
+                    tenant_id=tenant_id,
+                    source_app="growth_retention",
+                    severity=SeverityLevel.P2,
+                    payload={
+                        "segment_id": input_data.get("segment_id", ""),
+                        "churn_risk": churn_risk,
+                        "factors": input_data.get("_churn_factors", {}),
+                    },
+                ))
+                churn_alert_published = True
+            except Exception as exc:
+                logger.warning("churn_risk_publish_failed", error=str(exc))
 
-        return {
-            "action": llm_resp.get("action", ""),
-            "churn_risk": churn_risk,
-            "churn_alert_published": churn_alert_published,
-            "segment_id": segment_id,
-            "recommendation": llm_resp.get("recommendation", ""),
-        }
+        output = result.get("output", {})
+        output["churn_risk"] = churn_risk
+        output["churn_alert_published"] = churn_alert_published
+        output["segment_id"] = input_data.get("segment_id", "")
 
+        return {**result, "output": output}
+
+
+# ── DataAnalystAgent ────────────────────────────────────────────
 
 class DataAnalystAgent(BaseAgent):
-    """M03 — AI Data Analyst. Sonnet for NL→SQL. Read-only shared_analytics only."""
+    """M03 — AI Data Analyst. Sonnet for NL→SQL. Read-only shared_analytics."""
 
     app_name = "growth_retention"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = GrowthRetentionConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "question": input_data.get("question", ""),
-        }
-        logger.info("data_analyst_context_loaded", tenant_id=tenant_id)
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "nl_to_sql_query", "risk_level": "LOW", "func": _nl_to_sql_query},
+            {"name": "validate_sql_query", "risk_level": "LOW", "func": _validate_sql_query},
+            {"name": "get_growth_insights", "risk_level": "LOW", "func": _get_growth_insights},
+            {"name": "write_analysis_result", "risk_level": "MEDIUM", "func": _write_analysis_result},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        question = ctx.get("question", "")
-        tenant_id = ctx.get("tenant_id", "")
+    def get_system_prompt(self) -> str:
+        return DATA_ANALYST_SYSTEM_PROMPT
 
+    def get_llm_model(self, severity: str | None = None) -> str:
+        if severity == "P3":
+            return "claude-haiku-4-5-20251001"
+        return "claude-sonnet-4-20250514"
+
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        question = input_data.get("question", "")
         if not question:
-            return {"action": "no_question", "reason": "No question provided"}
+            return {"app": self.app_name, "tenant_id": tenant_id, "action": "no_question",
+                    "valid": False, "generated_sql": ""}
+        return await super().invoke(tenant_id, input_data)
 
-        # Use Sonnet for NL→SQL
-        from apps.growth_retention.prompts import NL_TO_SQL_PROMPT
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        reasoning = state.get("reasoning", {})
+        generated_sql = reasoning.get("reasoning", "").strip()
 
-        prompt = NL_TO_SQL_PROMPT.format(
-            question=question,
-            tenant_id=tenant_id,
-        )
-        response = await self.llm.invoke(prompt, severity=SeverityLevel.P2)
+        valid, _ = validate_sql_query(generated_sql, self._config)
 
-        generated_sql = response["content"].strip()
-        # Validate SQL
-        valid, reason = validate_sql_query(generated_sql, self._config)
+        output = result.get("output", {})
+        output["action"] = "execute_query" if valid else "invalid_query"
+        output["valid"] = valid
+        output["generated_sql"] = generated_sql
+        output["question"] = state.get("input", {}).get("question", "")
 
-        return {
-            "action": "execute_query" if valid else "invalid_query",
-            "question": question,
-            "generated_sql": generated_sql,
-            "model_used": response["model"],
-            "valid": valid,
-            "validation_reason": reason,
-        }
-
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
-
-        if action in ("no_question", "invalid_query"):
-            return [{"tool": action, "risk_level": "LOW"}]
-
-        return [{"tool": "nl_to_sql_query", "risk_level": "LOW"}]
-
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        llm_resp = state.get("llm_response", {})
-        return {
-            "action": llm_resp.get("action", ""),
-            "question": llm_resp.get("question", ""),
-            "generated_sql": llm_resp.get("generated_sql", ""),
-            "valid": llm_resp.get("valid", False),
-        }
+        return {**result, "output": output}

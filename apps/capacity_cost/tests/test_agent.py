@@ -26,9 +26,9 @@ async def test_capacity_agent_monitor(mock_llm: LLMGateway, event_bus: EventBus)
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["error"] is None
-    assert result["decision"]["action"] == "monitor"
-    assert result["decision"]["scale_published"] is False
+    assert result.get("error") is None
+    assert result["output"]["action"] == "monitor"
+    assert result["output"]["scale_published"] is False
 
 
 @pytest.mark.asyncio
@@ -49,8 +49,8 @@ async def test_capacity_agent_critical_breach(mock_llm: LLMGateway, event_bus: E
     await asyncio.sleep(0.2)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "scale_critical"
-    assert result["decision"]["scale_published"] is True
+    assert result["output"]["action"] == "scale_critical"
+    assert result["output"]["scale_published"] is True
     assert len(received) == 1
 
 
@@ -72,8 +72,8 @@ async def test_capacity_agent_warn_breach(mock_llm: LLMGateway, event_bus: Event
     await asyncio.sleep(0.2)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "scale_warn"
-    assert result["decision"]["scale_published"] is True
+    assert result["output"]["action"] == "scale_warn"
+    assert result["output"]["scale_published"] is True
     assert len(received) == 1
 
 
@@ -92,8 +92,8 @@ async def test_capacity_agent_pre_scale(mock_llm: LLMGateway, event_bus: EventBu
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "pre_scale"
-    assert result["decision"]["needs_pre_scale"] is True
+    assert result["output"]["action"] == "pre_scale"
+    assert result["output"]["needs_pre_scale"] is True
 
 
 @pytest.mark.asyncio
@@ -123,7 +123,7 @@ async def test_automation_agent_no_job(mock_llm: LLMGateway, event_bus: EventBus
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "no_job"
+    assert result["output"]["action"] == "no_job"
 
 
 @pytest.mark.asyncio
@@ -136,8 +136,8 @@ async def test_automation_agent_create_job(mock_llm: LLMGateway, event_bus: Even
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "create_job"
-    assert result["decision"]["job_type"] == "cleanup"
+    assert result["output"]["action"] == "create_job"
+    assert result["output"]["job_type"] == "cleanup"
 
 
 @pytest.mark.asyncio
@@ -150,8 +150,8 @@ async def test_automation_agent_scale_action(mock_llm: LLMGateway, event_bus: Ev
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
 
-    assert result["decision"]["action"] == "scale_action"
-    assert result["decision"]["scale_factor"] == 2.5
+    assert result["output"]["action"] == "scale_action"
+    assert result["output"]["scale_factor"] == 2.5
 
 
 @pytest.mark.asyncio

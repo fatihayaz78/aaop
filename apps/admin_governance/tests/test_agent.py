@@ -19,7 +19,7 @@ async def test_tenant_agent_list(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "list"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "list_tenants"
+    assert result["output"]["action"] == "list_tenants"
 
 
 @pytest.mark.asyncio
@@ -30,7 +30,7 @@ async def test_tenant_agent_unauthorized(mock_llm: LLMGateway, event_bus: EventB
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "list"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "unauthorized"
+    assert result["output"]["action"] == "unauthorized"
 
 
 @pytest.mark.asyncio
@@ -40,7 +40,7 @@ async def test_tenant_agent_create(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "create"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "create_tenant"
+    assert result["output"]["action"] == "create_tenant"
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,7 @@ async def test_tenant_agent_delete(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "delete"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "delete_tenant"
+    assert result["output"]["action"] == "delete_tenant"
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_tenant_agent_rotate_key(mock_llm: LLMGateway, event_bus: EventBus
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "rotate_key"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "rotate_api_key"
+    assert result["output"]["action"] == "rotate_api_key"
 
 
 @pytest.mark.asyncio
@@ -70,7 +70,7 @@ async def test_tenant_agent_export_audit(mock_llm: LLMGateway, event_bus: EventB
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "export_audit"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "export_audit_log"
+    assert result["output"]["action"] == "export_audit_log"
 
 
 @pytest.mark.asyncio
@@ -95,8 +95,8 @@ async def test_compliance_report(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "compliance_report"
-    assert result["decision"]["has_violations"] is False
+    assert result["output"]["action"] == "compliance_report"
+    assert result["output"]["has_violations"] is False
 
 
 @pytest.mark.asyncio
@@ -107,7 +107,7 @@ async def test_compliance_with_violations(mock_llm: LLMGateway, event_bus: Event
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["has_violations"] is True
+    assert result["output"]["has_violations"] is True
 
 
 @pytest.mark.asyncio

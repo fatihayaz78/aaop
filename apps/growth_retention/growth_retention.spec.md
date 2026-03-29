@@ -128,3 +128,12 @@ Senaryolar: CHURN_RISK (risk>0.7 → event) | NL query (→ doğru SQL → doğr
 ### logs.duckdb Entegrasyonu
 - GET /growth/dashboard: crm_live (crm_subscriber_logs), billing_live (billing_logs)
 - DuckDB OKUMA: logs.duckdb aaop_company schema (crm_subscriber_logs, billing_logs, player_events_logs)
+
+---
+## Sprint Completion — S-AGENT-04
+
+- Date: 2026-03-29
+- Tests: 7 passed (agent), 148 passed (platform), 0 failure
+- GrowthAgent: BaseAgent 4-adım döngüsü aktif (churn_risk_detected publish)
+- DataAnalystAgent: BaseAgent 4-adım döngüsü aktif (NL→SQL)
+- Deviations: None

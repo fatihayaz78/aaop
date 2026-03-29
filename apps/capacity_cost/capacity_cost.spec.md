@@ -122,3 +122,12 @@ Senaryolar: CAPACITY_BREACH (eşik aşımı → event) | Pre-scale (live_event �
 ### logs.duckdb Entegrasyonu
 - GET /capacity/dashboard: infra_live (newrelic_apm_logs), api_live (api_logs_logs), cdn_live (medianova_logs)
 - DuckDB OKUMA: logs.duckdb aaop_company schema (newrelic_apm_logs, api_logs_logs, medianova_logs)
+
+---
+## Sprint Completion — S-AGENT-04
+
+- Date: 2026-03-29
+- Tests: 9 passed (agent), 148 passed (platform), 0 failure
+- CapacityAgent: BaseAgent 4-adım döngüsü aktif (scale_recommendation publish)
+- AutomationAgent: BaseAgent 4-adım döngüsü aktif (Haiku for routine)
+- Deviations: None

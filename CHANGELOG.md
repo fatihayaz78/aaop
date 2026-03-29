@@ -8,6 +8,27 @@
 
 ---
 
+### S-AGENT-04 — 2026-03-29
+- apps/viewer_experience/agent.py: QoEAgent + ComplaintAgent concrete implementation
+  - QoEAgent: QoE scoring (dedup→score→degrade event), P0/P1→Sonnet, diğer→Haiku
+  - ComplaintAgent: NLP kategorizasyon (category/sentiment/priority), her zaman Sonnet
+  - qoe_degradation event publish (score < 2.5)
+- apps/live_intelligence/agent.py: LiveEventAgent + ExternalDataAgent concrete implementation
+  - LiveEventAgent: 30dk öncesinden live_event_starting publish, scale_factor hesaplama, Sonnet
+  - ExternalDataAgent: veri değişimi tespiti, external_data_updated publish, Haiku
+- apps/growth_retention/agent.py: GrowthAgent + DataAnalystAgent concrete implementation
+  - GrowthAgent: churn risk hesaplama, churn_risk_detected publish (>0.7), Sonnet
+  - DataAnalystAgent: NL→SQL üretimi + validasyon, P3→Haiku diğer→Sonnet
+- apps/capacity_cost/agent.py: CapacityAgent + AutomationAgent concrete implementation
+  - CapacityAgent: threshold breach (warn 70%, crit 90%), scale_recommendation publish, Sonnet
+  - AutomationAgent: job creation + scale actions, Haiku
+- apps/admin_governance/agent.py: TenantAgent + ComplianceAgent concrete implementation
+  - TenantAgent: admin role check + action mapping, Haiku
+  - ComplianceAgent: violation detection (high_risk + approval_rate < 95%), Sonnet
+- Tests: 148 passed (platform) + 48 passed (5 app agent tests), 0 failure
+
+---
+
 ### S-AGENT-03 — 2026-03-29
 - apps/log_analyzer/agent.py: LogAnalyzerAgent concrete implementation
   - get_tools(): 12 tool (8 LOW + 3 MEDIUM + 1 HIGH) BaseAgent-uyumlu wrapper

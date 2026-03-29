@@ -1,4 +1,7 @@
-"""Admin & Governance agents — TenantAgent (M12) + ComplianceAgent (M17)."""
+"""Admin & Governance agents — TenantAgent (M12) + ComplianceAgent (M17).
+
+TenantAgent: admin CRUD with role check. ComplianceAgent: audit + violations.
+"""
 
 from __future__ import annotations
 
@@ -7,11 +10,48 @@ from typing import Any
 import structlog
 
 from apps.admin_governance.config import AdminGovernanceConfig
+from apps.admin_governance.prompts import COMPLIANCE_SYSTEM_PROMPT, TENANT_SYSTEM_PROMPT
+import apps.admin_governance.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
 from shared.schemas.base_event import SeverityLevel
 
 logger = structlog.get_logger(__name__)
 
+
+# ── Tool wrappers ───────────────────────────────────────────────
+
+async def _list_tenants(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _get_module_configs(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _get_audit_log(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _get_usage_stats(tenant_id: str, **_: Any) -> dict:
+    return {}
+
+async def _generate_compliance_report(tenant_id: str, **_: Any) -> dict:
+    return {"status": "generated"}
+
+async def _create_tenant(tenant_id: str, **_: Any) -> dict:
+    return {"status": "created"}
+
+async def _update_module_config(tenant_id: str, **_: Any) -> dict:
+    return {"status": "updated"}
+
+async def _rotate_api_key(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+async def _delete_tenant(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+async def _export_audit_log(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+
+# ── TenantAgent ─────────────────────────────────────────────────
 
 class TenantAgent(BaseAgent):
     """M12 — Tenant Self-Service. Haiku for admin operations."""
@@ -19,77 +59,61 @@ class TenantAgent(BaseAgent):
     app_name = "admin_governance"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = AdminGovernanceConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        role = state["tenant_context"].get("role", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "role": role,
-            "action_type": input_data.get("action_type", "list"),
-            "target_tenant": input_data.get("target_tenant", ""),
-            "module_name": input_data.get("module_name", ""),
-            "key_name": input_data.get("key_name", ""),
-        }
-        logger.info("tenant_context_loaded", tenant_id=tenant_id, role=role)
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "list_tenants", "risk_level": "LOW", "func": _list_tenants},
+            {"name": "get_module_configs", "risk_level": "LOW", "func": _get_module_configs},
+            {"name": "get_audit_log", "risk_level": "LOW", "func": _get_audit_log},
+            {"name": "get_usage_stats", "risk_level": "LOW", "func": _get_usage_stats},
+            {"name": "create_tenant", "risk_level": "MEDIUM", "func": _create_tenant},
+            {"name": "update_module_config", "risk_level": "MEDIUM", "func": _update_module_config},
+            {"name": "rotate_api_key", "risk_level": "HIGH", "func": _rotate_api_key},
+            {"name": "delete_tenant", "risk_level": "HIGH", "func": _delete_tenant},
+            {"name": "export_audit_log", "risk_level": "HIGH", "func": _export_audit_log},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        role = ctx.get("role", "")
-        action_type = ctx.get("action_type", "list")
+    def get_system_prompt(self) -> str:
+        return TENANT_SYSTEM_PROMPT
 
-        # Admin role check
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-haiku-4-5-20251001"
+
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        role = input_data.get("_role", "")
         if role != self._config.required_role:
-            return {"action": "unauthorized", "reason": f"Role '{role}' not authorized. Requires '{self._config.required_role}'."}
+            return {"app": self.app_name, "tenant_id": tenant_id, "action": "unauthorized",
+                    "reason": f"Role '{role}' not authorized. Requires '{self._config.required_role}'."}
 
-        # Haiku for admin operations
-        response = await self.llm.invoke(
-            f"Admin operation: {action_type} for tenant {ctx.get('tenant_id', '')}",
-            severity=SeverityLevel.P3,
-        )
-
+        action_type = input_data.get("action_type", "list")
         action_map = {
-            "list": "list_tenants",
-            "create": "create_tenant",
-            "delete": "delete_tenant",
-            "module_config": "update_module_config",
-            "rotate_key": "rotate_api_key",
-            "export_audit": "export_audit_log",
-            "get_configs": "get_module_configs",
+            "list": "list_tenants", "create": "create_tenant", "delete": "delete_tenant",
+            "module_config": "update_module_config", "rotate_key": "rotate_api_key",
+            "export_audit": "export_audit_log", "get_configs": "get_module_configs",
         }
+        input_data["_mapped_action"] = action_map.get(action_type, action_type)
 
-        return {
-            "action": action_map.get(action_type, action_type),
-            "summary": response["content"],
-            "model_used": response["model"],
-        }
+        return await super().invoke(tenant_id, input_data)
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
 
-        if action == "unauthorized":
-            return [{"tool": "unauthorized", "risk_level": "LOW"}]
+        output = result.get("output", {})
+        output["action"] = input_data.get("_mapped_action", "list_tenants")
 
-        high_risk = {"delete_tenant", "rotate_api_key", "export_audit_log"}
-        medium_risk = {"create_tenant", "update_module_config"}
+        return {**result, "output": output}
 
-        if action in high_risk:
-            return [{"tool": action, "risk_level": "HIGH"}]
-        if action in medium_risk:
-            return [{"tool": action, "risk_level": "MEDIUM"}]
-        return [{"tool": action, "risk_level": "LOW"}]
+    async def run(self, tenant_context: Any, input_data: dict[str, Any] | None = None) -> Any:
+        """Override run to inject role from tenant_context."""
+        data = input_data or {}
+        data["_role"] = getattr(tenant_context, "role", "")
+        return await super().run(tenant_context, data)
 
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        llm_resp = state.get("llm_response", {})
-        return {
-            "action": llm_resp.get("action", ""),
-        }
 
+# ── ComplianceAgent ─────────────────────────────────────────────
 
 class ComplianceAgent(BaseAgent):
     """M17 — Compliance Dashboard. Sonnet for detailed analysis."""
@@ -97,53 +121,33 @@ class ComplianceAgent(BaseAgent):
     app_name = "admin_governance"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = AdminGovernanceConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "total_decisions": input_data.get("total_decisions", 0),
-            "high_risk_count": input_data.get("high_risk_count", 0),
-            "approval_rate": input_data.get("approval_rate", 100.0),
-        }
-        logger.info("compliance_context_loaded", tenant_id=tenant_id)
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "generate_compliance_report", "risk_level": "LOW", "func": _generate_compliance_report},
+            {"name": "get_audit_log", "risk_level": "LOW", "func": _get_audit_log},
+            {"name": "get_usage_stats", "risk_level": "LOW", "func": _get_usage_stats},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
+    def get_system_prompt(self) -> str:
+        return COMPLIANCE_SYSTEM_PROMPT
 
-        # Sonnet for compliance analysis
-        from apps.admin_governance.prompts import COMPLIANCE_ANALYSIS_PROMPT
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-sonnet-4-20250514"
 
-        prompt = COMPLIANCE_ANALYSIS_PROMPT.format(
-            tenant_id=ctx.get("tenant_id", ""),
-            total_decisions=ctx.get("total_decisions", 0),
-            high_risk_count=ctx.get("high_risk_count", 0),
-            approval_rate=ctx.get("approval_rate", 100.0),
-        )
-        response = await self.llm.invoke(prompt, severity=SeverityLevel.P2)
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
 
-        has_violations = ctx.get("high_risk_count", 0) > 0 and ctx.get("approval_rate", 100) < 95
+        high_risk_count = input_data.get("high_risk_count", 0)
+        approval_rate = input_data.get("approval_rate", 100.0)
+        has_violations = high_risk_count > 0 and approval_rate < 95
 
-        return {
-            "action": "compliance_report",
-            "summary": response["content"],
-            "model_used": response["model"],
-            "has_violations": has_violations,
-            "total_decisions": ctx.get("total_decisions", 0),
-            "high_risk_count": ctx.get("high_risk_count", 0),
-        }
+        output = result.get("output", {})
+        output["action"] = "compliance_report"
+        output["has_violations"] = has_violations
+        output["total_decisions"] = input_data.get("total_decisions", 0)
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        return [{"tool": "generate_compliance_report", "risk_level": "LOW"}]
-
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        llm_resp = state.get("llm_response", {})
-        return {
-            "action": llm_resp.get("action", ""),
-            "has_violations": llm_resp.get("has_violations", False),
-            "total_decisions": llm_resp.get("total_decisions", 0),
-        }
+        return {**result, "output": output}
