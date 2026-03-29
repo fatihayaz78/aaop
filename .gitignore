@@ -1,3 +1,6 @@
+# Mock data (large generated dataset — never commit)
+aaop-mock-data/
+
 # Environment
 .env
 .env.local
@@ -15,12 +18,8 @@ build/
 .venv/
 venv/
 
-# Data (local only)
-data/sqlite/
-data/duckdb/
-data/chromadb/
-data/logs/
-data/reports/
+# Data (local only — never commit)
+data/
 
 # IDE
 .vscode/
@@ -28,6 +27,7 @@ data/reports/
 *.swp
 *.swo
 .DS_Store
+Thumbs.db
 
 # Test / Coverage
 .coverage
@@ -39,6 +39,9 @@ htmlcov/
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+
+# DuckDB WAL files
+*.duckdb.wal
 
 # Misc
 *.log
