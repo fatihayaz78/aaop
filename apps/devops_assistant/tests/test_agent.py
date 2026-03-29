@@ -18,8 +18,8 @@ async def test_diagnose(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "diagnose"
-    assert result["decision"]["service"] == "fastapi"
+    assert result["output"]["action"] == "diagnose"
+    assert result["output"]["service"] == "fastapi"
 
 
 @pytest.mark.asyncio
@@ -29,7 +29,7 @@ async def test_no_service(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "diagnose"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "no_service"
+    assert result["output"]["action"] == "no_service"
 
 
 @pytest.mark.asyncio
@@ -40,7 +40,7 @@ async def test_restart_service(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "restart_service"
+    assert result["output"]["action"] == "restart_service"
 
 
 @pytest.mark.asyncio
@@ -51,7 +51,7 @@ async def test_execute_runbook(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "execute_runbook"
+    assert result["output"]["action"] == "execute_runbook"
 
 
 @pytest.mark.asyncio
@@ -62,7 +62,7 @@ async def test_suggest_command(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "suggest_command"
+    assert result["output"]["action"] == "suggest_command"
 
 
 @pytest.mark.asyncio
@@ -73,7 +73,7 @@ async def test_search_runbooks(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "search_runbooks"
+    assert result["output"]["action"] == "search_runbooks"
 
 
 @pytest.mark.asyncio

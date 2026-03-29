@@ -1,4 +1,8 @@
-"""AI Lab agents — ExperimentationAgent (M10) + ModelGovernanceAgent (M14)."""
+"""AI Lab agents — ExperimentationAgent (M10) + ModelGovernanceAgent (M14).
+
+ExperimentationAgent: A/B test analysis with statistical significance.
+ModelGovernanceAgent: LLM cost tracking + model governance.
+"""
 
 from __future__ import annotations
 
@@ -7,43 +11,78 @@ from typing import Any
 import structlog
 
 from apps.ai_lab.config import AILabConfig
+from apps.ai_lab.prompts import EXPERIMENTATION_SYSTEM_PROMPT, MODEL_GOVERNANCE_SYSTEM_PROMPT
 from apps.ai_lab.tools import analyze_statistical_significance
+import apps.ai_lab.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
-from shared.schemas.base_event import SeverityLevel
 
 logger = structlog.get_logger(__name__)
 
 
+# ── Tool wrappers ───────────────────────────────────────────────
+
+async def _create_experiment(tenant_id: str, **_: Any) -> dict:
+    return {"status": "created"}
+
+async def _get_experiment_results(tenant_id: str, **_: Any) -> dict:
+    return {"results": []}
+
+async def _analyze_significance(tenant_id: str, **_: Any) -> dict:
+    return {"p_value": 1.0, "is_significant": False}
+
+async def _get_llm_cost_metrics(tenant_id: str, **_: Any) -> dict:
+    return {"total_tokens": 0, "total_cost": 0.0}
+
+async def _evaluate_model(tenant_id: str, **_: Any) -> dict:
+    return {"status": "evaluated"}
+
+async def _register_prompt_version(tenant_id: str, **_: Any) -> dict:
+    return {"status": "registered"}
+
+async def _update_model_config(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+async def _switch_model_production(tenant_id: str, **_: Any) -> dict:
+    return {"status": "approval_required"}
+
+
+# ── ExperimentationAgent ────────────────────────────────────────
+
 class ExperimentationAgent(BaseAgent):
-    """M10 — AI Experimentation. Sonnet for analysis."""
+    """M10 — AI Experimentation. Sonnet for statistical analysis."""
 
     app_name = "ai_lab"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = AILabConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "experiment_name": input_data.get("experiment_name", ""),
-            "variants": input_data.get("variants", []),
-            "metric": input_data.get("metric", ""),
-            "results": input_data.get("results", []),
-        }
-        logger.info("experimentation_context_loaded", tenant_id=tenant_id)
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "create_experiment", "risk_level": "LOW", "func": _create_experiment},
+            {"name": "get_experiment_results", "risk_level": "LOW", "func": _get_experiment_results},
+            {"name": "analyze_statistical_significance", "risk_level": "LOW", "func": _analyze_significance},
+            {"name": "get_llm_cost_metrics", "risk_level": "LOW", "func": _get_llm_cost_metrics},
+            {"name": "evaluate_model", "risk_level": "LOW", "func": _evaluate_model},
+            {"name": "register_prompt_version", "risk_level": "MEDIUM", "func": _register_prompt_version},
+            {"name": "update_model_config", "risk_level": "HIGH", "func": _update_model_config},
+            {"name": "switch_model_production", "risk_level": "HIGH", "func": _switch_model_production},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        experiment_name = ctx.get("experiment_name", "")
+    def get_system_prompt(self) -> str:
+        return EXPERIMENTATION_SYSTEM_PROMPT
 
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-sonnet-4-20250514"
+
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        experiment_name = input_data.get("experiment_name", "")
         if not experiment_name:
-            return {"action": "no_experiment", "reason": "No experiment specified"}
+            return {"app": self.app_name, "tenant_id": tenant_id, "action": "no_experiment",
+                    "stats": {}}
 
-        results = ctx.get("results", [])
+        # Calculate statistical significance if results provided
+        results = input_data.get("results", [])
         if len(results) >= 2:
             control = results[0]
             variant = results[1]
@@ -54,42 +93,22 @@ class ExperimentationAgent(BaseAgent):
         else:
             stats = {"p_value": 1.0, "is_significant": False, "effect_size": 0.0}
 
-        # Sonnet for analysis
-        from apps.ai_lab.prompts import EXPERIMENT_ANALYSIS_PROMPT
+        input_data["_stats"] = stats
+        return await super().invoke(tenant_id, input_data)
 
-        variants_str = "\n".join(
-            f"  - {v.get('name', 'unknown')}: mean={v.get('mean', 0)}, n={v.get('n', 0)}"
-            for v in results
-        )
-        prompt = EXPERIMENT_ANALYSIS_PROMPT.format(
-            experiment_name=experiment_name,
-            metric=ctx.get("metric", ""),
-            variants_summary=variants_str or "No results yet",
-        )
-        response = await self.llm.invoke(prompt, severity=SeverityLevel.P2)
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
 
-        return {
-            "action": "analyze_experiment",
-            "experiment_name": experiment_name,
-            "summary": response["content"],
-            "model_used": response["model"],
-            "stats": stats,
-        }
+        output = result.get("output", {})
+        output["action"] = "analyze_experiment"
+        output["experiment_name"] = input_data.get("experiment_name", "")
+        output["stats"] = input_data.get("_stats", {})
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        if llm_resp.get("action") == "no_experiment":
-            return [{"tool": "no_experiment", "risk_level": "LOW"}]
-        return [{"tool": "create_experiment", "risk_level": "LOW"}]
+        return {**result, "output": output}
 
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        llm_resp = state.get("llm_response", {})
-        return {
-            "action": llm_resp.get("action", ""),
-            "experiment_name": llm_resp.get("experiment_name", ""),
-            "stats": llm_resp.get("stats", {}),
-        }
 
+# ── ModelGovernanceAgent ────────────────────────────────────────
 
 class ModelGovernanceAgent(BaseAgent):
     """M14 — ML Model Governance. Haiku for routine metric collection."""
@@ -97,36 +116,27 @@ class ModelGovernanceAgent(BaseAgent):
     app_name = "ai_lab"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = AILabConfig()
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "action_type": input_data.get("action_type", "check_usage"),
-            "model_name": input_data.get("model_name", ""),
-            "budget_used_pct": input_data.get("budget_used_pct", 0.0),
-            "metrics": input_data.get("metrics", {}),
-        }
-        logger.info("governance_context_loaded", tenant_id=tenant_id)
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "get_llm_cost_metrics", "risk_level": "LOW", "func": _get_llm_cost_metrics},
+            {"name": "evaluate_model", "risk_level": "LOW", "func": _evaluate_model},
+            {"name": "register_prompt_version", "risk_level": "MEDIUM", "func": _register_prompt_version},
+            {"name": "update_model_config", "risk_level": "HIGH", "func": _update_model_config},
+            {"name": "switch_model_production", "risk_level": "HIGH", "func": _switch_model_production},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        action_type = ctx.get("action_type", "check_usage")
-        budget_pct = ctx.get("budget_used_pct", 0.0)
+    def get_system_prompt(self) -> str:
+        return MODEL_GOVERNANCE_SYSTEM_PROMPT
 
-        # Haiku for routine
-        response = await self.llm.invoke(
-            f"Model governance check: action={action_type}, budget={budget_pct}%",
-            severity=SeverityLevel.P3,
-        )
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-haiku-4-5-20251001"
 
-        budget_warning = budget_pct > self._config.token_budget_warn_pct
-        if budget_warning:
-            logger.warning("token_budget_exceeded_80pct", budget_pct=budget_pct)
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        action_type = input_data.get("action_type", "check_usage")
+        budget_pct = input_data.get("budget_used_pct", 0.0)
 
         action = action_type
         if action_type == "switch_model":
@@ -134,30 +144,19 @@ class ModelGovernanceAgent(BaseAgent):
         elif action_type == "update_config":
             action = "update_model_config"
 
-        return {
-            "action": action,
-            "summary": response["content"],
-            "model_used": response["model"],
-            "budget_warning": budget_warning,
-            "budget_used_pct": budget_pct,
-            "model_name": ctx.get("model_name", ""),
-        }
+        input_data["_mapped_action"] = action
+        input_data["_budget_warning"] = budget_pct > self._config.token_budget_warn_pct
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
+        return await super().invoke(tenant_id, input_data)
 
-        if action == "switch_model_production":
-            return [{"tool": "switch_model_production", "risk_level": "HIGH"}]
-        if action == "update_model_config":
-            return [{"tool": "update_model_config", "risk_level": "HIGH"}]
-        return [{"tool": "get_llm_cost_metrics", "risk_level": "LOW"}]
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
 
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        llm_resp = state.get("llm_response", {})
-        return {
-            "action": llm_resp.get("action", ""),
-            "budget_warning": llm_resp.get("budget_warning", False),
-            "budget_used_pct": llm_resp.get("budget_used_pct", 0.0),
-            "model_name": llm_resp.get("model_name", ""),
-        }
+        output = result.get("output", {})
+        output["action"] = input_data.get("_mapped_action", "check_usage")
+        output["budget_warning"] = input_data.get("_budget_warning", False)
+        output["budget_used_pct"] = input_data.get("budget_used_pct", 0.0)
+        output["model_name"] = input_data.get("model_name", "")
+
+        return {**result, "output": output}

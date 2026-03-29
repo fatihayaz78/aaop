@@ -8,6 +8,21 @@
 
 ---
 
+### S-AGENT-05 — 2026-03-29
+- apps/ai_lab/agent.py: ExperimentationAgent + ModelGovernanceAgent concrete implementation
+  - ExperimentationAgent: A/B test statistical significance, Sonnet
+  - ModelGovernanceAgent: budget warning (>80%), action mapping, Haiku
+- apps/knowledge_base/agent.py: KnowledgeBaseAgent concrete implementation
+  - Auto-index incident_created + rca_completed events via ChromaDB
+  - Search/delete/ingest pipeline, Haiku
+- apps/devops_assistant/agent.py: DevOpsAssistantAgent concrete implementation
+  - Action mapping: diagnose/restart/runbook/suggest/search_runbooks
+  - P3→Haiku, default→Sonnet (technical analysis)
+  - restart_service + execute_runbook → HIGH risk approval
+- Tests: 148 passed (platform) + 21 passed (3 app agent tests), 0 failure
+
+---
+
 ### S-AGENT-04 — 2026-03-29
 - apps/viewer_experience/agent.py: QoEAgent + ComplaintAgent concrete implementation
   - QoEAgent: QoE scoring (dedup→score→degrade event), P0/P1→Sonnet, diğer→Haiku

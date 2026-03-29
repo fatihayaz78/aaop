@@ -19,7 +19,7 @@ async def test_experimentation_no_experiment(mock_llm: LLMGateway, event_bus: Ev
     await event_bus.start()
     result = await agent.run(ctx, input_data={})
     await event_bus.stop()
-    assert result["decision"]["action"] == "no_experiment"
+    assert result["output"]["action"] == "no_experiment"
 
 
 @pytest.mark.asyncio
@@ -37,8 +37,8 @@ async def test_experimentation_with_results(mock_llm: LLMGateway, event_bus: Eve
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "analyze_experiment"
-    assert "stats" in result["decision"]
+    assert result["output"]["action"] == "analyze_experiment"
+    assert "stats" in result["output"]
 
 
 @pytest.mark.asyncio
@@ -63,8 +63,8 @@ async def test_governance_check_usage(mock_llm: LLMGateway, event_bus: EventBus)
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "check_usage", "budget_used_pct": 50.0})
     await event_bus.stop()
-    assert result["decision"]["action"] == "check_usage"
-    assert result["decision"]["budget_warning"] is False
+    assert result["output"]["action"] == "check_usage"
+    assert result["output"]["budget_warning"] is False
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_governance_budget_warning(mock_llm: LLMGateway, event_bus: EventB
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "check_usage", "budget_used_pct": 85.0})
     await event_bus.stop()
-    assert result["decision"]["budget_warning"] is True
+    assert result["output"]["budget_warning"] is True
 
 
 @pytest.mark.asyncio
@@ -85,7 +85,7 @@ async def test_governance_switch_model(mock_llm: LLMGateway, event_bus: EventBus
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "switch_model", "model_name": "sonnet"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "switch_model_production"
+    assert result["output"]["action"] == "switch_model_production"
 
 
 @pytest.mark.asyncio
@@ -95,7 +95,7 @@ async def test_governance_update_config(mock_llm: LLMGateway, event_bus: EventBu
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "update_config"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "update_model_config"
+    assert result["output"]["action"] == "update_model_config"
 
 
 @pytest.mark.asyncio

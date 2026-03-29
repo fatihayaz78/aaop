@@ -20,8 +20,8 @@ async def test_kb_search(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "search"
-    assert result["decision"]["query"] == "CDN error rate"
+    assert result["output"]["action"] == "search"
+    assert result["output"]["query"] == "CDN error rate"
 
 
 @pytest.mark.asyncio
@@ -31,7 +31,7 @@ async def test_kb_no_query(mock_llm: LLMGateway, event_bus: EventBus):
     await event_bus.start()
     result = await agent.run(ctx, input_data={"action_type": "search"})
     await event_bus.stop()
-    assert result["decision"]["action"] == "no_query"
+    assert result["output"]["action"] == "no_query"
 
 
 @pytest.mark.asyncio
@@ -46,8 +46,8 @@ async def test_kb_auto_index_incident(mock_llm: LLMGateway, event_bus: EventBus,
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "auto_index_incident"
-    assert result["decision"]["indexed"] is True
+    assert result["output"]["action"] == "auto_index_incident"
+    assert result["output"]["indexed"] is True
     mock_chroma.add.assert_called()
 
 
@@ -63,8 +63,8 @@ async def test_kb_auto_index_rca(mock_llm: LLMGateway, event_bus: EventBus, mock
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "auto_index_rca"
-    assert result["decision"]["indexed"] is True
+    assert result["output"]["action"] == "auto_index_rca"
+    assert result["output"]["indexed"] is True
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_kb_delete_requires_approval(mock_llm: LLMGateway, event_bus: Even
     await event_bus.start()
     result = await agent.run(ctx, input_data=input_data)
     await event_bus.stop()
-    assert result["decision"]["action"] == "delete_document"
+    assert result["output"]["action"] == "delete_document"
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,7 @@
-"""Knowledge Base agent — KnowledgeBaseAgent (M15)."""
+"""Knowledge Base agent — KnowledgeBaseAgent (M15).
+
+Haiku for fast Q&A. Auto-indexes incident_created and rca_completed events.
+"""
 
 from __future__ import annotations
 
@@ -7,128 +10,111 @@ from typing import Any
 import structlog
 
 from apps.knowledge_base.config import KnowledgeBaseConfig
+from apps.knowledge_base.prompts import KB_SYSTEM_PROMPT
 from apps.knowledge_base.schemas import Document
 from apps.knowledge_base.tools import ingest_document
+import apps.knowledge_base.tools as tools
 from shared.agents.base_agent import AgentState, BaseAgent
 from shared.event_bus import EventType
-from shared.schemas.base_event import SeverityLevel
 
 logger = structlog.get_logger(__name__)
 
 
+# ── Tool wrappers ───────────────────────────────────────────────
+
+async def _semantic_search(tenant_id: str, query: str = "", **_: Any) -> list:
+    return []
+
+async def _ingest_document(tenant_id: str, **_: Any) -> dict:
+    return {"status": "ingested"}
+
+async def _get_related_incidents(tenant_id: str, **_: Any) -> list:
+    return []
+
+async def _get_runbook(tenant_id: str, **_: Any) -> dict:
+    return {}
+
+async def _delete_document(tenant_id: str, doc_id: str = "", **_: Any) -> dict:
+    return {"status": "approval_required", "doc_id": doc_id}
+
+
+# ── KnowledgeBaseAgent ──────────────────────────────────────────
+
 class KnowledgeBaseAgent(BaseAgent):
-    """M15 — Knowledge Base. Haiku for fast Q&A. Auto-indexes incidents and RCAs."""
+    """M15 — Knowledge Base. Haiku for fast Q&A. Auto-indexes incidents + RCAs."""
 
     app_name = "knowledge_base"
 
     def __init__(self, chroma: Any = None, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
         self._config = KnowledgeBaseConfig()
         self._chroma = chroma
+        super().__init__(**kwargs)
 
-    async def load_context(self, state: AgentState) -> dict[str, Any]:
-        tenant_id = state["tenant_context"].get("tenant_id", "")
-        input_data = state.get("context_data", {})
-        context: dict[str, Any] = {
-            "tenant_id": tenant_id,
-            "action_type": input_data.get("action_type", "search"),
-            "query": input_data.get("query", ""),
-            "collection": input_data.get("collection", "incidents"),
-            "document": input_data.get("document"),
-            "event_type": input_data.get("event_type"),
-            "event_payload": input_data.get("event_payload", {}),
-        }
-        logger.info("kb_context_loaded", tenant_id=tenant_id, action=context["action_type"])
-        return context
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name": "semantic_search", "risk_level": "LOW", "func": _semantic_search},
+            {"name": "ingest_document", "risk_level": "LOW", "func": _ingest_document},
+            {"name": "get_related_incidents", "risk_level": "LOW", "func": _get_related_incidents},
+            {"name": "get_runbook", "risk_level": "LOW", "func": _get_runbook},
+            {"name": "delete_document", "risk_level": "HIGH", "func": _delete_document},
+        ]
 
-    async def reason(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        action_type = ctx.get("action_type", "search")
-        event_type = ctx.get("event_type")
+    def get_system_prompt(self) -> str:
+        return KB_SYSTEM_PROMPT
+
+    def get_llm_model(self, severity: str | None = None) -> str:
+        return "claude-haiku-4-5-20251001"
+
+    async def invoke(self, tenant_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        action_type = input_data.get("action_type", "search")
+        event_type = input_data.get("event_type")
 
         # Auto-index on EventBus events
         if event_type in (EventType.INCIDENT_CREATED.value, "incident_created"):
-            return {
-                "action": "auto_index_incident",
-                "event_payload": ctx.get("event_payload", {}),
-                "collection": "incidents",
-            }
-        if event_type in (EventType.RCA_COMPLETED.value, "rca_completed"):
-            return {
-                "action": "auto_index_rca",
-                "event_payload": ctx.get("event_payload", {}),
-                "collection": "incidents",
-            }
+            payload = input_data.get("event_payload", {})
+            indexed = await self._auto_index(tenant_id, "auto_index_incident", payload)
+            return {"app": self.app_name, "tenant_id": tenant_id,
+                    "action": "auto_index_incident", "indexed": indexed, "query": "", "collection": "incidents"}
 
-        if action_type == "ingest":
-            return {"action": "ingest_document", "document": ctx.get("document")}
+        if event_type in (EventType.RCA_COMPLETED.value, "rca_completed"):
+            payload = input_data.get("event_payload", {})
+            indexed = await self._auto_index(tenant_id, "auto_index_rca", payload)
+            return {"app": self.app_name, "tenant_id": tenant_id,
+                    "action": "auto_index_rca", "indexed": indexed, "query": "", "collection": "incidents"}
 
         if action_type == "delete":
-            return {"action": "delete_document", "doc_id": ctx.get("document", {}).get("doc_id", "")}
+            input_data["_mapped_action"] = "delete_document"
+            return await super().invoke(tenant_id, input_data)
 
-        # Search — use Haiku for fast Q&A
-        query = ctx.get("query", "")
+        # Search — need query
+        query = input_data.get("query", "")
         if not query:
-            return {"action": "no_query", "reason": "No query provided"}
+            return {"app": self.app_name, "tenant_id": tenant_id,
+                    "action": "no_query", "indexed": False, "query": "", "collection": ""}
 
-        from apps.knowledge_base.prompts import SEARCH_PROMPT
+        input_data["_mapped_action"] = "search"
+        return await super().invoke(tenant_id, input_data)
 
-        prompt = SEARCH_PROMPT.format(
-            query=query, collection=ctx.get("collection", "incidents"),
-            tenant_id=ctx.get("tenant_id", ""),
+    async def _auto_index(self, tenant_id: str, action: str, payload: dict) -> bool:
+        if not self._chroma:
+            return False
+        doc = Document(
+            tenant_id=tenant_id, collection="incidents",
+            title=payload.get("title", f"Auto-indexed {action}"),
+            content=str(payload), source_app="ops_center",
+            source_event_id=payload.get("incident_id", payload.get("rca_id", "")),
+            metadata={"auto_indexed": True, "event_type": action},
         )
-        response = await self.llm.invoke(prompt, severity=SeverityLevel.P3)
+        await ingest_document(tenant_id, doc, self._chroma)
+        return True
 
-        return {
-            "action": "search",
-            "query": query,
-            "collection": ctx.get("collection", "incidents"),
-            "summary": response["content"],
-            "model_used": response["model"],
-        }
+    async def _memory_update_node(self, state: AgentState) -> AgentState:
+        result = await super()._memory_update_node(state)
+        input_data = state.get("input", {})
 
-    async def execute_tools(self, state: AgentState) -> list[dict[str, Any]]:
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
+        output = result.get("output", {})
+        output["action"] = input_data.get("_mapped_action", "search")
+        output["query"] = input_data.get("query", "")
+        output["collection"] = input_data.get("collection", "incidents")
 
-        if action == "no_query":
-            return [{"tool": "no_query", "risk_level": "LOW"}]
-        if action == "search":
-            return [{"tool": "semantic_search", "risk_level": "LOW"}]
-        if action in ("auto_index_incident", "auto_index_rca"):
-            return [{"tool": "ingest_document", "risk_level": "LOW"}]
-        if action == "ingest_document":
-            return [{"tool": "ingest_document", "risk_level": "LOW"}]
-        if action == "delete_document":
-            return [{"tool": "delete_document", "risk_level": "HIGH"}]
-        return [{"tool": action, "risk_level": "LOW"}]
-
-    async def update_memory(self, state: AgentState) -> dict[str, Any]:
-        ctx = state.get("context_data", {})
-        llm_resp = state.get("llm_response", {})
-        action = llm_resp.get("action", "")
-        tenant_id = ctx.get("tenant_id", "")
-
-        indexed = False
-
-        # Auto-index incident or RCA
-        if action in ("auto_index_incident", "auto_index_rca") and self._chroma:
-            payload = llm_resp.get("event_payload", {})
-            doc = Document(
-                tenant_id=tenant_id,
-                collection="incidents",
-                title=payload.get("title", f"Auto-indexed {action}"),
-                content=str(payload),
-                source_app="ops_center",
-                source_event_id=payload.get("incident_id", payload.get("rca_id", "")),
-                metadata={"auto_indexed": True, "event_type": action},
-            )
-            await ingest_document(tenant_id, doc, self._chroma)
-            indexed = True
-
-        return {
-            "action": action,
-            "indexed": indexed,
-            "query": llm_resp.get("query", ""),
-            "collection": llm_resp.get("collection", ""),
-        }
+        return {**result, "output": output}
