@@ -161,7 +161,7 @@ export default function AlertCenter() {
               {wsAlerts.map((a, i) => (
                 <div key={i} className="flex items-center justify-between px-4 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
                   <div className="flex items-center gap-3">
-                    <SeverityBadge severity={a.severity} />
+                    <SeverityBadge severity={(a.severity || "P3") as SeverityLevel} />
                     <span className="text-sm" style={{ color: "var(--text-primary)" }}>{a.title}</span>
                   </div>
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>{a.sentAt}</span>

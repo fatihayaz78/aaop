@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.auth import router as auth_router
@@ -74,6 +74,53 @@ app.include_router(devops_assistant_router)
 app.include_router(admin_governance_router)
 app.include_router(mock_data_gen_router)
 app.include_router(data_sources_router)
+
+# ── WebSocket endpoints ──
+from backend.websocket.manager import ws_manager
+
+
+@app.websocket("/ws/ops/incidents")
+async def ws_ops_incidents(websocket: WebSocket, tenant_id: str = "aaop_company"):
+    await ws_manager.connect(websocket, "ops_center", tenant_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logger.info("ws_ops_message", data=data[:100])
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, "ops_center", tenant_id)
+
+
+@app.websocket("/ws/alerts/stream")
+async def ws_alerts_stream(websocket: WebSocket, tenant_id: str = "aaop_company"):
+    await ws_manager.connect(websocket, "alert_center", tenant_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logger.info("ws_alert_message", data=data[:100])
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, "alert_center", tenant_id)
+
+
+@app.websocket("/ws/viewer/qoe")
+async def ws_viewer_qoe(websocket: WebSocket, tenant_id: str = "aaop_company"):
+    await ws_manager.connect(websocket, "viewer_experience", tenant_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logger.info("ws_viewer_message", data=data[:100])
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, "viewer_experience", tenant_id)
+
+
+@app.websocket("/ws/live/events")
+async def ws_live_events(websocket: WebSocket, tenant_id: str = "aaop_company"):
+    await ws_manager.connect(websocket, "live_intelligence", tenant_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logger.info("ws_live_message", data=data[:100])
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, "live_intelligence", tenant_id)
 
 
 @app.get("/health")

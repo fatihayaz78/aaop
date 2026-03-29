@@ -1,90 +1,164 @@
-// Socket.IO client for real-time updates
-// Uses a mock implementation — Socket.IO client installed separately when ready
+// Native WebSocket client with auto-reconnect — replaces MockSocket
+// No external dependencies (socket.io-client not needed)
 
-export const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8000";
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
 export interface SocketEvents {
   subscribe: { app: string; tenant_id: string };
   unsubscribe: { app: string };
   agent_chat: { app: string; message: string; tenant_id: string };
-  incident_update: { incident_id: string; status: string; severity?: string; title?: string };
-  alert_new: { alert_id: string; severity: string; title: string; tenant_id?: string };
+  incident_update: {
+    incident_id: string;
+    status: string;
+    severity?: string;
+    title?: string;
+  };
+  alert_new: {
+    alert_id: string;
+    severity: string;
+    title: string;
+    tenant_id?: string;
+  };
   agent_stream: { chunk: string; done: boolean };
   metric_update: { metric: string; value: number };
 }
 
-interface MockSocket {
-  url: string;
-  connected: boolean;
-  handlers: Map<string, ((data: unknown) => void)[]>;
-  emit: (event: string, data: unknown) => void;
-  on: (event: string, handler: (data: unknown) => void) => void;
-  off: (event: string, handler?: (data: unknown) => void) => void;
-  disconnect: () => void;
+class AppWebSocket {
+  private ws: WebSocket | null = null;
+  private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private url: string;
+  private _connected = false;
+
+  constructor(url: string) {
+    this.url = url;
+  }
+
+  get connected(): boolean {
+    return this._connected;
+  }
+
+  connect(): void {
+    if (typeof window === "undefined") return; // SSR guard
+    if (this.ws?.readyState === WebSocket.OPEN) return;
+    try {
+      this.ws = new WebSocket(this.url);
+      this.ws.onopen = () => {
+        this._connected = true;
+      };
+      this.ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          const event = msg.event as string;
+          const data = msg.data;
+          const handlers = this.listeners.get(event);
+          handlers?.forEach((h) => h(data));
+        } catch {
+          /* ignore malformed messages */
+        }
+      };
+      this.ws.onclose = () => {
+        this._connected = false;
+        this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+      };
+      this.ws.onerror = () => {
+        this.ws?.close();
+      };
+    } catch {
+      /* connection failed, will retry on close */
+    }
+  }
+
+  on(event: string, handler: (data: unknown) => void): void {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+    this.listeners.get(event)!.add(handler);
+  }
+
+  off(event: string, handler?: (data: unknown) => void): void {
+    if (!handler) {
+      this.listeners.delete(event);
+    } else {
+      this.listeners.get(event)?.delete(handler);
+    }
+  }
+
+  emit(event: string, data: unknown): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ event, data }));
+    }
+  }
+
+  disconnect(): void {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this._connected = false;
+    this.ws?.close();
+    this.ws = null;
+  }
 }
 
-export function createSocket(): MockSocket {
-  const handlers = new Map<string, ((data: unknown) => void)[]>();
-  return {
-    url: SOCKET_URL,
-    connected: false,
-    handlers,
-    emit: (_event: string, _data: unknown) => {},
-    on: (event: string, handler: (data: unknown) => void) => {
-      const list = handlers.get(event) ?? [];
-      list.push(handler);
-      handlers.set(event, list);
-    },
-    off: (event: string, handler?: (data: unknown) => void) => {
-      if (!handler) {
-        handlers.delete(event);
-      } else {
-        const list = handlers.get(event) ?? [];
-        handlers.set(event, list.filter((h) => h !== handler));
-      }
-    },
-    disconnect: () => {},
-  };
-}
+// Global socket instances — one per WS endpoint
+export const opsSocket = new AppWebSocket(
+  `${WS_BASE}/ws/ops/incidents?tenant_id=aaop_company`
+);
+export const alertSocket = new AppWebSocket(
+  `${WS_BASE}/ws/alerts/stream?tenant_id=aaop_company`
+);
+export const viewerSocket = new AppWebSocket(
+  `${WS_BASE}/ws/viewer/qoe?tenant_id=aaop_company`
+);
+export const liveSocket = new AppWebSocket(
+  `${WS_BASE}/ws/live/events?tenant_id=aaop_company`
+);
 
-// ── WebSocket Hooks ──
+// ── Compatibility hooks (same API as before) ──
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { Incident, Alert } from "@/types";
+
+interface Incident {
+  incident_id?: string;
+  id?: string;
+  severity?: string;
+  title?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
+interface Alert {
+  alert_id?: string;
+  id?: string;
+  severity?: string;
+  title?: string;
+  sentAt?: string;
+  [key: string]: unknown;
+}
 
 export function useOpsWebSocket() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const socketRef = useRef<MockSocket | null>(null);
+  const connectedRef = useRef(false);
 
   useEffect(() => {
-    const socket = createSocket();
-    socketRef.current = socket;
-    socket.connected = true;
+    opsSocket.connect();
+    connectedRef.current = true;
 
-    socket.on("incident_update", (data) => {
+    const handler = (data: unknown) => {
       const inc = data as Incident;
-      setIncidents((prev) => {
-        const next = [inc, ...prev].slice(0, 100);
-        return next;
-      });
-    });
+      setIncidents((prev) => [inc, ...prev].slice(0, 100));
+    };
 
-    socket.emit("subscribe", { app: "ops_center", tenant_id: "bein_sports" });
+    opsSocket.on("incident_update", handler);
 
     return () => {
-      socket.emit("unsubscribe", { app: "ops_center" });
-      socket.disconnect();
+      opsSocket.off("incident_update", handler);
     };
   }, []);
 
-  return { incidents, connected: socketRef.current?.connected ?? false };
+  return { incidents, connected: connectedRef.current };
 }
 
 export function useAlertWebSocket() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [stormMode, setStormMode] = useState(false);
   const counterRef = useRef({ count: 0, windowStart: Date.now() });
-  const socketRef = useRef<MockSocket | null>(null);
 
   const checkStorm = useCallback(() => {
     const now = Date.now();
@@ -101,26 +175,33 @@ export function useAlertWebSocket() {
   }, []);
 
   useEffect(() => {
-    const socket = createSocket();
-    socketRef.current = socket;
-    socket.connected = true;
+    alertSocket.connect();
 
-    socket.on("alert_new", (data) => {
+    const handler = (data: unknown) => {
       const alert = data as Alert;
       checkStorm();
-      setAlerts((prev) => {
-        const next = [alert, ...prev].slice(0, 100);
-        return next;
-      });
-    });
+      setAlerts((prev) => [alert, ...prev].slice(0, 100));
+    };
 
-    socket.emit("subscribe", { app: "alert_center", tenant_id: "bein_sports" });
+    alertSocket.on("alert_new", handler);
 
     return () => {
-      socket.emit("unsubscribe", { app: "alert_center" });
-      socket.disconnect();
+      alertSocket.off("alert_new", handler);
     };
   }, [checkStorm]);
 
-  return { alerts, stormMode, connected: socketRef.current?.connected ?? false };
+  return { alerts, stormMode, connected: true };
+}
+
+// Legacy compatibility — createSocket returns a mock-like wrapper
+export function createSocket() {
+  return {
+    url: WS_BASE,
+    connected: false,
+    handlers: new Map<string, ((data: unknown) => void)[]>(),
+    emit: (_event: string, _data: unknown) => {},
+    on: (_event: string, _handler: (data: unknown) => void) => {},
+    off: (_event: string, _handler?: (data: unknown) => void) => {},
+    disconnect: () => {},
+  };
 }

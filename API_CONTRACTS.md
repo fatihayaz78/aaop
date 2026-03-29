@@ -408,7 +408,7 @@ class ErrorResponse(BaseModel):
 
 ## 15. WEBSOCKET PROTOKOLÜ
 
-> ⚠️ **Mevcut Durum (Mart 2026):** Aşağıdaki WebSocket endpoint'ler tanımlı ancak backend'de henüz mount edilmemiş. backend/websocket/manager.py var ama main.py'de ASGI'ye entegre değil. Frontend MockSocket kullanıyor. Gerçek implementasyon S-WS-01'de yapılacak.
+> ✅ **S-WS-01 ile implement edildi (Mart 2026).** Tüm 4 endpoint aktif. Native FastAPI WebSocket, per-tenant broadcast, auto-reconnect frontend.
 
 ```typescript
 // Socket.IO events (client → server)

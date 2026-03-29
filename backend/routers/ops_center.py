@@ -235,7 +235,16 @@ async def update_incident_status(
     updated = duck.fetch_one(
         "SELECT * FROM shared_analytics.incidents WHERE incident_id = ?", [incident_id],
     )
-    return updated or {"status": "updated", "incident_id": incident_id}
+    result = updated or {"status": "updated", "incident_id": incident_id}
+
+    # WebSocket broadcast
+    try:
+        from backend.websocket.manager import ws_manager
+        await ws_manager.broadcast("ops_center", ctx.tenant_id, {"event": "incident_update", "data": result})
+    except Exception:
+        pass
+
+    return result
 
 
 @router.get("/incidents/{incident_id}/rca")

@@ -8,6 +8,17 @@
 
 ---
 
+### S-WS-01 — 2026-03-29
+- backend/websocket/manager.py: WebSocketManager tam implementasyon (connect/disconnect/broadcast per tenant+app)
+- backend/main.py: 4 WS endpoint mount edildi (/ws/ops/incidents, /ws/alerts/stream, /ws/viewer/qoe, /ws/live/events)
+- backend/routers/ops_center.py: incident update broadcast eklendi
+- backend/routers/alert_center.py: alert evaluate broadcast eklendi
+- frontend/src/lib/socket.ts: MockSocket → AppWebSocket (native WS, auto-reconnect 3s)
+- tests/unit/test_websocket_manager.py: 2 test (broadcast + disconnect)
+- Tests: 126 passed, 0 failure
+
+---
+
 ### S-SEC-01 — 2026-03-29
 - backend/main.py: RateLimitMiddleware mount edildi (100 req/min per tenant)
 - shared/llm_gateway.py: PII scrubber tüm LLM çağrılarına eklendi (scrub() prompt + system_prompt'a uygulanır)

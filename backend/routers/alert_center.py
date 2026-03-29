@@ -330,12 +330,20 @@ async def evaluate_alerts(
     try:
         from shared.ingest.log_queries import detect_incidents_from_logs
         incidents = detect_incidents_from_logs(ctx.tenant_id, hours=1)
-        return {
+        result = {
             "evaluated": len(incidents),
             "routed": len(incidents),
             "suppressed": 0,
             "incidents": incidents,
         }
+        # WebSocket broadcast for each detected incident
+        try:
+            from backend.websocket.manager import ws_manager
+            for inc in incidents:
+                await ws_manager.broadcast("alert_center", ctx.tenant_id, {"event": "alert_new", "data": inc})
+        except Exception:
+            pass
+        return result
     except Exception as exc:
         logger.warning("alert_evaluate_error", error=str(exc))
         return {"evaluated": 0, "routed": 0, "suppressed": 0, "incidents": []}
