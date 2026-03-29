@@ -8,6 +8,17 @@
 
 ---
 
+### S-SEC-01 — 2026-03-29
+- backend/main.py: RateLimitMiddleware mount edildi (100 req/min per tenant)
+- shared/llm_gateway.py: PII scrubber tüm LLM çağrılarına eklendi (scrub() prompt + system_prompt'a uygulanır)
+- backend/dependencies.py: Default admin şifresi settings.admin_password'den okunuyor
+- shared/utils/settings.py: admin_password field eklendi
+- .env.example: ADMIN_PASSWORD eklendi
+- Güvenlik durumu: Rate limiting ✅ | PII scrubbing ✅ | Hardcoded credential ✅ env var'a taşındı
+- Tests: 125 passed, 0 failure
+
+---
+
 ### S-DOC-02 — 2026-03-29
 - CLAUDE.md: Aktif sprint güncellendi, shared/ingest/ + backend/models/ + docs/kb/ + logs.duckdb eklendi
 - ARCHITECTURE.md: Agent stub notu, Event Bus runtime notu, WebSocket notu eklendi

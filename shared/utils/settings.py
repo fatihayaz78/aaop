@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
+    admin_password: str = "admin123"
 
     # Database paths
     sqlite_path: str = "./data/sqlite/platform.db"

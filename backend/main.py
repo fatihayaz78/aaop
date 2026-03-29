@@ -53,6 +53,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting — 100 requests/minute per tenant
+from backend.middleware.rate_limit import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware)
+
 # Auth
 app.include_router(auth_router)
 

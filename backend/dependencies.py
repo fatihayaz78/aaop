@@ -57,7 +57,11 @@ async def _seed_admin_user(sqlite: SQLiteClient) -> None:
             ("system", "System", "enterprise"),
         )
 
-    password_hash = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode()
+    from shared.utils.settings import get_settings
+    settings = get_settings()
+    if settings.admin_password == "admin123":
+        logger.warning("default_admin_password_in_use", msg="ADMIN_PASSWORD env var set edilmeli")
+    password_hash = bcrypt.hashpw(settings.admin_password.encode(), bcrypt.gensalt()).decode()
     await sqlite.execute(
         "INSERT INTO users (id, tenant_id, username, password_hash, role) VALUES (?, ?, ?, ?, ?)",
         (str(uuid.uuid4()), "system", "admin", password_hash, "admin"),

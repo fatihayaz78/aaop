@@ -11,6 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from shared.clients.redis_client import RedisClient
 from shared.schemas.base_event import SeverityLevel
+from shared.utils.pii_scrubber import scrub
 from shared.utils.settings import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -70,15 +71,19 @@ class LLMGateway:
                 logger.info("llm_cache_hit", model=selected_model)
                 return dict(cached)  # type: ignore[arg-type]
 
+        # PII scrub — remove sensitive data before sending to LLM
+        scrubbed_prompt = scrub(prompt)
+        scrubbed_system = scrub(system_prompt) if system_prompt else None
+
         # Build messages
-        messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
+        messages: list[dict[str, str]] = [{"role": "user", "content": scrubbed_prompt}]
         kwargs: dict[str, Any] = {
             "model": selected_model,
             "max_tokens": max_tokens,
             "messages": messages,
         }
-        if system_prompt:
-            kwargs["system"] = system_prompt
+        if scrubbed_system:
+            kwargs["system"] = scrubbed_system
 
         logger.info("llm_invoke", model=selected_model, prompt_len=len(prompt))
         response = await self._anthropic.messages.create(**kwargs)
