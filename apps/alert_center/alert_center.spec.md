@@ -168,3 +168,11 @@ Senaryolar: Dedup (2x event → 1x Slack) | Storm (15/5dk → 1 özet) | Suppres
 - Routing pipeline: dedup → suppression → storm → route
 - route_to_pagerduty + suppress_alert_storm → approval_required
 - Deviations: None
+
+---
+## Sprint Progress — S-AGENT-06 (2026-03-30) | commit: c5450d19
+
+### Tool Fix: check_suppression
+- Önceki: hardcoded `return False`
+- Düzeltme: SQLite suppression_rules tablosu lookup (tenant_id + is_active + date range)
+- Tests: 148 passed, 0 failure

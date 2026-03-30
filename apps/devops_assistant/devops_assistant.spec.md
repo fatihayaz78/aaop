@@ -103,3 +103,11 @@ pytest apps/devops_assistant/tests/ -v --cov=apps/devops_assistant --cov-fail-un
 - Tests: 7 passed (agent), 148 passed (platform), 0 failure
 - DevOpsAssistantAgent: BaseAgent 4-adım döngüsü aktif (diagnose/restart/runbook/suggest)
 - Deviations: None
+
+---
+## Sprint Progress — S-AGENT-06 (2026-03-30) | commit: c5450d19
+
+### Tool Fix: check_service_health
+- Önceki: hardcoded "healthy"
+- Düzeltme: newrelic_apm_logs + api_logs_logs son 1 saat, error_rate >0.05 degraded >0.15 down
+- Tests: 148 passed, 0 failure

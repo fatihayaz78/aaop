@@ -157,3 +157,14 @@ Senaryolar: Tenant CRUD | Module config toggle | Compliance tarama | Audit trail
 | service_user | Service | Sadece atanmış service(ler) |
 
 - Tests: 148 passed, 0 failure
+
+---
+## Sprint Progress — S-SETTINGS-01 (2026-03-30) | commit: 2c831d5f
+
+### Global Settings Sayfası
+- Route: `/settings` (Header → user menu → Settings)
+- Security: şifre değiştirme (PATCH /auth/password, bcrypt)
+- Appearance: dark/light tema toggle (localStorage)
+- Tenant Sector: OTT/Telecom/Broadcast/Airline/Other (tenant_admin+)
+- Module Config: 11 app toggle, P0 kilitli (ops_center, log_analyzer, alert_center)
+- Tests: 148 passed, 0 failure

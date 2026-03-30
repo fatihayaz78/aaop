@@ -8,7 +8,7 @@
 
 ---
 
-### S-AGENT-06 — 2026-03-30
+### S-AGENT-06 — 2026-03-30 (commit: c5450d19)
 - alert_center/tools.py: check_suppression → SQLite suppression_rules lookup (was hardcoded False)
 - live_intelligence/tools.py: get_epg_schedule → logs.duckdb epg_logs query via log_queries helper (was empty [])
 - devops_assistant/tools.py: check_service_health → newrelic+api logs real health (was hardcoded "healthy")
@@ -18,7 +18,7 @@
 
 ---
 
-### S-SETTINGS-01 — 2026-03-30
+### S-SETTINGS-01 — 2026-03-30 (commit: 2c831d5f)
 - backend/auth.py: PATCH /auth/password (bcrypt verify + strength validation + update)
 - backend/routers/admin_governance.py: PATCH /admin/tenant/sector + PATCH /admin/modules/{id} + GET /admin/modules
 - frontend/src/app/(apps)/settings/page.tsx: 4 bölümlü settings sayfası
@@ -32,7 +32,7 @@
 
 ---
 
-### S-DATA-FIX-01 — 2026-03-30
+### S-DATA-FIX-01 — 2026-03-30 (commit: 219de56e)
 - medianova_logs: double timezone bug (+00:00Z) → DuckDB read_json native ingest, 1,343,539 satır
   - Root cause: generator timestamp format "+00:00Z" (double TZ), sync_engine batch insert çok yavaş
   - Fix: DuckDB read_json_auto ile glob pattern, REPLACE ile timestamp cleanup

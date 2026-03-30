@@ -167,3 +167,11 @@ Output: TR özet (NOC) + EN teknik (DevOps)
 - IncidentAgent: BaseAgent 4-adım döngüsü aktif (get_tools/get_system_prompt/get_llm_model)
 - RCAAgent: BaseAgent 4-adım döngüsü aktif, sadece P0/P1 tetiklenme
 - Deviations: None
+
+---
+## Sprint Progress — S-AGENT-06 (2026-03-30) | commit: c5450d19
+
+### Tool Fix: trigger_rca
+- Önceki: sadece logger.info
+- Düzeltme: RCAAgent.invoke() for P0/P1, severity check, rca_completed event publish
+- Tests: 148 passed, 0 failure

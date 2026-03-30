@@ -145,3 +145,11 @@ Senaryolar: MATCH_DAY (30dk önce start event) | DRM_OUTAGE (approval_required) 
 - LiveEventAgent: BaseAgent 4-adım döngüsü aktif (live_event_starting publish)
 - ExternalDataAgent: BaseAgent 4-adım döngüsü aktif (external_data_updated publish)
 - Deviations: None
+
+---
+## Sprint Progress — S-AGENT-06 (2026-03-30) | commit: c5450d19
+
+### Tool Fix: get_epg_schedule
+- Önceki: `return []` boş liste
+- Düzeltme: logs.duckdb epg_logs sorgusu via log_queries.get_epg_schedule()
+- Tests: 148 passed, 0 failure
