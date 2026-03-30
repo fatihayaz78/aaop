@@ -35,6 +35,43 @@ GET    /admin/platform/tenants    Auth: super_admin only
 
 ---
 
+## 1B. SLO TRACKING (S-SLO-01)
+
+```
+GET    /slo/definitions             Auth: Bearer → [SLODefinition]
+POST   /slo/definitions             Auth: Bearer → Body: {name, metric, target, operator} → SLODefinition
+PATCH  /slo/definitions/{id}        Auth: Bearer → Body: SLOUpdate → SLODefinition
+DELETE /slo/definitions/{id}        Auth: Bearer → {deleted: id}
+GET    /slo/status                  Auth: Bearer → [SLOStatus] (current value + is_met + error_budget)
+GET    /slo/history/{slo_id}        Auth: Bearer → [SLOMeasurement] (Query: days=90)
+POST   /slo/calculate               Auth: Bearer → [SLOMeasurement] (manual trigger + persist)
+GET    /slo/report                  Auth: Bearer → {total_slos, met, breached, slos[]} (Query: period_days=30)
+```
+
+---
+
+## 1C. NATURAL LANGUAGE QUERY (S-NL-01)
+
+```
+POST   /nl-query/query              Auth: Bearer → Body: {natural_language, max_rows=100}
+                                    → {generated_sql, rows[], row_count, execution_ms, columns, warnings, error}
+                                    PII columns blocked, tenant_id filter enforced
+GET    /nl-query/tables             Auth: Bearer → [{table, description, columns, db}] (PII columns hidden)
+GET    /nl-query/examples           Auth: Bearer → [str] (8 example NL queries)
+```
+
+---
+
+## 1D. REAL-TIME ANOMALY (S-RT-01)
+
+```
+GET    /realtime/anomalies          Auth: Bearer → [AnomalyEvent] (Query: minutes=60)
+GET    /realtime/status             → {running, detectors[], last_cycle_at, anomalies_24h}
+POST   /realtime/detectors/{name}/toggle  Body: {enabled: bool} → {name, enabled}
+```
+
+---
+
 ## 2. PLATFORM
 
 ```

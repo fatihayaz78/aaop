@@ -78,10 +78,10 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Son tamamlanan:** S-AGENT-06 — Tool Fix (4 mock tool gerçek implementasyona çevrildi)
-**Bu session:** S-DATA-FIX-01, S-SETTINGS-01, S-AGENT-06
-**Baseline:** 148 test, 0 failure (30 Mart 2026)
-**Multi-Tenant:** ✅ 3 katman, 22 concrete agent, Event Bus aktif, Settings sayfası aktif
+**Son tamamlanan:** S-RT-01 — Real-time Anomaly Engine (4 detector, 30s polling)
+**Bu session:** S-DATA-FIX-01 → S-SETTINGS-01 → S-AGENT-06 → S-SLO-01 → S-NL-01 → S-RT-01
+**Baseline:** 181 test, 0 failure (30 Mart 2026)
+**Platform:** ✅ 22 agent, Event Bus, SLO tracking, NL→SQL, realtime anomaly engine
 
 ---
 
@@ -132,7 +132,10 @@ AAOP/
 │   │   ├── devops_assistant.py      ← /devops prefix
 │   │   ├── admin_governance.py      ← /admin prefix
 │   │   ├── data_sources.py          ← /data-sources prefix, 10 endpoint
-│   │   └── mock_data_gen.py         ← /mock-data-gen prefix, 13 endpoint
+│   │   ├── mock_data_gen.py         ← /mock-data-gen prefix, 13 endpoint
+│   │   ├── slo.py                   ← /slo prefix, 8 endpoint (S-SLO-01)
+│   │   ├── nl_query.py              ← /nl-query prefix, 3 endpoint (S-NL-01)
+│   │   └── realtime.py              ← /realtime prefix, 3 endpoint (S-RT-01)
 │   ├── websocket/
 │   │   └── manager.py               ← Socket.IO broadcast manager
 │   ├── models/
@@ -166,7 +169,9 @@ AAOP/
 │       │       ├── knowledge-base/page.tsx
 │       │       ├── devops-assistant/page.tsx
 │       │       ├── admin-governance/page.tsx
-│       │       └── admin-governance/tenants/page.tsx  ← Platform Admin (S-MT-04)
+│       │       ├── admin-governance/tenants/page.tsx  ← Platform Admin (S-MT-04)
+│       │       ├── nl-query/page.tsx                  ← NL→SQL standalone (S-NL-01)
+│       │       └── settings/page.tsx                  ← Global Settings (S-SETTINGS-01)
 │       ├── contexts/
 │       │   └── AuthContext.tsx        ← Multi-tenant auth state (S-MT-04)
 │       ├── components/
@@ -322,6 +327,18 @@ AAOP/
 │   │   └── tenant_models.py         ← TenantBase, ServiceBase, TenantWithServices (S-MT-01)
 │   ├── middleware/
 │   │   └── service_context.py       ← JWT→service_id→duckdb_schema (S-MT-02)
+│   ├── slo/
+│   │   ├── slo_calculator.py        ← 5 metrik SLO hesaplama (S-SLO-01)
+│   │   └── tests/
+│   ├── nl_query/
+│   │   ├── nl_engine.py             ← NL→SQL motor (S-NL-01)
+│   │   ├── schema_registry.py       ← 18 tablo metadata
+│   │   ├── sql_validator.py         ← 6 güvenlik kontrolü
+│   │   └── tests/
+│   ├── realtime/
+│   │   ├── anomaly_engine.py        ← 30s polling, 4 detector (S-RT-01)
+│   │   ├── detectors/               ← cdn, drm, qoe, api
+│   │   └── tests/
 │   ├── clients/
 │   │   ├── __init__.py
 │   │   ├── sqlite_client.py         ← → GCP: Spanner adaptor

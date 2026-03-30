@@ -390,7 +390,41 @@ pytest tests/ -v --cov=. --cov-report=term-missing --cov-fail-under=80
 
 ---
 
-## 10. MULTI-TENANT HİYERARŞİSİ (S-MT-01..04)
+## 10. SLO TRACKING (S-SLO-01)
+
+- `shared/slo/slo_calculator.py`: 5 metrik (availability, qoe_score, cdn_error_rate, api_p99, incident_mttr)
+- SQLite: `slo_definitions` + `slo_measurements` tabloları
+- `backend/routers/slo.py`: 8 endpoint (CRUD, status, history, calculate, report)
+- Varsayılan 5 SLO tenant başına seed edilir
+- Frontend: Admin & Governance → SLO Tracking tab + Ops Center widget
+
+---
+
+## 11. NATURAL LANGUAGE QUERY (S-NL-01)
+
+- `shared/nl_query/nl_engine.py`: LLM (Sonnet) ile NL→SQL dönüşümü
+- `shared/nl_query/schema_registry.py`: 18 sorgulanabilir tablo (analytics + logs)
+- `shared/nl_query/sql_validator.py`: 6 güvenlik kontrolü
+  - SELECT-only, tenant_id zorunlu, PII block, tablo whitelist, LIMIT zorunlu
+- PII koruması: `client_ip`, `subscriber_id` SELECT/WHERE'de yasak
+- `backend/routers/nl_query.py`: POST /nl-query/query, GET /tables, GET /examples
+- Frontend: `/nl-query` standalone sayfa + sidebar link
+
+---
+
+## 12. REAL-TIME ANOMALİ MOTORU (S-RT-01)
+
+- `shared/realtime/anomaly_engine.py`: 30s polling loop, asyncio.Task
+- 4 Detector: CDN (error_rate), DRM (failure_rate), QoE (avg_score), API (error_rate + p99)
+- Eşikler: CDN >0.05 P1 / >0.15 P0, DRM >0.10 P1, QoE <2.5 P1 / <1.5 P0, API >0.05 P2
+- EventBus entegrasyonu: cdn_anomaly_detected, qoe_degradation publish
+- Startup'ta toplu tarama yok — ilk 30s skip
+- `backend/routers/realtime.py`: GET /anomalies, GET /status, POST /toggle
+- Frontend: Ops Center → Live Anomaly Feed (30s polling)
+
+---
+
+## 13. MULTI-TENANT HİYERARŞİSİ (S-MT-01..04)
 
 ### 3 Katmanlı Yapı
 ```

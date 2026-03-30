@@ -8,6 +8,31 @@
 
 ---
 
+### S-DOC-HEALTH — 2026-03-30 — Periyodik Dokümantasyon Sağlık Kontrolü
+
+#### Tespit Edilen Tutarsızlıklar
+- CLAUDE.md: test sayısı 148→181 (stale), sprint S-AGENT-06→S-RT-01, 3 yeni shared modül eksik, 3 router eksik
+- ARCHITECTURE.md: SLO, NL Query, Realtime Engine bölümleri eksik
+- API_CONTRACTS.md: /slo/ (8 ep), /nl-query/ (3 ep), /realtime/ (3 ep) = 14 endpoint eksik
+
+#### Yapılan Güncellemeler
+- CLAUDE.md: test 181, sprint S-RT-01, shared/slo + nl_query + realtime eklendi, 3 router eklendi, nl-query + settings sayfaları eklendi
+- ARCHITECTURE.md: Bölüm 10 SLO, 11 NL Query, 12 Realtime Engine eklendi
+- API_CONTRACTS.md: 1B SLO (8), 1C NL Query (3), 1D Realtime (3) bölümleri eklendi
+- CHANGELOG.md: S-DOC-HEALTH entry
+
+#### Temiz Bulunan Dosyalar
+- Tüm 12 spec dosyası (son sprint'lerden güncel)
+- .gitignore (güncel)
+- pyproject.toml (değişiklik gerekmedi)
+
+#### Metrikler
+- Test sayısı: 181 (CLAUDE.md'de: 148 → 181 düzeltildi)
+- Endpoint sayısı: 169 (165 REST + 4 WS)
+- Uyuşma oranı: Önceki ~70% → Şimdiki ~95%
+
+---
+
 ### S-RT-01 — 2026-03-30
 - shared/realtime/: AnomalyEngine + 4 detectors (cdn, drm, qoe, api)
   - CDN: error_rate >0.05 P1, >0.15 P0
