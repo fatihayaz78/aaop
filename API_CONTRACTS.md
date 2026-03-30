@@ -7,13 +7,21 @@
 
 ---
 
-## 1. AUTH
+## 1. AUTH (S-MT-02 ile güncellendi)
 
 ```
-POST   /auth/login          Body: {username, password} → {access_token, token_type}
-POST   /auth/refresh        Header: Authorization → {access_token}
-POST   /auth/logout         Header: Authorization → 204
-GET    /auth/me             Header: Authorization → UserProfile
+GET    /auth/tenants              → [{id, name}] (public, auth yok — login dropdown için)
+POST   /auth/login                Body: {tenant_id?, email, password}
+                                  → {access_token, tenant_id, tenant_name, active_service_id,
+                                     service_ids, services[], role}
+POST   /auth/switch-service       Auth: Bearer → Body: {service_id}
+                                  → {access_token, active_service_id, ...}
+                                  403: service_id kullanıcının listesinde değilse
+POST   /auth/login/form           Body: OAuth2 form {username, password} → {access_token} (legacy)
+POST   /auth/refresh              Auth: Bearer → {access_token}
+POST   /auth/logout               Auth: Bearer → {detail: "Logged out"}
+GET    /admin/platform/tenants    Auth: super_admin only
+                                  → [{id, name, sector, status, services[], user_count}]
 ```
 
 ---

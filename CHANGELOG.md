@@ -8,7 +8,7 @@
 
 ---
 
-### S-MT-04 — 2026-03-30
+### S-MT-04 — 2026-03-30 (commit: e8cf6827)
 - SQLite: users.tenant_id NOT NULL → nullable (tablo rebuild migration)
 - super_admin tenant_id → NULL, tüm service erişimi korunuyor
 - frontend/contexts/AuthContext.tsx: switchService(), logout(), localStorage sync
@@ -26,7 +26,7 @@
 
 ---
 
-### S-MT-03 — 2026-03-30
+### S-MT-03 — 2026-03-30 (commit: 2cb040c5)
 - scripts/seed_demo_tenants.py: DuckDB SQL-native bulk data generation
   - tv_plus: 1,372,000 rows (5 tablo, 28 gün, 0 gap) — OTT/IPTV profili
   - music_stream: 392,000 rows (5 tablo, 28 gün, 0 gap) — müzik streaming profili
@@ -38,7 +38,7 @@
 
 ---
 
-### S-MT-02 — 2026-03-30
+### S-MT-02 — 2026-03-30 (commit: 7c477020)
 - backend/auth.py: multi-tenant JWT payload (service_ids, active_service_id, role)
   - POST /auth/login: JSON body (tenant_id + email + password)
   - POST /auth/switch-service: JWT-based service switch (403 if unauthorized)
@@ -55,7 +55,7 @@
 
 ---
 
-### S-MT-01 — 2026-03-29
+### S-MT-01 — 2026-03-29 (commit: 8d607fdd)
 - Multi-tenant 3-katman hiyerarşi: super_admin → tenant → service
 - SQLite: tenants tablosu (3 kayıt: ott_co, tel_co, airline_co) + services tablosu (4 kayıt: sport_stream, tv_plus, music_stream, fly_ent)
 - SQLite migration: sector, status, updated_at (tenants), service_ids, active_service_id (users)

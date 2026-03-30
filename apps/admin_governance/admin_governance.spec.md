@@ -123,3 +123,37 @@ Senaryolar: Tenant CRUD | Module config toggle | Compliance tarama | Audit trail
 - TenantAgent: BaseAgent 4-adım döngüsü aktif (admin role check)
 - ComplianceAgent: BaseAgent 4-adım döngüsü aktif (violation detection)
 - Deviations: None
+
+---
+## Sprint Progress — S-MT-01..04 (Mart–Nisan 2026)
+
+### S-MT-01: Multi-Tenant Core Data Model
+- SQLite: `tenants` tablosu (id, name, sector, status)
+- SQLite: `services` tablosu (id, tenant_id, name, duckdb_schema)
+- SQLite: `users` tablosu genişletildi (role, service_ids, active_service_id)
+- DuckDB: `sport_stream` schema oluşturuldu
+
+### S-MT-02: Auth Layer
+- Eski test tenant kayıtları temizlendi
+- JWT payload genişletildi (service_ids, active_service_id, role)
+- 3 yeni endpoint: /auth/login (update), /auth/switch-service, /auth/tenants
+- 5 demo kullanıcı seed edildi
+
+### S-MT-03: Demo Data
+- 3 yeni DuckDB schema: tv_plus (1.37M), music_stream (392K), fly_ent (252K)
+
+### S-MT-04: Service Switcher UI
+- AuthContext.tsx: service state yönetimi
+- ServiceSwitcher.tsx: role-based dropdown (3 farklı görünüm)
+- /admin-governance/tenants sayfası (super_admin only)
+- GET /api/admin/platform/tenants endpoint'i
+
+### Kullanıcı Rolleri
+
+| Rol | Kapsam | Yetki |
+|---|---|---|
+| super_admin | Platform | Tüm tenant + service |
+| tenant_admin | Tenant | Kendi tenant'ının tüm service'leri |
+| service_user | Service | Sadece atanmış service(ler) |
+
+- Tests: 148 passed, 0 failure

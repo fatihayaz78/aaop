@@ -78,10 +78,10 @@ curl http://localhost:8000/health
 
 ## 5. AKTİF SPRINT
 
-**Aktif Sprint:** S-AGENT-01 complete — BaseAgent LangGraph 4-step cycle
-**Önceki:** S-WS-01 → S-SEC-01 → S-DOC-02
-**Baseline:** 148 test, 0 failure (29 Mart 2026)
-**Sıradaki:** S-SEC-01 (rate limiting + PII scrubber)
+**Son tamamlanan:** S-MT-04 — Service Switcher UI + Multi-Tenant Auth
+**Önceki:** S-AGENT-01..05 → S-EB-01 → S-MT-01..04
+**Baseline:** 148 test, 0 failure (30 Mart 2026)
+**Multi-Tenant:** ✅ 3 katman (super_admin → tenant → service), 22 concrete agent, Event Bus aktif
 
 ---
 
@@ -117,8 +117,8 @@ AAOP/
 │
 ├── backend/                         ← FastAPI uygulaması (port 8000)
 │   ├── main.py                      ← App, router mount, startup events
-│   ├── auth.py                      ← JWT login/refresh/logout
-│   ├── dependencies.py              ← DI: DB sessions, tenant context
+│   ├── auth.py                      ← JWT multi-tenant login/switch-service/tenants
+│   ├── dependencies.py              ← DI: DB sessions, tenant/service seed
 │   ├── routers/
 │   │   ├── ops_center.py            ← /ops prefix
 │   │   ├── log_analyzer.py          ← /log-analyzer prefix
@@ -140,7 +140,8 @@ AAOP/
 │   │   └── export_schema.py         ← ExportSchema Pydantic model
 │   └── middleware/
 │       ├── rate_limit.py
-│       └── tenant_context.py        ← X-Tenant-ID header inject
+│       ├── tenant_context.py        ← X-Tenant-ID header inject
+│       └── service_context.py       ← JWT → service_id + duckdb_schema (S-MT-02)
 │
 ├── frontend/                        ← Next.js 14 (port 3000)
 │   ├── package.json
@@ -153,6 +154,7 @@ AAOP/
 │       │   ├── page.tsx              ← Dashboard
 │       │   ├── globals.css           ← Design tokens (CSS vars)
 │       │   └── (apps)/
+│       │       ├── login/page.tsx          ← Multi-tenant login (S-MT-02)
 │       │       ├── ops-center/page.tsx
 │       │       ├── log-analyzer/page.tsx
 │       │       ├── alert-center/page.tsx
@@ -163,10 +165,13 @@ AAOP/
 │       │       ├── ai-lab/page.tsx
 │       │       ├── knowledge-base/page.tsx
 │       │       ├── devops-assistant/page.tsx
-│       │       └── admin-governance/page.tsx
+│       │       ├── admin-governance/page.tsx
+│       │       └── admin-governance/tenants/page.tsx  ← Platform Admin (S-MT-04)
+│       ├── contexts/
+│       │   └── AuthContext.tsx        ← Multi-tenant auth state (S-MT-04)
 │       ├── components/
 │       │   ├── ui/                   ← shadcn/ui components
-│       │   ├── layout/               ← Sidebar, Header, Breadcrumb
+│       │   ├── layout/               ← Sidebar, Header, ServiceSwitcher
 │       │   ├── charts/               ← Recharts wrappers
 │       │   └── agent-chat/           ← AI chat panel (collapsible)
 │       ├── lib/
@@ -311,7 +316,12 @@ AAOP/
 │   ├── agents/
 │   │   └── base_agent.py            ← BaseAgent, LangGraph 4-adım
 │   ├── llm_gateway.py               ← Routing + retry + cache + cost
-│   ├── event_bus.py                 ← asyncio.Queue, 9 event type
+│   ├── event_bus.py                 ← asyncio.Queue, 9 event type, 8 agent subscribe
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── tenant_models.py         ← TenantBase, ServiceBase, TenantWithServices (S-MT-01)
+│   ├── middleware/
+│   │   └── service_context.py       ← JWT→service_id→duckdb_schema (S-MT-02)
 │   ├── clients/
 │   │   ├── __init__.py
 │   │   ├── sqlite_client.py         ← → GCP: Spanner adaptor
@@ -337,6 +347,14 @@ AAOP/
 │       ├── settings.py              ← Pydantic BaseSettings, .env okuma
 │       └── pii_scrubber.py          ← LLM öncesi PII temizleme
 │
+├── scripts/
+│   ├── data_audit.py                ← DuckDB veri denetim scripti (S-DATA-AUDIT-01)
+│   └── seed_demo_tenants.py         ← Multi-tenant demo veri seed (S-MT-03)
+│
+├── docs/
+│   ├── data_audit_report.md         ← İlk audit raporu
+│   └── data_audit_report_v2.md      ← Multi-tenant audit raporu (S-MT-03)
+│
 ├── data/                            ← Lokal veri (gitignore'da)
 │   ├── sqlite/
 │   │   └── platform.db              ← Platform metadata
@@ -361,7 +379,28 @@ AAOP/
 
 ---
 
-## 7. TEMEL KURALLAR (Özet)
+## 7. MULTI-TENANT HİYERARŞİ
+
+| tenant_id | Tenant Name | service_id | Service Name | DuckDB Schema |
+|---|---|---|---|---|
+| ott_co | OTT Co | sport_stream | Sport Stream | sport_stream |
+| tel_co | Tel Co | tv_plus | TV Plus | tv_plus |
+| tel_co | Tel Co | music_stream | Music Stream | music_stream |
+| airline_co | Airline Co | fly_ent | Fly Entertainment | fly_ent |
+
+### Demo Kullanıcılar (Şifre: `Captain2026!`)
+
+| Email | Tenant | Role | Services |
+|---|---|---|---|
+| admin@captainlogar.demo | NULL | super_admin | Tümü |
+| admin@ottco.demo | ott_co | tenant_admin | sport_stream |
+| admin@telco.demo | tel_co | tenant_admin | tv_plus, music_stream |
+| user@telco.demo | tel_co | service_user | tv_plus |
+| admin@airlineco.demo | airline_co | tenant_admin | fly_ent |
+
+---
+
+## 8. TEMEL KURALLAR (Özet)
 
 ```
 ✅ Python 3.12 | structlog | Pydantic v2 | pytest coverage ≥ 80%

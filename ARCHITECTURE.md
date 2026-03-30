@@ -390,16 +390,16 @@ pytest tests/ -v --cov=. --cov-report=term-missing --cov-fail-under=80
 
 ---
 
-## 10. MULTI-TENANT HİYERARŞİSİ (S-MT-01)
+## 10. MULTI-TENANT HİYERARŞİSİ (S-MT-01..04)
 
-### 3 Katman
+### 3 Katmanlı Yapı
 ```
 super_admin → tenant → service
 ```
 
-- **Tenant** = fatura/sözleşme birimi (Tel Co, OTT Co, Airline Co)
-- **Service** = log kaynağı ve dashboard birimi (TV Plus, Sport Stream, Music Stream, Fly Entertainment)
-- **DuckDB Schema** = service_id ile eşleşir (sport_stream, tv_plus, music_stream, fly_ent)
+- **super_admin**: Platform geneli erişim, tenant_id = NULL
+- **tenant_admin**: Kendi tenant'ının tüm service'lerini yönetir
+- **service_user**: Sadece atanmış service(ler)e erişir
 
 ### Tenant / Service Tablosu
 
@@ -410,12 +410,43 @@ super_admin → tenant → service
 | tel_co | Tel Co | music_stream | Music Stream | music_stream |
 | airline_co | Airline Co | fly_ent | Fly Entertainment | fly_ent |
 
+### JWT Payload (S-MT-02)
+```json
+{
+  "sub": "user_id",
+  "tenant_id": "tel_co",
+  "service_ids": ["tv_plus", "music_stream"],
+  "active_service_id": "tv_plus",
+  "role": "tenant_admin",
+  "exp": "...", "iat": "..."
+}
+```
+
+### ServiceContextMiddleware (S-MT-02)
+```
+shared/middleware/service_context.py
+- JWT'den active_service_id decode eder
+- SQLite'tan duckdb_schema lookup yapar (5dk in-memory cache)
+- request.state.service_id ve request.state.duckdb_schema'yı set eder
+- Middleware sırası: RateLimit → TenantContext → ServiceContext
+```
+
+### DuckDB Schema Mapping
+
+| service_id | duckdb_schema | Satır Sayısı | Tablo Sayısı |
+|---|---|---|---|
+| sport_stream | sport_stream | ~45.6M | 13 |
+| tv_plus | tv_plus | ~1.37M | 5 |
+| music_stream | music_stream | ~392K | 5 |
+| fly_ent | fly_ent | ~252K | 5 |
+
 ### SQLite Tabloları
 - `tenants`: id, name, plan, sector, status
 - `services`: id, tenant_id, name, duckdb_schema, sector_override, status
-- `users`: tenant_id, role, service_ids (JSON array), active_service_id
+- `users`: tenant_id (nullable), role, service_ids (JSON array), active_service_id
 
-### Migration Notu
-- Eski `aaop_company` DuckDB schema'sı korunuyor (backward compat)
-- Yeni `sport_stream` schema: aaop_company'nin tam kopyası (45.6M satır)
-- ServiceContextMiddleware: stub — S-MT-02'de tam JWT+DB implementasyonu
+### UI — ServiceSwitcher (S-MT-04)
+- service_user: sadece göster, dropdown yok
+- tenant_admin: kendi service'leri arası switch
+- super_admin: tüm tenant/service hiyerarşik liste
+- `/admin-governance/tenants`: Platform Admin sayfası (super_admin only)
