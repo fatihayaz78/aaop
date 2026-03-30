@@ -8,6 +8,18 @@
 
 ---
 
+### S-MT-03 — 2026-03-30
+- scripts/seed_demo_tenants.py: DuckDB SQL-native bulk data generation
+  - tv_plus: 1,372,000 rows (5 tablo, 28 gün, 0 gap) — OTT/IPTV profili
+  - music_stream: 392,000 rows (5 tablo, 28 gün, 0 gap) — müzik streaming profili
+  - fly_ent: 252,000 rows (5 tablo, 28 gün, 0 gap) — havayolu IFE profili
+  - Toplam: 2,016,000 yeni satır
+- docs/data_audit_report_v2.md: 4 aktif schema audit raporu
+- super_admin: tenant_id = 'ott_co' (NOT NULL constraint), tüm service erişimi korunuyor
+- Tests: 148 passed, 0 failure
+
+---
+
 ### S-MT-02 — 2026-03-30
 - backend/auth.py: multi-tenant JWT payload (service_ids, active_service_id, role)
   - POST /auth/login: JSON body (tenant_id + email + password)
