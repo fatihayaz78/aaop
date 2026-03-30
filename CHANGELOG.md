@@ -8,6 +8,16 @@
 
 ---
 
+### S-AGENT-06 — 2026-03-30
+- alert_center/tools.py: check_suppression → SQLite suppression_rules lookup (was hardcoded False)
+- live_intelligence/tools.py: get_epg_schedule → logs.duckdb epg_logs query via log_queries helper (was empty [])
+- devops_assistant/tools.py: check_service_health → newrelic+api logs real health (was hardcoded "healthy")
+  - error_rate >0.05 → degraded, >0.15 → down
+- ops_center/tools.py: trigger_rca → RCAAgent invoke for P0/P1, skip for P2+ (was logger only)
+- Tests: 148 platform + 188 app tests passed, 0 failure
+
+---
+
 ### S-SETTINGS-01 — 2026-03-30
 - backend/auth.py: PATCH /auth/password (bcrypt verify + strength validation + update)
 - backend/routers/admin_governance.py: PATCH /admin/tenant/sector + PATCH /admin/modules/{id} + GET /admin/modules

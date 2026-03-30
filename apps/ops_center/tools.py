@@ -101,8 +101,35 @@ async def update_incident_status(
 
 
 async def trigger_rca(tenant_id: str, incident_id: str, event_bus: EventBus) -> None:
-    """Trigger RCA for an incident. Risk: MEDIUM (auto+notify)."""
+    """Trigger RCA for an incident — invokes RCAAgent for P0/P1. Risk: MEDIUM (auto+notify)."""
     logger.info("rca_triggered", tenant_id=tenant_id, incident_id=incident_id)
+
+    try:
+        # Check incident severity — only P0/P1 get RCA
+        from backend.dependencies import _duckdb
+        if _duckdb:
+            rows = _duckdb.fetch_all(
+                "SELECT severity FROM shared_analytics.incidents WHERE incident_id = ? AND tenant_id = ?",
+                [incident_id, tenant_id],
+            )
+            if not rows:
+                logger.info("rca_skip_no_incident", incident_id=incident_id)
+                return
+            severity = rows[0].get("severity", "P3")
+            if severity not in ("P0", "P1"):
+                logger.info("rca_skip_low_severity", incident_id=incident_id, severity=severity)
+                return
+
+        # Invoke RCAAgent
+        from apps.ops_center.agent import RCAAgent
+        agent = RCAAgent(event_bus=event_bus)
+        await agent.invoke(
+            tenant_id=tenant_id,
+            input_data={"incident_id": incident_id, "severity": severity, "title": f"RCA for {incident_id}"},
+        )
+        logger.info("rca_agent_invoked", tenant_id=tenant_id, incident_id=incident_id)
+    except Exception as exc:
+        logger.error("rca_trigger_failed", incident_id=incident_id, error=str(exc))
 
 
 async def send_slack_notification(tenant_id: str, message: str, channel: str = "#ops-alerts") -> dict:

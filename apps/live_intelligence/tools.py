@@ -45,9 +45,24 @@ async def get_drm_status(tenant_id: str, redis: Any) -> DRMStatus:
 
 
 async def get_epg_schedule(tenant_id: str) -> list[EPGEntry]:
-    """Get EPG schedule. Risk: LOW. Poll: 300s."""
-    logger.info("epg_schedule_fetched", tenant_id=tenant_id)
-    return []
+    """Get EPG schedule from logs.duckdb. Risk: LOW. Poll: 300s."""
+    try:
+        from shared.ingest.log_queries import get_epg_schedule as _epg_query
+        result = _epg_query(tenant_id)
+        channels = result.get("channels", [])
+        entries = []
+        for ch in channels:
+            entries.append(EPGEntry(
+                tenant_id=tenant_id,
+                title=ch.get("channel", ""),
+                channel=ch.get("channel", ""),
+                content_type="epg",
+            ))
+        logger.info("epg_schedule_fetched", tenant_id=tenant_id, count=len(entries))
+        return entries
+    except Exception as exc:
+        logger.debug("epg_schedule_fetch_failed", error=str(exc))
+        return []
 
 
 async def calculate_scale_factor(

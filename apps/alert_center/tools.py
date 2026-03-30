@@ -63,7 +63,22 @@ async def get_routing_rules(tenant_id: str, event_type: str, severity: str) -> d
 
 async def check_suppression(tenant_id: str) -> bool:
     """Check if alerts are suppressed (maintenance window). Risk: LOW."""
-    # Placeholder — real implementation reads suppression_rules from SQLite
+    try:
+        from backend.dependencies import _sqlite
+        if _sqlite:
+            rows = await _sqlite.fetch_all(
+                "SELECT start_time, end_time FROM suppression_rules "
+                "WHERE tenant_id = ? AND is_active = 1",
+                (tenant_id,),
+            )
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).isoformat()
+            for row in rows:
+                if row.get("start_time", "") <= now <= row.get("end_time", ""):
+                    logger.info("alert_suppressed", tenant_id=tenant_id)
+                    return True
+    except Exception as exc:
+        logger.debug("suppression_check_failed", error=str(exc))
     return False
 
 

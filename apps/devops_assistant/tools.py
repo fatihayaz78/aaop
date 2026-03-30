@@ -16,9 +16,36 @@ logger = structlog.get_logger(__name__)
 
 
 async def check_service_health(tenant_id: str, service: str) -> ServiceHealth:
-    """Check health of a service. Risk: LOW."""
-    logger.info("service_health_check", tenant_id=tenant_id, service=service)
-    return ServiceHealth(service=service, status="healthy", latency_ms=45)
+    """Check health of a service from logs.duckdb. Risk: LOW."""
+    try:
+        from shared.ingest.log_queries import get_api_health, get_infrastructure_health
+        api = get_api_health(tenant_id, hours=1)
+        infra = get_infrastructure_health(tenant_id, hours=1)
+
+        error_rate = api.get("error_rate_pct", 0) / 100.0  # pct → ratio
+        p99 = api.get("p99_response_time_ms", 0)
+
+        # Check infra for specific service
+        for svc in infra.get("services", []):
+            if service.lower() in svc.get("service_name", "").lower():
+                error_rate = max(error_rate, svc.get("error_rate", 0))
+                p99 = max(p99, svc.get("memory_mb", 0))  # response_time stored as memory_mb in query
+
+        status = "healthy"
+        if error_rate > 0.15:
+            status = "down"
+        elif error_rate > 0.05:
+            status = "degraded"
+
+        logger.info("service_health_check", tenant_id=tenant_id, service=service,
+                     status=status, error_rate=error_rate)
+        return ServiceHealth(
+            service=service, status=status, latency_ms=int(p99),
+            details={"error_rate": round(error_rate, 4), "p99_ms": round(p99, 1)},
+        )
+    except Exception as exc:
+        logger.debug("health_check_fallback", service=service, error=str(exc))
+        return ServiceHealth(service=service, status="unknown", latency_ms=0)
 
 
 async def get_deployment_history(tenant_id: str, db: Any) -> list[dict]:
