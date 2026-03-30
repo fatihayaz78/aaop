@@ -18,8 +18,17 @@ POST   /auth/switch-service       Auth: Bearer → Body: {service_id}
                                   → {access_token, active_service_id, ...}
                                   403: service_id kullanıcının listesinde değilse
 POST   /auth/login/form           Body: OAuth2 form {username, password} → {access_token} (legacy)
+PATCH  /auth/password              Auth: Bearer → Body: {current_password, new_password}
+                                  → {message: "Password updated"}
+                                  400: Current password incorrect / Password too weak
 POST   /auth/refresh              Auth: Bearer → {access_token}
 POST   /auth/logout               Auth: Bearer → {detail: "Logged out"}
+PATCH  /admin/tenant/sector       Auth: tenant_admin+ → Body: {sector}
+                                  → {tenant_id, sector}
+GET    /admin/modules             Auth: Bearer → [{id, module_name, enabled}]
+PATCH  /admin/modules/{id}       Auth: tenant_admin+ → Body: {enabled: bool}
+                                  → {module_id, enabled}
+                                  400: P0 modules cannot be disabled
 GET    /admin/platform/tenants    Auth: super_admin only
                                   → [{id, name, sector, status, services[], user_count}]
 ```

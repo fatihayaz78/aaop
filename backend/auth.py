@@ -299,3 +299,46 @@ async def refresh(current_user: UserPayload = Depends(get_current_user)) -> Toke
 async def logout(token: str = Depends(oauth2_scheme)) -> dict[str, str]:
     _revoked_tokens.add(token)
     return {"detail": "Logged out"}
+
+
+# ── Password change (S-SETTINGS-01) ────────────────────────────
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+def _validate_password_strength(password: str) -> str | None:
+    if len(password) < 8:
+        return "Password must be at least 8 characters"
+    if not any(c.isupper() for c in password):
+        return "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return "Password must contain at least one digit"
+    return None
+
+
+@router.patch("/password")
+async def change_password(
+    body: PasswordChangeRequest,
+    current_user: UserPayload = Depends(get_current_user),
+) -> dict[str, str]:
+    """Change password — verifies current, validates new, updates hash."""
+    from backend.dependencies import get_sqlite
+    sqlite = get_sqlite()
+
+    user = await sqlite.fetch_one("SELECT password_hash FROM users WHERE id = ?", (current_user.user_id,))
+    if not user or not verify_password(body.current_password, user["password_hash"]):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password incorrect")
+
+    weakness = _validate_password_strength(body.new_password)
+    if weakness:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=weakness)
+
+    new_hash = hash_password(body.new_password)
+    await sqlite.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, current_user.user_id))
+    logger.info("password_changed", user_id=current_user.user_id)
+
+    return {"message": "Password updated"}

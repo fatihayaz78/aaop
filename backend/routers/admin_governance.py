@@ -278,3 +278,70 @@ async def platform_tenants(
             "user_count": len(users),
         })
     return result
+
+
+# ── Settings endpoints (S-SETTINGS-01) ──────────────────────────
+
+P0_MODULES = {"ops_center", "log_analyzer", "alert_center"}
+
+
+class SectorUpdate(BaseModel):
+    sector: str  # OTT, Telecom, Broadcast, Airline, Other
+
+
+class ModuleToggle(BaseModel):
+    enabled: bool
+
+
+@router.patch("/tenant/sector")
+async def update_sector(
+    body: SectorUpdate,
+    ctx: TenantContext = Depends(get_tenant_context),
+    sqlite: SQLiteClient = Depends(get_sqlite),
+) -> dict:
+    """Update tenant sector — tenant_admin or super_admin only."""
+    if ctx.role not in ("tenant_admin", "super_admin"):
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    await sqlite.execute("UPDATE tenants SET sector = ? WHERE id = ?", (body.sector, ctx.tenant_id))
+    logger.info("tenant_sector_updated", tenant_id=ctx.tenant_id, sector=body.sector)
+    return {"tenant_id": ctx.tenant_id, "sector": body.sector}
+
+
+@router.get("/modules")
+async def list_modules(
+    ctx: TenantContext = Depends(get_tenant_context),
+    sqlite: SQLiteClient = Depends(get_sqlite),
+) -> list[dict]:
+    """List module configs for tenant."""
+    rows = await sqlite.fetch_all(
+        "SELECT id, module_name, is_enabled FROM module_configs WHERE tenant_id = ?", (ctx.tenant_id,),
+    )
+    return [{"id": r["id"], "module_name": r["module_name"], "enabled": bool(r["is_enabled"])} for r in rows]
+
+
+@router.patch("/modules/{module_id}")
+async def toggle_module(
+    module_id: str,
+    body: ModuleToggle,
+    ctx: TenantContext = Depends(get_tenant_context),
+    sqlite: SQLiteClient = Depends(get_sqlite),
+) -> dict:
+    """Toggle module enabled — tenant_admin or super_admin only. P0 modules locked."""
+    if ctx.role not in ("tenant_admin", "super_admin"):
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    row = await sqlite.fetch_one("SELECT module_name FROM module_configs WHERE id = ?", (module_id,))
+    if not row:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Module not found")
+
+    if row["module_name"] in P0_MODULES and not body.enabled:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="P0 modules cannot be disabled")
+
+    await sqlite.execute("UPDATE module_configs SET is_enabled = ? WHERE id = ?", (1 if body.enabled else 0, module_id))
+    logger.info("module_toggled", module_id=module_id, enabled=body.enabled)
+    return {"module_id": module_id, "enabled": body.enabled}

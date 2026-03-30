@@ -8,6 +8,20 @@
 
 ---
 
+### S-SETTINGS-01 — 2026-03-30
+- backend/auth.py: PATCH /auth/password (bcrypt verify + strength validation + update)
+- backend/routers/admin_governance.py: PATCH /admin/tenant/sector + PATCH /admin/modules/{id} + GET /admin/modules
+- frontend/src/app/(apps)/settings/page.tsx: 4 bölümlü settings sayfası
+  - Security: şifre değiştirme + auto-logout
+  - Appearance: dark/light tema toggle (localStorage, anlık geçiş)
+  - Tenant Sector: OTT/Telecom/Broadcast/Airline/Other (tenant_admin+ only)
+  - Module Management: 11 app toggle, P0 modüller kilitli
+- frontend/src/components/layout/Header.tsx: user dropdown menü + Settings link
+- P0 modüller (ops_center, log_analyzer, alert_center) devre dışı bırakılamaz
+- Tests: 148 passed, 0 failure
+
+---
+
 ### S-DATA-FIX-01 — 2026-03-30
 - medianova_logs: double timezone bug (+00:00Z) → DuckDB read_json native ingest, 1,343,539 satır
   - Root cause: generator timestamp format "+00:00Z" (double TZ), sync_engine batch insert çok yavaş
