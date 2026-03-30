@@ -54,6 +54,7 @@ curl http://localhost:8000/health
 | `docs/AUDIT_REPORT.md` | Platform sağlık değerlendirmesinde | Platform audit, puan kartı, kritik eksikler |
 | `docs/DOC_GAP_REPORT.md` | Dokümantasyon güncellemesinde | MD dosyaları vs code base tutarsızlıkları |
 | `docs/kb/` | Platform dokümantasyonu için | 15 standalone HTML, her modül detayı |
+| `shared/SHARED_MODULES.md` | shared/ sprint'lerinde | Tüm shared modül API referansı, bağımlılıklar |
 
 ---
 
@@ -318,6 +319,7 @@ AAOP/
 │
 ├── shared/                          ← Ortak kütüphaneler
 │   ├── __init__.py
+│   ├── SHARED_MODULES.md             ← Kapsamlı shared modül spec (S-SHARED-SPEC-01)
 │   ├── agents/
 │   │   └── base_agent.py            ← BaseAgent, LangGraph 4-adım
 │   ├── llm_gateway.py               ← Routing + retry + cache + cost

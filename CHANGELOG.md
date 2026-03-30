@@ -8,6 +8,13 @@
 
 ---
 
+### S-SHARED-SPEC-01 — 2026-03-30
+- shared/SHARED_MODULES.md: kapsamlı shared modül spec dosyası (~400 satır)
+  - 12 modül bölümü, cross-module bağımlılık haritası, kırılma noktaları, test gereksinimleri
+- CLAUDE.md: SHARED_MODULES.md doküman haritasına + klasör yapısına eklendi
+
+---
+
 ### S-DOC-HEALTH — 2026-03-30 — Periyodik Dokümantasyon Sağlık Kontrolü
 
 #### Tespit Edilen Tutarsızlıklar
