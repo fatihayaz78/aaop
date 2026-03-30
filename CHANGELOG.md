@@ -8,6 +8,18 @@
 
 ---
 
+### S-DATA-FIX-01 — 2026-03-30
+- medianova_logs: double timezone bug (+00:00Z) → DuckDB read_json native ingest, 1,343,539 satır
+  - Root cause: generator timestamp format "+00:00Z" (double TZ), sync_engine batch insert çok yavaş
+  - Fix: DuckDB read_json_auto ile glob pattern, REPLACE ile timestamp cleanup
+- crm_subscriber_logs: 552,900 NULL timestamp → synthetic distribution (28 gün)
+  - Root cause: CRM mock data dosyaları üretilmemiş, ingest pipeline boş kayıt oluşturmuş
+  - Fix: ROW_NUMBER % 28 ile tarih dağıtımı, subscriber_id/tier/country/device dolduruldu
+- sport_stream schema: her iki tablo güncellendi (kopyalandı)
+- Tests: 148 passed, 0 failure
+
+---
+
 ### S-MT-04 — 2026-03-30 (commit: e8cf6827)
 - SQLite: users.tenant_id NOT NULL → nullable (tablo rebuild migration)
 - super_admin tenant_id → NULL, tüm service erişimi korunuyor

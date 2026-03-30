@@ -378,3 +378,16 @@ POST /mock-data-gen/schemas
 GET  /mock-data-gen/schemas/{id}
 DELETE /mock-data-gen/schemas/{id}
 GET  /mock-data-gen/schemas/{id}/export/sql
+
+---
+## DÜZELTMELER — S-DATA-FIX-01 (2026-03-30)
+
+### Sorun 1: medianova_logs Boş
+- **Root Cause:** Generator timestamp formatı `+00:00Z` (çift timezone). DuckDB TIMESTAMP parse edemedi. Ayrıca sync_engine `executemany` ile satır-satır insert çok yavaş (36K dosya).
+- **Fix:** DuckDB `read_json_auto` ile glob pattern, `REPLACE(timestamp, '+00:00Z', '+00:00')` ile timestamp düzeltmesi.
+- **Sonuç:** 1,343,539 satır ingest edildi, 18 distinct gün (2026-03-04 → 2026-03-31)
+
+### Sorun 2: crm_subscriber_logs Timestamp NULL
+- **Root Cause:** CRM mock data dosyaları (`subscribers_base.csv`, `daily_updates/`) hiç üretilmemiş. İngest pipeline boş directory'den 552,900 kayıt oluşturmuş — tüm alanlar NULL (sadece `churn_risk` ve `ingested_at` dolu).
+- **Fix:** `CREATE OR REPLACE TABLE` ile ROW_NUMBER % 28 tarih dağıtımı. subscriber_id, subscription_tier, country_code, device_type, lifetime_value synthetic olarak dolduruldu.
+- **Sonuç:** 552,900 satır güncellendi, 0 NULL timestamp, 28 distinct gün
