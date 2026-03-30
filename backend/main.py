@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.auth import router as auth_router
 from backend.dependencies import init_clients, shutdown_clients
 from backend.routers.admin_governance import router as admin_governance_router
+from backend.routers.slo import router as slo_router
 from backend.routers.ai_lab import router as ai_lab_router
 from backend.routers.alert_center import router as alert_center_router
 from backend.routers.capacity_cost import router as capacity_cost_router
@@ -39,6 +40,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     bus = get_event_bus()
     await bus.start()
     _wire_event_subscriptions(bus)
+
+    # Seed SLO tables + defaults
+    try:
+        from backend.dependencies import _sqlite
+        from backend.routers.slo import seed_slo_tables
+        if _sqlite:
+            await seed_slo_tables(_sqlite)
+    except Exception as exc:
+        logger.warning("slo_seed_failed", error=str(exc))
 
     logger.info("startup_complete")
     yield
@@ -136,6 +146,7 @@ app.include_router(devops_assistant_router)
 app.include_router(admin_governance_router)
 app.include_router(mock_data_gen_router)
 app.include_router(data_sources_router)
+app.include_router(slo_router)
 
 # ── WebSocket endpoints ──
 from backend.websocket.manager import ws_manager

@@ -8,7 +8,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiPatch, exportToCsv } from "@/lib/api";
 import type { AdminDashboard, Tenant, AuditEntry } from "@/types/admin_governance";
 
-type Tab = "dashboard" | "tenants" | "modules" | "audit" | "compliance" | "usage" | "datasources";
+type Tab = "dashboard" | "tenants" | "modules" | "audit" | "compliance" | "usage" | "datasources" | "slo";
 
 const planColor: Record<string, { bg: string; text: string }> = {
   enterprise: { bg: "rgba(168,85,247,0.15)", text: "#a855f7" },
@@ -76,6 +76,7 @@ export default function AdminGovernance() {
     { key: "modules", label: "Module Config" }, { key: "audit", label: "Audit Log" },
     { key: "compliance", label: "Compliance" }, { key: "usage", label: "Usage Stats" },
     { key: "datasources", label: "Data Sources" },
+    { key: "slo", label: "SLO Tracking" },
   ];
 
   return (
@@ -303,6 +304,7 @@ export default function AdminGovernance() {
       })()}
 
       {tab === "datasources" && <DataSourcesTab />}
+      {tab === "slo" && <SLOTrackingTab />}
 
       <AgentChatPanel appName="Admin & Governance" />
     </div>
@@ -551,6 +553,120 @@ function DataSourcesTab() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SLO TRACKING TAB
+// ══════════════════════════════════════════════════════════════════════
+
+const SLO_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+interface SLOStatusItem {
+  slo_id: string;
+  name: string;
+  metric: string;
+  target: number;
+  operator: string;
+  current_value: number;
+  is_met: boolean;
+  error_budget_remaining_pct: number;
+  period_days: number;
+}
+
+function SLOTrackingTab() {
+  const [slos, setSlos] = useState<SLOStatusItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [calculating, setCalculating] = useState(false);
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("aaop_token") || "" : "";
+  const tid = typeof window !== "undefined" ? localStorage.getItem("aaop_tenant_id") || "ott_co" : "ott_co";
+  const hdrs = { Authorization: `Bearer ${token}`, "X-Tenant-ID": tid, "Content-Type": "application/json" };
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${SLO_API}/slo/status`, { headers: hdrs });
+      if (res.ok) setSlos(await res.json());
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  async function handleCalculate() {
+    setCalculating(true);
+    try {
+      await fetch(`${SLO_API}/slo/calculate`, { method: "POST", headers: hdrs });
+      await fetchStatus();
+    } catch { /* ignore */ }
+    setCalculating(false);
+  }
+
+  const met = slos.filter((s) => s.is_met).length;
+  const breached = slos.length - met;
+
+  function fmtValue(s: SLOStatusItem): string {
+    if (s.metric === "availability") return `${(s.current_value * 100).toFixed(2)}%`;
+    if (s.metric === "cdn_error_rate") return `${(s.current_value * 100).toFixed(2)}%`;
+    if (s.metric === "qoe_score") return `${s.current_value.toFixed(1)} / 5.0`;
+    if (s.metric === "api_p99") return `${s.current_value.toFixed(0)} ms`;
+    if (s.metric === "incident_mttr") return `${s.current_value.toFixed(0)} min`;
+    return String(s.current_value);
+  }
+
+  function fmtTarget(s: SLOStatusItem): string {
+    const op = s.operator === "gte" ? "≥" : "≤";
+    if (s.metric === "availability") return `${op} ${(s.target * 100).toFixed(1)}%`;
+    if (s.metric === "cdn_error_rate") return `${op} ${(s.target * 100).toFixed(0)}%`;
+    if (s.metric === "qoe_score") return `${op} ${s.target}`;
+    if (s.metric === "api_p99") return `${op} ${s.target} ms`;
+    if (s.metric === "incident_mttr") return `${op} ${s.target} min`;
+    return `${op} ${s.target}`;
+  }
+
+  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading SLOs...</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-4">
+          <div className="text-sm" style={{ color: "var(--text-muted)" }}>Total: <b>{slos.length}</b></div>
+          <div className="text-sm" style={{ color: "var(--risk-low)" }}>Met: <b>{met}</b></div>
+          <div className="text-sm" style={{ color: "var(--risk-high)" }}>Breached: <b>{breached}</b></div>
+        </div>
+        <button onClick={handleCalculate} disabled={calculating}
+          className="px-3 py-1.5 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700">
+          {calculating ? "Calculating..." : "Calculate Now"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {slos.map((s) => (
+          <div key={s.slo_id} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{s.name}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+                backgroundColor: s.is_met ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                color: s.is_met ? "#22c55e" : "#ef4444",
+              }}>{s.is_met ? "MET" : "BREACHED"}</span>
+            </div>
+            <div className="text-2xl font-bold mb-1" style={{ color: s.is_met ? "var(--risk-low)" : "var(--risk-high)" }}>
+              {fmtValue(s)}
+            </div>
+            <div className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Target: {fmtTarget(s)}</div>
+            <div className="w-full h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+              <div className="h-full rounded-full transition-all" style={{
+                width: `${Math.min(s.error_budget_remaining_pct, 100)}%`,
+                backgroundColor: s.error_budget_remaining_pct > 50 ? "var(--risk-low)" : s.error_budget_remaining_pct > 20 ? "var(--risk-medium)" : "var(--risk-high)",
+              }} />
+            </div>
+            <div className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+              Error Budget: {s.error_budget_remaining_pct.toFixed(0)}% remaining
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

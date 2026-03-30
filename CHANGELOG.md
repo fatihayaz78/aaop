@@ -8,6 +8,17 @@
 
 ---
 
+### S-SLO-01 — 2026-03-30
+- shared/slo/: SLOCalculator (5 metrik: availability, qoe_score, cdn_error_rate, api_p99, incident_mttr)
+- backend/routers/slo.py: 8 endpoint (definitions CRUD, status, history, calculate, report)
+- backend/main.py: SLO router mount + 5 varsayılan SLO seed (tenant başına)
+- frontend/admin-governance: SLO Tracking tab (kart grid, error budget bar, calculate now)
+- frontend/ops-center: SLO summary widget (X/Y SLO Met)
+- SQLite: slo_definitions + slo_measurements tabloları
+- Tests: 156 passed (148 + 8 SLO), 0 failure
+
+---
+
 ### S-AGENT-06 — 2026-03-30 (commit: c5450d19)
 - alert_center/tools.py: check_suppression → SQLite suppression_rules lookup (was hardcoded False)
 - live_intelligence/tools.py: get_epg_schedule → logs.duckdb epg_logs query via log_queries helper (was empty [])

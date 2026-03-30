@@ -257,6 +257,9 @@ export default function OpsCenter() {
               </div>
             )}
           </div>
+
+          {/* SLO Summary Widget */}
+          <SLOSummaryWidget />
         </div>
       )}
 
@@ -468,6 +471,43 @@ export default function OpsCenter() {
       )}
 
       <AgentChatPanel appName="Ops Center" />
+    </div>
+  );
+}
+
+// ── SLO Summary Widget ─────────────────────────────────────────
+
+function SLOSummaryWidget() {
+  const [met, setMet] = useState(0);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("aaop_token") || "" : "";
+    const tid = typeof window !== "undefined" ? localStorage.getItem("aaop_tenant_id") || "ott_co" : "ott_co";
+    const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    fetch(`${API}/slo/status`, {
+      headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tid },
+    })
+      .then((r) => r.json())
+      .then((data: { is_met: boolean }[]) => {
+        setTotal(data.length);
+        setMet(data.filter((s) => s.is_met).length);
+      })
+      .catch(() => {});
+  }, []);
+
+  if (total === 0) return null;
+
+  const allMet = met === total;
+  return (
+    <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+      <h3 className="text-xs font-semibold mb-2" style={{ color: "var(--text-primary)" }}>SLO Status</h3>
+      <div className="text-2xl font-bold" style={{ color: allMet ? "var(--risk-low)" : "var(--risk-high)" }}>
+        {met}/{total} SLO Met
+      </div>
+      <div className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+        {allMet ? "All targets within budget" : `${total - met} SLO breached`}
+      </div>
     </div>
   );
 }
