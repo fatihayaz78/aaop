@@ -94,7 +94,7 @@ async def _seed_demo_users(sqlite: SQLiteClient) -> None:
     password_hash = bcrypt.hashpw(b"Captain2026!", bcrypt.gensalt()).decode()
 
     demo_users = [
-        ("admin@captainlogar.demo", "ott_co",     "super_admin",  '["sport_stream","tv_plus","music_stream","fly_ent"]', "sport_stream"),
+        ("admin@captainlogar.demo", None,          "super_admin",  '["sport_stream","tv_plus","music_stream","fly_ent"]', "sport_stream"),
         ("admin@ottco.demo",        "ott_co",     "tenant_admin", '["sport_stream"]',                                    "sport_stream"),
         ("admin@telco.demo",        "tel_co",     "tenant_admin", '["tv_plus","music_stream"]',                          "tv_plus"),
         ("user@telco.demo",         "tel_co",     "service_user", '["tv_plus"]',                                         "tv_plus"),

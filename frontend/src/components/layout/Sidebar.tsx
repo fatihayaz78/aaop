@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import ServiceSwitcher from "./ServiceSwitcher";
 
 interface NavItem {
   label: string;
@@ -99,6 +100,9 @@ export default function Sidebar() {
           {collapsed ? "→" : "←"}
         </button>
       </div>
+
+      {/* Service Switcher */}
+      {!collapsed && <ServiceSwitcher />}
 
       {/* Dashboard link */}
       <nav className="flex-1 overflow-y-auto py-2 px-2">

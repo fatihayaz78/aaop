@@ -13,7 +13,7 @@ function headers(tenantId: string): HeadersInit {
   };
 }
 
-export async function apiGet<T>(path: string, tenantId: string = "s_sport_plus"): Promise<T> {
+export async function apiGet<T>(path: string, tenantId: string = "ott_co"): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: headers(tenantId),
     next: { revalidate: 30 },
@@ -22,7 +22,7 @@ export async function apiGet<T>(path: string, tenantId: string = "s_sport_plus")
   return res.json() as Promise<T>;
 }
 
-export async function apiPost<T>(path: string, body: unknown, tenantId: string = "s_sport_plus"): Promise<T> {
+export async function apiPost<T>(path: string, body: unknown, tenantId: string = "ott_co"): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
     headers: headers(tenantId),
@@ -32,7 +32,7 @@ export async function apiPost<T>(path: string, body: unknown, tenantId: string =
   return res.json() as Promise<T>;
 }
 
-export async function apiPatch<T>(path: string, body: unknown, tenantId: string = "s_sport_plus"): Promise<T> {
+export async function apiPatch<T>(path: string, body: unknown, tenantId: string = "ott_co"): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "PATCH",
     headers: headers(tenantId),
@@ -42,7 +42,7 @@ export async function apiPatch<T>(path: string, body: unknown, tenantId: string 
   return res.json() as Promise<T>;
 }
 
-export async function apiDelete(path: string, tenantId: string = "s_sport_plus"): Promise<void> {
+export async function apiDelete(path: string, tenantId: string = "ott_co"): Promise<void> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "DELETE",
     headers: headers(tenantId),

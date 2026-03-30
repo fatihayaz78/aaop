@@ -8,6 +8,24 @@
 
 ---
 
+### S-MT-04 — 2026-03-30
+- SQLite: users.tenant_id NOT NULL → nullable (tablo rebuild migration)
+- super_admin tenant_id → NULL, tüm service erişimi korunuyor
+- frontend/contexts/AuthContext.tsx: switchService(), logout(), localStorage sync
+- frontend/components/layout/ServiceSwitcher.tsx: tenant/service dropdown (role-based)
+  - service_user: sadece göster, dropdown yok
+  - tenant_admin: service switch dropdown
+  - super_admin: tüm tenant/service hiyerarşik liste
+- frontend/components/layout/Header.tsx: active service badge + user info
+- frontend/components/layout/Sidebar.tsx: ServiceSwitcher entegrasyonu
+- frontend/app/layout.tsx: AuthProvider wrapper
+- frontend/app/(apps)/admin-governance/tenants/page.tsx: Platform Admin sayfası
+- backend/routers/admin_governance.py: GET /admin/platform/tenants endpoint
+- frontend/src/lib/api.ts: default tenant s_sport_plus → ott_co
+- Tests: 148 passed, 0 failure
+
+---
+
 ### S-MT-03 — 2026-03-30
 - scripts/seed_demo_tenants.py: DuckDB SQL-native bulk data generation
   - tv_plus: 1,372,000 rows (5 tablo, 28 gün, 0 gap) — OTT/IPTV profili

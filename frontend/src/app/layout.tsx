@@ -3,6 +3,7 @@ import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import GlobalSearch from "@/components/global-search";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Captain logAR — AAOP",
@@ -17,12 +18,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen" style={{ backgroundColor: "var(--background)" }}>
-        <Sidebar />
-        <div className="transition-all md:ml-[var(--sidebar-width)]">
-          <Header />
-          <main className="p-4 md:p-6">{children}</main>
-        </div>
-        <GlobalSearch />
+        <AuthProvider>
+          <Sidebar />
+          <div className="transition-all md:ml-[var(--sidebar-width)]">
+            <Header />
+            <main className="p-4 md:p-6">{children}</main>
+          </div>
+          <GlobalSearch />
+        </AuthProvider>
       </body>
     </html>
   );

@@ -247,3 +247,34 @@ async def usage_stats(
         "daily_cost_7d": daily_cost,
         "token_breakdown": {"input_total": inp_total, "output_total": out_total},
     }
+
+
+# ── Platform Admin: tenant/service hierarchy (S-MT-04) ──────────
+
+
+@router.get("/platform/tenants")
+async def platform_tenants(
+    ctx: TenantContext = Depends(get_tenant_context),
+    sqlite: SQLiteClient = Depends(get_sqlite),
+) -> list[dict]:
+    """List all tenants with services — super_admin only."""
+    tenants = await sqlite.fetch_all(
+        "SELECT id, name, sector, status FROM tenants WHERE id != 'system' ORDER BY name",
+    )
+    result = []
+    for t in tenants:
+        services = await sqlite.fetch_all(
+            "SELECT id, name, status FROM services WHERE tenant_id = ?", (t["id"],),
+        )
+        users = await sqlite.fetch_all(
+            "SELECT id FROM users WHERE tenant_id = ?", (t["id"],),
+        )
+        result.append({
+            "id": t["id"],
+            "name": t["name"],
+            "sector": t.get("sector", ""),
+            "status": t.get("status", "active"),
+            "services": [{"id": s["id"], "name": s["name"], "status": s.get("status", "active")} for s in services],
+            "user_count": len(users),
+        })
+    return result

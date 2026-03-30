@@ -55,6 +55,7 @@ export default function LoginPage() {
       localStorage.setItem("aaop_tenant_name", data.tenant_name || "");
       localStorage.setItem("aaop_service_id", data.active_service_id || "");
       localStorage.setItem("aaop_service_ids", JSON.stringify(data.service_ids || []));
+      localStorage.setItem("aaop_services", JSON.stringify(data.services || []));
       localStorage.setItem("aaop_role", data.role || "");
 
       router.push("/");

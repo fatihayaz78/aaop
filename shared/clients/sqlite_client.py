@@ -72,7 +72,7 @@ class SQLiteClient:
 
             CREATE TABLE IF NOT EXISTS users (
                 id          TEXT PRIMARY KEY,
-                tenant_id   TEXT NOT NULL REFERENCES tenants(id),
+                tenant_id   TEXT REFERENCES tenants(id),
                 username    TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 role        TEXT NOT NULL,
@@ -138,7 +138,10 @@ class SQLiteClient:
         logger.info("sqlite_tables_initialized")
 
     async def _migrate_columns(self) -> None:
-        """Add columns introduced in S-MT-01 if they don't exist yet."""
+        """Add columns and fix constraints introduced in S-MT-01/S-MT-04."""
+        # S-MT-04: Make users.tenant_id nullable (SQLite requires table rebuild)
+        await self._migrate_users_nullable_tenant()
+
         # SQLite ALTER TABLE ADD COLUMN requires constant defaults only
         for table, column, default in [
             ("tenants", "sector", "'ott'"),
@@ -156,3 +159,31 @@ class SQLiteClient:
                 except Exception as alter_err:
                     logger.debug("sqlite_column_add_skipped", table=table, column=column, error=str(alter_err))
         await self.conn.commit()
+
+    async def _migrate_users_nullable_tenant(self) -> None:
+        """Rebuild users table to make tenant_id nullable (S-MT-04)."""
+        try:
+            # Check if tenant_id is NOT NULL
+            cursor = await self.conn.execute("PRAGMA table_info(users)")
+            cols = await cursor.fetchall()
+            for col in cols:
+                # col = (cid, name, type, notnull, dflt_value, pk)
+                if col[1] == "tenant_id" and col[3] == 1:  # notnull=1
+                    await self.conn.executescript("""
+                        CREATE TABLE IF NOT EXISTS users_new (
+                            id TEXT PRIMARY KEY, tenant_id TEXT REFERENCES tenants(id),
+                            username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
+                            role TEXT NOT NULL, is_active INTEGER DEFAULT 1,
+                            last_login TEXT, created_at TEXT DEFAULT (datetime('now')),
+                            service_ids TEXT DEFAULT '[]', active_service_id TEXT);
+                        INSERT OR IGNORE INTO users_new
+                            SELECT id, tenant_id, username, password_hash, role, is_active, last_login, created_at,
+                                   COALESCE(service_ids, '[]'), active_service_id FROM users;
+                        DROP TABLE users;
+                        ALTER TABLE users_new RENAME TO users;
+                    """)
+                    await self.conn.commit()
+                    logger.info("users_table_rebuilt_nullable_tenant_id")
+                    return
+        except Exception as exc:
+            logger.debug("users_nullable_migration_skipped", error=str(exc))
