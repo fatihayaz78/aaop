@@ -15,6 +15,7 @@ from backend.dependencies import init_clients, shutdown_clients
 from backend.routers.admin_governance import router as admin_governance_router
 from backend.routers.slo import router as slo_router
 from backend.routers.nl_query import router as nl_query_router
+from backend.routers.realtime import router as realtime_router
 from backend.routers.ai_lab import router as ai_lab_router
 from backend.routers.alert_center import router as alert_center_router
 from backend.routers.capacity_cost import router as capacity_cost_router
@@ -51,9 +52,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.warning("slo_seed_failed", error=str(exc))
 
+    # Start real-time anomaly engine
+    from shared.realtime.anomaly_engine import get_anomaly_engine
+    _anomaly_engine = get_anomaly_engine()
+    await _anomaly_engine.start()
+
     logger.info("startup_complete")
     yield
     logger.info("shutdown_begin")
+    await _anomaly_engine.stop()
     await bus.stop()
     await shutdown_clients()
     logger.info("shutdown_complete")
@@ -149,6 +156,7 @@ app.include_router(mock_data_gen_router)
 app.include_router(data_sources_router)
 app.include_router(slo_router)
 app.include_router(nl_query_router)
+app.include_router(realtime_router)
 
 # ── WebSocket endpoints ──
 from backend.websocket.manager import ws_manager

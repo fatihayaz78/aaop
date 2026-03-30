@@ -260,6 +260,7 @@ export default function OpsCenter() {
 
           {/* SLO Summary Widget */}
           <SLOSummaryWidget />
+          <LiveAnomalyFeed />
         </div>
       )}
 
@@ -508,6 +509,55 @@ function SLOSummaryWidget() {
       <div className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
         {allMet ? "All targets within budget" : `${total - met} SLO breached`}
       </div>
+    </div>
+  );
+}
+
+// ── Live Anomaly Feed ──────────────────────────────────────────
+
+function LiveAnomalyFeed() {
+  const [anomalies, setAnomalies] = useState<Record<string, unknown>[]>([]);
+
+  const fetchAnomalies = useCallback(async () => {
+    try {
+      const data = await apiGet<Record<string, unknown>[]>("/realtime/anomalies?minutes=60");
+      setAnomalies(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchAnomalies();
+    const id = setInterval(fetchAnomalies, 30000);
+    return () => clearInterval(id);
+  }, [fetchAnomalies]);
+
+  const sevColor: Record<string, string> = { P0: "var(--risk-high)", P1: "var(--risk-medium)", P2: "var(--risk-low)" };
+
+  return (
+    <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Live Anomaly Feed</h3>
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>{anomalies.length} anomalies (1h)</span>
+      </div>
+      {anomalies.length === 0 ? (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>No anomalies detected</p>
+      ) : (
+        <div className="space-y-1 max-h-48 overflow-y-auto">
+          {anomalies.slice(0, 20).map((a, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded"
+              style={{ backgroundColor: "var(--background)" }}>
+              <span className="font-mono font-bold" style={{ color: sevColor[String(a.severity)] || "var(--text-muted)" }}>
+                {String(a.severity)}
+              </span>
+              <span style={{ color: "var(--text-secondary)" }}>{String(a.detector)}</span>
+              <span style={{ color: "var(--text-muted)" }}>{String(a.metric)}: {String(a.current_value)}</span>
+              <span className="ml-auto" style={{ color: "var(--text-muted)" }}>
+                {String(a.detected_at).slice(11, 19)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

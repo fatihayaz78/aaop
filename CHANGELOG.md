@@ -8,6 +8,20 @@
 
 ---
 
+### S-RT-01 — 2026-03-30
+- shared/realtime/: AnomalyEngine + 4 detectors (cdn, drm, qoe, api)
+  - CDN: error_rate >0.05 P1, >0.15 P0
+  - DRM: failure_rate >0.10 P1
+  - QoE: avg_score <2.5 P1, <1.5 P0
+  - API: error_rate >0.05 P2, p99 >2000ms P2
+- backend/routers/realtime.py: 3 endpoint (anomalies, status, detector toggle)
+- backend/main.py: AnomalyEngine lifespan (30s polling, startup skip)
+- frontend/ops-center: Live Anomaly Feed (30s polling, severity badges)
+- EventBus entegrasyonu: cdn_anomaly_detected + qoe_degradation publish
+- Tests: 181 passed (148 + 8 SLO + 12 NL + 13 RT), 0 failure
+
+---
+
 ### S-NL-01 — 2026-03-30
 - shared/nl_query/: NLEngine + SchemaRegistry (18 tablo) + SQLValidator (6 güvenlik kontrolü)
   - PII koruma: client_ip, subscriber_id SELECT/WHERE'de yasak
