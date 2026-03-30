@@ -40,40 +40,25 @@ async def init_clients() -> None:
 
 
 async def _seed_admin_user(sqlite: SQLiteClient) -> None:
-    """Insert default admin user, system tenant, and multi-tenant seed data."""
-    import uuid
-
-    import bcrypt
-
-    # Seed multi-tenant hierarchy (idempotent)
+    """Seed multi-tenant hierarchy + demo users."""
     await _seed_tenant_hierarchy(sqlite)
-
-    row = await sqlite.fetch_one("SELECT COUNT(*) as cnt FROM users")
-    if row and row["cnt"] > 0:
-        return
-
-    # Ensure system tenant exists for FK
-    existing = await sqlite.fetch_one("SELECT id FROM tenants WHERE id = 'system'")
-    if not existing:
-        await sqlite.execute(
-            "INSERT INTO tenants (id, name, plan, sector) VALUES (?, ?, ?, ?)",
-            ("system", "System", "enterprise", "platform"),
-        )
-
-    from shared.utils.settings import get_settings
-    settings = get_settings()
-    if settings.admin_password == "admin123":
-        logger.warning("default_admin_password_in_use", msg="ADMIN_PASSWORD env var set edilmeli")
-    password_hash = bcrypt.hashpw(settings.admin_password.encode(), bcrypt.gensalt()).decode()
-    await sqlite.execute(
-        "INSERT INTO users (id, tenant_id, username, password_hash, role, service_ids, active_service_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (str(uuid.uuid4()), "ott_co", "admin", password_hash, "super_admin", '["sport_stream"]', "sport_stream"),
-    )
-    logger.info("seed_admin_user_created", username="admin")
+    await _seed_demo_users(sqlite)
 
 
 async def _seed_tenant_hierarchy(sqlite: SQLiteClient) -> None:
-    """Seed tenants and services (idempotent — INSERT OR IGNORE)."""
+    """Seed tenants and services, clean up legacy records (idempotent)."""
+    # Clean up old legacy tenants (S-MT-02) — delete referencing rows first
+    for old_id in ("system", "s_sport_plus", "bein_sports", "tivibu", "aaop_company"):
+        for child_table in ("users", "module_configs", "audit_log", "settings", "services"):
+            try:
+                await sqlite.execute(f"DELETE FROM {child_table} WHERE tenant_id = ?", (old_id,))
+            except Exception:
+                pass
+        try:
+            await sqlite.execute("DELETE FROM tenants WHERE id = ?", (old_id,))
+        except Exception:
+            pass
+
     tenants = [
         ("ott_co", "OTT Co", "enterprise", "ott"),
         ("tel_co", "Tel Co", "growth", "telekom"),
@@ -97,13 +82,35 @@ async def _seed_tenant_hierarchy(sqlite: SQLiteClient) -> None:
             (sid, tid, name, schema),
         )
 
-    # Migrate existing aaop_company users to ott_co
-    await sqlite.execute(
-        "UPDATE users SET tenant_id = 'ott_co', service_ids = '[\"sport_stream\"]', "
-        "active_service_id = 'sport_stream' WHERE tenant_id = 'aaop_company'",
-    )
-
     logger.info("tenant_hierarchy_seeded")
+
+
+async def _seed_demo_users(sqlite: SQLiteClient) -> None:
+    """Seed demo users (idempotent — INSERT OR IGNORE by username)."""
+    import uuid
+
+    import bcrypt
+
+    password_hash = bcrypt.hashpw(b"Captain2026!", bcrypt.gensalt()).decode()
+
+    demo_users = [
+        ("admin@captainlogar.demo", "ott_co",     "super_admin",  '["sport_stream","tv_plus","music_stream","fly_ent"]', "sport_stream"),
+        ("admin@ottco.demo",        "ott_co",     "tenant_admin", '["sport_stream"]',                                    "sport_stream"),
+        ("admin@telco.demo",        "tel_co",     "tenant_admin", '["tv_plus","music_stream"]',                          "tv_plus"),
+        ("user@telco.demo",         "tel_co",     "service_user", '["tv_plus"]',                                         "tv_plus"),
+        ("admin@airlineco.demo",    "airline_co", "tenant_admin", '["fly_ent"]',                                         "fly_ent"),
+    ]
+
+    for email, tenant_id, role, service_ids, active_service in demo_users:
+        existing = await sqlite.fetch_one("SELECT id FROM users WHERE username = ?", (email,))
+        if not existing:
+            await sqlite.execute(
+                "INSERT INTO users (id, tenant_id, username, password_hash, role, service_ids, active_service_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), tenant_id, email, password_hash, role, service_ids, active_service),
+            )
+
+    logger.info("demo_users_seeded")
 
 
 async def shutdown_clients() -> None:

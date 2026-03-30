@@ -41,6 +41,9 @@ def test_cors_headers(client: TestClient):
 
 def test_login_requires_credentials(client: TestClient):
     """Login endpoint requires valid credentials (no longer 501)."""
-    response = client.post("/auth/login", data={"username": "nonexistent", "password": "wrong"})
+    response = client.post(
+        "/auth/login",
+        json={"email": "nonexistent@test.com", "password": "wrong"},
+    )
     # Returns 401 (invalid credentials) or 500 (sqlite not initialized in test) — not 501
     assert response.status_code in (401, 500)

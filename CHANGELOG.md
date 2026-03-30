@@ -8,6 +8,23 @@
 
 ---
 
+### S-MT-02 — 2026-03-30
+- backend/auth.py: multi-tenant JWT payload (service_ids, active_service_id, role)
+  - POST /auth/login: JSON body (tenant_id + email + password)
+  - POST /auth/switch-service: JWT-based service switch (403 if unauthorized)
+  - GET /auth/tenants: public endpoint for login page dropdown
+  - POST /auth/login/form: legacy OAuth2 form login (backward compat)
+- backend/dependencies.py: tenant cleanup (system, s_sport_plus, bein_sports, tivibu silindi)
+  - 5 demo kullanıcı seed (Captain2026! şifre)
+  - super_admin, tenant_admin, service_user rolleri
+- backend/middleware/service_context.py: stub → tam JWT implementasyon
+  - Authorization header decode → active_service_id → duckdb_schema
+  - In-memory schema cache (TTL 5dk)
+- frontend/src/app/login/page.tsx: tenant dropdown + email/password form
+- Tests: 148 passed, 0 failure
+
+---
+
 ### S-MT-01 — 2026-03-29
 - Multi-tenant 3-katman hiyerarşi: super_admin → tenant → service
 - SQLite: tenants tablosu (3 kayıt: ott_co, tel_co, airline_co) + services tablosu (4 kayıt: sport_stream, tv_plus, music_stream, fly_ent)
