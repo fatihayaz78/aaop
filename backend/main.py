@@ -14,6 +14,7 @@ from backend.auth import router as auth_router
 from backend.dependencies import init_clients, shutdown_clients
 from backend.routers.admin_governance import router as admin_governance_router
 from backend.routers.slo import router as slo_router
+from backend.routers.nl_query import router as nl_query_router
 from backend.routers.ai_lab import router as ai_lab_router
 from backend.routers.alert_center import router as alert_center_router
 from backend.routers.capacity_cost import router as capacity_cost_router
@@ -147,6 +148,7 @@ app.include_router(admin_governance_router)
 app.include_router(mock_data_gen_router)
 app.include_router(data_sources_router)
 app.include_router(slo_router)
+app.include_router(nl_query_router)
 
 # ── WebSocket endpoints ──
 from backend.websocket.manager import ws_manager

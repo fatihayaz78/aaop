@@ -51,6 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Dev / Test",
     priority: "DEV",
     items: [
+      { label: "NL Query", href: "/nl-query", icon: "💬" },
       { label: "Data Generation & Extraction", href: "/mock-data-gen", icon: "🗄️" },
     ],
   },

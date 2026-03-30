@@ -8,6 +8,20 @@
 
 ---
 
+### S-NL-01 — 2026-03-30
+- shared/nl_query/: NLEngine + SchemaRegistry (18 tablo) + SQLValidator (6 güvenlik kontrolü)
+  - PII koruma: client_ip, subscriber_id SELECT/WHERE'de yasak
+  - Write koruma: INSERT/UPDATE/DELETE/DROP engelli
+  - tenant_id filtresi zorunlu, LIMIT zorunlu (max 1000)
+- backend/routers/nl_query.py: 3 endpoint (query, tables, examples)
+- backend/main.py: nl_query_router mount
+- frontend/src/app/(apps)/nl-query/page.tsx: standalone NL query sayfası
+  - Örnek sorgular (chip), tablo browser, SQL görüntüleme, sonuç tablosu
+- frontend/src/components/layout/Sidebar.tsx: NL Query link eklendi
+- Tests: 168 passed (148 + 8 SLO + 12 NL), 0 failure
+
+---
+
 ### S-SLO-01 — 2026-03-30
 - shared/slo/: SLOCalculator (5 metrik: availability, qoe_score, cdn_error_rate, api_p99, incident_mttr)
 - backend/routers/slo.py: 8 endpoint (definitions CRUD, status, history, calculate, report)
