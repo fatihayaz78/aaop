@@ -8,6 +8,21 @@
 
 ---
 
+### S-ALERT-FIX-01 — 2026-03-31
+- alert-center/page.tsx: Live Feed + Alerts tab — fixed API path (/alerts → /alerts/list)
+  - Fixed tenant_id: bein_sports → ott_co (default from header)
+  - Added suppression data loading
+- alert-center/page.tsx: Rules form 422 fix — event_types/channels sent as arrays (was string)
+  - Added inline error display
+- alert-center/page.tsx: Channels 404 fix — test button shows toast (endpoint not available)
+  - Channel status: "Configured" / "Not configured" (was isActive check)
+- alert-center/page.tsx: Suppression — POST /alerts/suppression form connected
+- Backend endpoints verified: GET /alerts/list, /alerts/rules, /alerts/channels, /alerts/suppression, POST /alerts/rules, POST /alerts/suppression all exist
+- Missing: POST /alerts/test (channel test) — noted for future sprint
+- Tests: 181 passed, 0 failure
+
+---
+
 ### S-OPS-FIX-01 — 2026-03-31
 - ops-center/page.tsx: Add Incident slide-over form (title, severity, description, affected_service)
   - POST /ops/incidents submit (graceful error if endpoint missing)

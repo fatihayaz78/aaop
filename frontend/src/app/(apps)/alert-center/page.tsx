@@ -35,14 +35,17 @@ export default function AlertCenter() {
 
   const loadData = useCallback(async () => {
     try {
-      const [a, r, c] = await Promise.all([
-        apiGet<Alert[]>("/alerts?tenant_id=bein_sports&limit=50"),
-        apiGet<AlertRule[]>("/alerts/rules?tenant_id=bein_sports"),
-        apiGet<AlertChannel[]>("/alerts/channels?tenant_id=bein_sports"),
+      const [aRes, r, c, s] = await Promise.all([
+        apiGet<Record<string, unknown>>("/alerts/list?limit=50"),
+        apiGet<AlertRule[]>("/alerts/rules"),
+        apiGet<AlertChannel[]>("/alerts/channels"),
+        apiGet<SuppressionRule[]>("/alerts/suppression").catch(() => []),
       ]);
-      setAlerts(a);
-      setRules(r);
-      setChannels(c);
+      const items = (aRes as { items?: Alert[] }).items ?? (Array.isArray(aRes) ? aRes : []);
+      setAlerts(items as Alert[]);
+      setRules(Array.isArray(r) ? r : []);
+      setChannels(Array.isArray(c) ? c : []);
+      setSuppressions(Array.isArray(s) ? s : []);
     } catch { /* backend offline */ }
   }, []);
 
@@ -68,19 +71,27 @@ export default function AlertCenter() {
     } catch { /* error */ }
   };
 
+  const [ruleError, setRuleError] = useState("");
   const createRule = async () => {
+    setRuleError("");
     try {
-      await apiPost("/alerts/rules", { tenant_id: "bein_sports", ...newRule });
+      await apiPost("/alerts/rules", {
+        name: newRule.name,
+        event_types: newRule.event_types ? newRule.event_types.split(",").map((s: string) => s.trim()) : [],
+        severity_min: newRule.severity_min,
+        channels: newRule.channels ? newRule.channels.split(",").map((s: string) => s.trim()) : ["slack"],
+        is_active: newRule.is_active ? 1 : 0,
+      });
       setShowNewRule(false);
       setNewRule({ name: "", event_types: "", severity_min: "P3", channels: "slack", is_active: true });
       loadData();
-    } catch { /* error */ }
+    } catch { setRuleError("Failed to create rule"); }
   };
 
-  const testChannel = async (channelId: string) => {
-    try {
-      await apiPost("/alerts/test", { channel_id: channelId, message: "Test alert from AAOP" });
-    } catch { /* error */ }
+  const [channelToast, setChannelToast] = useState("");
+  const testChannel = async (channelType: string) => {
+    setChannelToast(`Test for ${channelType} — not yet connected`);
+    setTimeout(() => setChannelToast(""), 3000);
   };
 
   const filteredAlerts = alerts.filter((a) => {
@@ -280,9 +291,10 @@ export default function AlertCenter() {
                       <option value="email">Email</option>
                     </select>
                   </div>
+                  {ruleError && <p className="text-xs text-red-400">{ruleError}</p>}
                   <div className="flex gap-2 pt-4">
                     <button onClick={createRule} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Create</button>
-                    <button onClick={() => setShowNewRule(false)} className="px-4 py-2 rounded text-sm border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Cancel</button>
+                    <button onClick={() => { setShowNewRule(false); setRuleError(""); }} className="px-4 py-2 rounded text-sm border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Cancel</button>
                   </div>
                 </div>
               </div>
@@ -293,28 +305,32 @@ export default function AlertCenter() {
 
       {/* Tab: Channels */}
       {tab === "channels" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {CHANNEL_TYPES.map((ct) => {
-            const ch = channels.find((c) => c.channelType === ct.type);
-            return (
-              <div key={ct.type} className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{ct.icon}</span>
-                    <span className="text-sm font-semibold capitalize" style={{ color: "var(--text-primary)" }}>{ct.type}</span>
+        <div>
+          {channelToast && <div className="mb-4 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "rgba(234,179,8,0.1)", color: "#eab308" }}>{channelToast}</div>}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {CHANNEL_TYPES.map((ct) => {
+              const ch = channels.find((c) => (c as Record<string, unknown>).channel_type === ct.type || c.channelType === ct.type);
+              return (
+                <div key={ct.type} className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{ct.icon}</span>
+                      <span className="text-sm font-semibold capitalize" style={{ color: "var(--text-primary)" }}>{ct.type}</span>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded"
+                      style={{ backgroundColor: ch ? "rgba(34,197,94,0.15)" : "rgba(72,79,88,0.15)", color: ch ? "#22c55e" : "var(--text-muted)" }}>
+                      {ch ? "Configured" : "Not configured"}
+                    </span>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded"
-                    style={{ backgroundColor: ch?.isActive ? "var(--risk-low-bg)" : "rgba(72,79,88,0.15)", color: ch?.isActive ? "var(--risk-low)" : "var(--text-muted)" }}>
-                    {ch?.isActive ? "Active" : "Inactive"}
-                  </span>
+                  <div className="flex gap-2">
+                    <button className="text-xs px-3 py-1.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+                      title="Configuration coming soon">Configure</button>
+                    <button onClick={() => testChannel(ct.type)} className="text-xs px-3 py-1.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>Test</button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button className="text-xs px-3 py-1.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Configure</button>
-                  <button onClick={() => testChannel(ch?.id ?? ct.type)} className="text-xs px-3 py-1.5 rounded" style={{ backgroundColor: "var(--brand-glow)", color: "var(--brand-primary)" }}>Test</button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -375,7 +391,12 @@ export default function AlertCenter() {
                       style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <button className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Create</button>
+                    <button onClick={async () => {
+                      try {
+                        await apiPost("/alerts/suppression", { name: newSuppression.name, start_time: newSuppression.start_time, end_time: newSuppression.end_time, is_active: 1 });
+                        setShowNewSuppression(false); setNewSuppression({ name: "", start_time: "", end_time: "" }); loadData();
+                      } catch { /* error */ }
+                    }} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>Create</button>
                     <button onClick={() => setShowNewSuppression(false)} className="px-4 py-2 rounded text-sm border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>Cancel</button>
                   </div>
                 </div>
