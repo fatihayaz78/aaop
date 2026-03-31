@@ -122,15 +122,7 @@ export default function Sidebar() {
 
         {/* Nav groups */}
         {NAV_GROUPS.map((group) => (
-          <div key={group.priority} className="mt-3">
-            {!collapsed && (
-              <p
-                className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {group.priority} — {group.title}
-              </p>
-            )}
+          <div key={group.priority} className="mt-1">
             {group.items.map((item) => {
               const isActive = pathname === item.href;
               const isKb = item.href === "/knowledge-base";

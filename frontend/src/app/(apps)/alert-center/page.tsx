@@ -24,6 +24,7 @@ export default function AlertCenter() {
   const [resolveDialog, setResolveDialog] = useState<Alert | null>(null);
   const [dialogNote, setDialogNote] = useState("");
   const [showNewRule, setShowNewRule] = useState(false);
+  const [evalToast, setEvalToast] = useState("");
   const [newRule, setNewRule] = useState({ name: "", event_types: "", severity_min: "P3", channels: "slack", is_active: true });
   const [showNewSuppression, setShowNewSuppression] = useState(false);
   const [newSuppression, setNewSuppression] = useState({ name: "", start_time: "", end_time: "" });
@@ -149,7 +150,8 @@ export default function AlertCenter() {
             <MetricCard title="Storm Mode" value={stormMode ? "ON" : "OFF"} trend="flat" />
           </div>
           <div className="flex items-center gap-3 mb-4">
-            <button onClick={async () => { try { const r = await apiPost("/alerts/evaluate", {}); alert(`Evaluated: ${(r as Record<string,unknown>).evaluated}, Routed: ${(r as Record<string,unknown>).routed}`); } catch {} }} className="px-4 py-1.5 rounded text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Evaluate Now</button>
+            <button onClick={async () => { try { const r = await apiPost("/alerts/evaluate", {}); const msg = `Evaluated: ${(r as Record<string,unknown>).evaluated}, Routed: ${(r as Record<string,unknown>).routed}`; setEvalToast(msg); setTimeout(() => setEvalToast(""), 3000); } catch {} }} className="px-4 py-1.5 rounded text-sm font-medium text-white" style={{ background: "var(--brand-primary)" }}>Evaluate Now</button>
+            {evalToast && <span className="text-xs px-3 py-1 rounded-full" style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e" }}>{evalToast}</span>}
           </div>
           <div className="rounded-lg border" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
             <div className="max-h-96 overflow-y-auto">

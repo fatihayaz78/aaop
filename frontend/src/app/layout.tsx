@@ -16,8 +16,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className="min-h-screen" style={{ backgroundColor: "var(--background)" }}>
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function(){var t=localStorage.getItem('captain-logar-theme')||'dark';
+          document.documentElement.setAttribute('data-theme',t);
+          document.documentElement.classList.toggle('dark',t==='dark');})();
+        `}} />
         <AuthProvider>
           <Sidebar />
           <div className="transition-all md:ml-[var(--sidebar-width)]">

@@ -103,6 +103,7 @@ function AppearanceSection() {
     setTheme(t);
     localStorage.setItem("captain-logar-theme", t);
     document.documentElement.setAttribute("data-theme", t);
+    document.documentElement.classList.toggle("dark", t === "dark");
   }
 
   return (

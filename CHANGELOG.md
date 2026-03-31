@@ -8,6 +8,17 @@
 
 ---
 
+### S-UI-FIX-01 — 2026-03-31
+- Sidebar.tsx: separator başlıkları (P0/P1/P2/DEV) kaldırıldı — temiz nav
+- Settings/page.tsx: dark/light toggle classList.toggle('dark') eklendi
+- layout.tsx: dark class + inline script ile tema flash önleme
+- Login/page.tsx: demo credentials butonu eklendi (auto-fill)
+- Alert-center/page.tsx: window.alert() → inline toast (3s auto-hide)
+- ServiceSwitcher.tsx: cursor-pointer + title tooltip tüm roller için
+- Tests: 181 passed, 0 failure
+
+---
+
 ### S-DATA-RESEED-01 — 2026-03-31
 - analytics.duckdb: tenant_id migrated (s_sport_plus/bein_sports/aaop_company → ott_co)
   - 50 incidents, 204 agent_decisions, 200 qoe_metrics, 15 live_events, 100 retention_scores all → ott_co

@@ -23,9 +23,10 @@ export default function ServiceSwitcher() {
   return (
     <div ref={ref} className="relative px-3 py-2">
       <div
-        className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 ${hasMultiple ? "cursor-pointer hover:bg-[var(--background-hover)]" : ""}`}
+        className="flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer hover:bg-[var(--background-hover)]"
         style={{ backgroundColor: "var(--background-card)", border: "1px solid var(--border)" }}
         onClick={() => hasMultiple && setOpen(!open)}
+        title={hasMultiple ? "Switch service" : `Active service: ${activeServiceName}`}
       >
         <span>{icon}</span>
         <div className="flex-1 min-w-0">

@@ -133,6 +133,17 @@ export default function LoginPage() {
         <p className="text-xs text-zinc-600 text-center mt-6">
           Super admin tenant seçmeden giriş yapabilir
         </p>
+
+        <div className="mt-4 p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+          <p className="text-xs text-zinc-500 mb-2">Demo Credentials</p>
+          <button
+            type="button"
+            onClick={() => { setEmail("admin@captainlogar.demo"); setPassword("Captain2026!"); setTenantId(""); }}
+            className="text-xs text-blue-400 hover:text-blue-300 underline"
+          >
+            admin@captainlogar.demo / Captain2026!
+          </button>
+        </div>
       </div>
     </div>
   );
