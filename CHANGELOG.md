@@ -8,6 +8,19 @@
 
 ---
 
+### S-DASH-FIX-01 — 2026-03-31
+- frontend/src/app/page.tsx: statik 72 satır → API-wired 180+ satır dashboard
+  - 4 KPI kartı: Active Incidents, Events 24h, MTTR P50, Avg QoE Score
+  - 3 widget: SLO Status (X/Y met), CDN Health (error rate + cache hit), Severity Breakdown (bar chart)
+  - Incident Trend 24h (bar chart)
+  - Live Anomaly Feed (30s polling, son 10 anomali)
+  - Recent Agent Decisions (son 5 karar)
+  - Applications grid (11 app, icon + link)
+- Endpoint'ler: /ops/dashboard, /slo/status, /realtime/anomalies, /ops/decisions
+- Tests: 181 passed, 0 failure
+
+---
+
 ### S-UI-FIX-01 — 2026-03-31
 - Sidebar.tsx: separator başlıkları (P0/P1/P2/DEV) kaldırıldı — temiz nav
 - Settings/page.tsx: dark/light toggle classList.toggle('dark') eklendi
