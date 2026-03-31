@@ -140,7 +140,7 @@ const collColor: Record<string, { bg: string; text: string }> = {
 export default function KnowledgeBase() {
   const searchParams = useSearchParams();
   const viewParam = searchParams?.get("view") || "faq";
-  const view = viewParam === "documents" ? "documents" : "faq";
+  const view = viewParam === "documents" ? "documents" : viewParam === "about" ? "about" : "faq";
 
   const [faqTab, setFaqTab] = useState<FaqTab>("general");
   const [generalSubTab, setGeneralSubTab] = useState<GeneralSubTab>("overview");
@@ -287,6 +287,30 @@ export default function KnowledgeBase() {
 
       {/* ═══ Documents View ═══ */}
       {view === "documents" && <DocumentsView searchQuery={searchQuery} />}
+
+      {/* ═══ About View ═══ */}
+      {view === "about" && <KBAboutTab />}
+    </div>
+  );
+}
+
+function KBAboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Semantic search and institutional memory. Auto-indexes incidents and RCA reports as they are created. Serves as RAG backend for Ops Center and DevOps Assistant." },
+    { title: "Key Features", items: ["Semantic search (incidents/runbooks/docs)", "Auto-ingestion on incident/RCA creation", "Manual document upload", "Related incident suggestions", "Runbook retrieval"] },
+    { title: "KPIs & Metrics", items: ["Documents Indexed", "Search Queries (24h)", "Runbooks Available", "Incidents Indexed"] },
+    { title: "Use Cases", items: ["Déjà vu: DRM error searched → RCA from 3 months ago found with proven fix", "Runbook lookup: DevOps queries CDN cache purge → step-by-step returned", "Auto-indexing: Every P0/P1 RCA indexed → future incidents benefit"] },
+    { title: "AI Model", content: "Search and Q&A → Haiku · Document summarization → Sonnet" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { apiGet, apiPost, apiPatch } from "@/lib/api";
 import { useAlertWebSocket } from "@/lib/socket";
 import type { Alert, AlertRule, AlertChannel, SuppressionRule, SeverityLevel } from "@/types";
 
-type Tab = "live" | "alerts" | "rules" | "channels" | "suppression";
+type Tab = "live" | "alerts" | "rules" | "channels" | "suppression" | "about";
 
 export default function AlertCenter() {
   const [tab, setTab] = useState<Tab>("live");
@@ -106,6 +106,7 @@ export default function AlertCenter() {
     { key: "rules", label: "Rules" },
     { key: "channels", label: "Channels" },
     { key: "suppression", label: "Suppression" },
+    { key: "about", label: "About" },
   ];
 
   const CHANNEL_TYPES: { type: string; icon: string }[] = [
@@ -436,7 +437,30 @@ export default function AlertCenter() {
         </div>
       )}
 
+      {tab === "about" && <AboutTab />}
+
       <AgentChatPanel appName="Alert Center" />
+    </div>
+  );
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Prevents alert fatigue via AI deduplication, storm detection, and smart routing before any notification reaches a human." },
+    { title: "Key Features", items: ["Live Feed (WebSocket)", "Alert list with ack/resolve", "Routing rules engine", "Slack/PagerDuty/Email channels", "Storm mode (>10 alerts/5min)", "Maintenance windows", "15min Redis dedup"] },
+    { title: "KPIs & Metrics", items: ["Live Alerts", "Total Alerts (DB)", "Active Rules", "Storm Mode status"] },
+    { title: "Use Cases", items: ["Match day storm: 40 alerts in 2min → storm mode → one consolidated P1", "Maintenance window: Weekly backup → P3 alerts suppressed", "Rule tuning: qoe_degradation P2 → Email only"] },
+    { title: "AI Model", content: "Routing → Haiku · Message generation → Sonnet" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

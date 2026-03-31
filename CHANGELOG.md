@@ -8,6 +8,15 @@
 
 ---
 
+### S-ABOUT-01 — 2026-03-31
+- 10 app sayfasına About tab eklendi (Purpose, Features, KPIs, Use Cases, AI Model)
+  - ops-center, alert-center, viewer-experience, live-intelligence, growth-retention
+  - capacity-cost, admin-governance, ai-lab, knowledge-base, devops-assistant
+- KB: URL param `?view=about` pattern (diğer 9: useState Tab)
+- Tests: 181 passed, 0 failure (3 error = DuckDB lock, backend çalışırken normal)
+
+---
+
 ### S-API-FIX-01 — 2026-03-31
 - backend/routers/ops_center.py: POST /ops/incidents — manual incident creation
   - Severity validation (P0-P3), DuckDB INSERT, auto UUID

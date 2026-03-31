@@ -8,7 +8,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost } from "@/lib/api";
 import type { ViewerDashboard, QoEMetric, Complaint } from "@/types/viewer_experience";
 
-type Tab = "dashboard" | "sessions" | "anomalies" | "complaints" | "trends" | "segments";
+type Tab = "dashboard" | "sessions" | "anomalies" | "complaints" | "trends" | "segments" | "about";
 
 const scoreColor = (s: number) => s >= 4 ? "var(--risk-low)" : s >= 3 ? "var(--risk-medium)" : "var(--risk-high)";
 const sentimentEmoji: Record<string, string> = { negative: "\uD83D\uDE1E", neutral: "\uD83D\uDE10", positive: "\uD83D\uDE0A", pending: "\u2753" };
@@ -96,6 +96,7 @@ export default function ViewerExperience() {
     { key: "dashboard", label: "QoE Dashboard" }, { key: "sessions", label: "Live Sessions" },
     { key: "anomalies", label: "Anomaly Feed" }, { key: "complaints", label: "Complaints" },
     { key: "trends", label: "Trends" }, { key: "segments", label: "Segments" },
+    { key: "about", label: "About" },
   ];
 
   const distData = dash ? [
@@ -287,7 +288,30 @@ export default function ViewerExperience() {
         </div>
       )}
 
+      {tab === "about" && <AboutTab />}
+
       <AgentChatPanel appName="Viewer Experience" />
+    </div>
+  );
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Scores every viewer session 0-5 using buffering, startup time, errors, and bitrate." },
+    { title: "Key Features", items: ["QoE Dashboard", "Session scoring (0-5)", "Anomaly feed (threshold <2.5)", "Complaint NLP categorization", "Trend by content/region/device"] },
+    { title: "KPIs & Metrics", items: ["Avg QoE Score", "Sessions Below 2.5", "Buffering Rate %", "Startup Time P95", "Complaint Volume"] },
+    { title: "Use Cases", items: ["Pre-match score drop 4.2→2.8 → qoe_degradation → P1", "30 mobile complaints → CDN edge issue identified", "Filter mobile + Istanbul → specific PoP issue"] },
+    { title: "AI Model", content: "Anomaly → Sonnet · Bulk scoring → Haiku · Complaint NLP → Sonnet" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

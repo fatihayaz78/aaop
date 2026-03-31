@@ -8,7 +8,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost } from "@/lib/api";
 import type { GrowthDashboard, RetentionScore } from "@/types/growth_retention";
 
-type Tab = "dashboard" | "retention" | "churn" | "segments" | "query";
+type Tab = "dashboard" | "retention" | "churn" | "segments" | "query" | "about";
 
 const segColor: Record<string, string> = { power_user: "var(--risk-low)", regular: "var(--brand-primary)", at_risk: "var(--risk-medium)", churned: "var(--risk-high)" };
 const segBg: Record<string, string> = { power_user: "var(--risk-low-bg)", regular: "var(--brand-glow)", at_risk: "var(--risk-medium-bg)", churned: "var(--risk-high-bg)" };
@@ -51,6 +51,7 @@ export default function GrowthRetention() {
     { key: "dashboard", label: "Dashboard" }, { key: "retention", label: "Retention" },
     { key: "churn", label: "Churn Risk" }, { key: "segments", label: "Segments" },
     { key: "query", label: "AI Query" },
+    { key: "about", label: "About" },
   ];
 
   return (
@@ -193,7 +194,30 @@ export default function GrowthRetention() {
         </div>
       )}
 
+      {tab === "about" && <AboutTab />}
+
       <AgentChatPanel appName="Growth & Retention" />
+    </div>
+  );
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Identifies at-risk subscribers using QoE + CDN + viewing behavior cross-signals." },
+    { title: "Key Features", items: ["Retention dashboard", "Churn risk segments (>0.7 high)", "Subscriber segmentation", "NL data queries", "AI growth insights"] },
+    { title: "KPIs & Metrics", items: ["Churn Risk Score", "High-Risk Subscribers", "30-Day Retention Rate", "Avg Sessions/Subscriber"] },
+    { title: "Use Cases", items: ["Daily scoring: risk >0.7 → churn_risk_detected → Alert Center", "NL query: 'subscribers who watched <2h last week' → SQL → table", "QoE-churn correlation analysis"] },
+    { title: "AI Model", content: "Churn scoring → Sonnet · NL to SQL → Sonnet · Bulk → Haiku" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

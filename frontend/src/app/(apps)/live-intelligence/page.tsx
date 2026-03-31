@@ -7,7 +7,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet } from "@/lib/api";
 import type { LiveEvent, LiveDashboard } from "@/types/live_intelligence";
 
-type Tab = "dashboard" | "calendar" | "monitor" | "prescale" | "drm" | "epg";
+type Tab = "dashboard" | "calendar" | "monitor" | "prescale" | "drm" | "epg" | "about";
 
 const sportIcon: Record<string, string> = { football: "\u26BD", basketball: "\uD83C\uDFC0", motorsport: "\uD83C\uDFCE\uFE0F", tennis: "\uD83C\uDFBE" };
 
@@ -59,6 +59,7 @@ export default function LiveIntelligence() {
     { key: "dashboard", label: "Dashboard" }, { key: "calendar", label: "Event Calendar" },
     { key: "monitor", label: "Live Monitor" }, { key: "prescale", label: "Pre-Scale" },
     { key: "drm", label: "DRM Status" }, { key: "epg", label: "EPG" },
+    { key: "about", label: "About" },
   ];
 
   return (
@@ -266,7 +267,30 @@ export default function LiveIntelligence() {
         </div>
       )}
 
+      {tab === "about" && <AboutTab />}
+
       <AgentChatPanel appName="Live Intelligence" />
+    </div>
+  );
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Pre-match intelligence hub. Triggers pre-scale 30min before kickoff." },
+    { title: "Key Features", items: ["Event Calendar", "Live Monitor", "Pre-Scale calculator", "SportRadar (30s)", "DRM status (60s)", "EPG schedule (5min)"] },
+    { title: "KPIs & Metrics", items: ["Upcoming Events (24h)", "Events Live Now", "DRM Token Error Rate", "Pre-Scale Triggered"] },
+    { title: "Use Cases", items: ["Kickoff −30min: 3.2x scale → live_event_starting published", "DRM outage: Token failure >10% → P1", "EPG mismatch corrected before broadcast"] },
+    { title: "AI Model", content: "Event monitoring → Sonnet · External data → Haiku" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

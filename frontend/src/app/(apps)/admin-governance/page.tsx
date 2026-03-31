@@ -8,7 +8,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost, apiPatch, exportToCsv } from "@/lib/api";
 import type { AdminDashboard, Tenant, AuditEntry } from "@/types/admin_governance";
 
-type Tab = "dashboard" | "tenants" | "modules" | "audit" | "compliance" | "usage" | "datasources" | "slo";
+type Tab = "dashboard" | "tenants" | "modules" | "audit" | "compliance" | "usage" | "datasources" | "slo" | "about";
 
 const planColor: Record<string, { bg: string; text: string }> = {
   enterprise: { bg: "rgba(168,85,247,0.15)", text: "#a855f7" },
@@ -77,6 +77,7 @@ export default function AdminGovernance() {
     { key: "compliance", label: "Compliance" }, { key: "usage", label: "Usage Stats" },
     { key: "datasources", label: "Data Sources" },
     { key: "slo", label: "SLO Tracking" },
+    { key: "about", label: "About" },
   ];
 
   return (
@@ -305,6 +306,7 @@ export default function AdminGovernance() {
 
       {tab === "datasources" && <DataSourcesTab />}
       {tab === "slo" && <SLOTrackingTab />}
+      {tab === "about" && <AboutTab />}
 
       <AgentChatPanel appName="Admin & Governance" />
     </div>
@@ -667,6 +669,27 @@ function SLOTrackingTab() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Multi-tenant control center managing 3-tier hierarchy." },
+    { title: "Key Features", items: ["Tenant/service management", "Module enable/disable (P0 locked)", "SLO CRUD + live status", "Compliance reports", "Audit log", "Usage analytics"] },
+    { title: "KPIs & Metrics", items: ["Active Tenants", "Active Services", "SLOs Met", "Audit Events (24h)"] },
+    { title: "Use Cases", items: ["Onboarding: create tenant, assign service, set SLOs", "SLO breach: 4/5 met → escalated", "Compliance audit: 30-day HIGH-risk export"] },
+    { title: "AI Model", content: "Tenant management → Sonnet · Compliance → Sonnet" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

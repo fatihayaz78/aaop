@@ -10,7 +10,7 @@ import { apiGet, apiPost, apiPatch, exportToCsv } from "@/lib/api";
 import { useOpsWebSocket } from "@/lib/socket";
 import type { Incident, OpsMetrics, AgentDecision, RCAResult, RiskLevel } from "@/types";
 
-type Tab = "dashboard" | "incidents" | "rca" | "decisions";
+type Tab = "dashboard" | "incidents" | "rca" | "decisions" | "about";
 type TimeRange = "1h" | "6h" | "24h" | "7d";
 
 /* ── FIX 7: MTTR format helper ── */
@@ -183,6 +183,7 @@ export default function OpsCenter() {
     { key: "incidents", label: "Incidents" },
     { key: "rca", label: "RCA Explorer" },
     { key: "decisions", label: "Decision Log" },
+    { key: "about", label: "About" },
   ];
 
   return (
@@ -581,6 +582,8 @@ export default function OpsCenter() {
         </div>
       )}
 
+      {tab === "about" && <AboutTab />}
+
       <AgentChatPanel appName="Ops Center" />
     </div>
   );
@@ -668,6 +671,27 @@ function LiveAnomalyFeed() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Primary incident command interface. Correlates CDN, DRM, QoE, and live event signals to surface root causes faster than manual triage." },
+    { title: "Key Features", items: ["Incident lifecycle (create→investigate→resolve)", "RCA Explorer with root cause analysis", "Decision Log with confidence scores", "Live Anomaly Feed (30s polling)", "SLO status widget"] },
+    { title: "KPIs & Metrics", items: ["Active Incidents", "Open Now", "P50 MTTR", "Active P0", "CDN Error Rate", "Avg QoE Score"] },
+    { title: "Use Cases", items: ["3am CDN spike: Anomaly fires → P1 surfaced → RCA correlates CDN + DRM → cache purge recommended", "Manual triage: Engineer creates P2 via Add Incident form", "Post-incident review: Lead audits LOW vs HIGH risk AI actions"] },
+    { title: "AI Model", content: "P0/P1 → Opus · P2/P3 → Sonnet · RCA always Opus" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

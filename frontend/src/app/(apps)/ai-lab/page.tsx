@@ -5,7 +5,7 @@ import LogTable from "@/components/ui/LogTable";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost } from "@/lib/api";
 
-type Tab = "dashboard" | "experiments" | "models" | "governance";
+type Tab = "dashboard" | "experiments" | "models" | "governance" | "about";
 
 export default function AILab() {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -35,7 +35,7 @@ export default function AILab() {
   };
 
   const d = dash as any;
-  const TABS: {key:Tab;label:string}[] = [{key:"dashboard",label:"Dashboard"},{key:"experiments",label:"Experiments"},{key:"models",label:"Models"},{key:"governance",label:"Model Governance"}];
+  const TABS: {key:Tab;label:string}[] = [{key:"dashboard",label:"Dashboard"},{key:"experiments",label:"Experiments"},{key:"models",label:"Models"},{key:"governance",label:"Model Governance"},{key:"about",label:"About"}];
 
   return (<div>
     <h2 className="text-2xl font-bold mb-6" style={{color:"var(--text-primary)"}}>AI Lab</h2>
@@ -129,6 +129,29 @@ export default function AILab() {
       <p className="text-xs col-span-3" style={{color:"var(--text-muted)"}}>Full governance controls available in Admin & Governance → Usage Stats</p>
     </div>)}
 
+    {tab === "about" && <AboutTab />}
+
     <AgentChatPanel appName="AI Lab"/>
   </div>);
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Experimentation sandbox for prompt variants, model comparison, and token cost tracking." },
+    { title: "Key Features", items: ["A/B experiments with p-value/CI", "Model registry", "Prompt Lab", "LLM cost tracker"] },
+    { title: "KPIs & Metrics", items: ["Active Experiments", "Token Budget Used %", "Avg Latency by Model", "Cost per 1K Tokens"] },
+    { title: "Use Cases", items: ["Prompt A/B: p<0.05 → variant B promoted", "Budget at 82% → warning → agent identified", "New Sonnet evaluated on 30 days → approved"] },
+    { title: "AI Model", content: "Experiment analysis → Sonnet · Metrics → Haiku · Governance → Sonnet" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
+    </div>
+  );
 }

@@ -8,7 +8,7 @@ import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet } from "@/lib/api";
 import type { CapacityDashboard } from "@/types/capacity_cost";
 
-type Tab = "dashboard" | "forecast" | "usage" | "jobs" | "cost";
+type Tab = "dashboard" | "forecast" | "usage" | "jobs" | "cost" | "about";
 
 const utilColor = (v: number) => v > 90 ? "var(--risk-high)" : v > 70 ? "var(--risk-medium)" : "var(--risk-low)";
 const utilBg = (v: number) => v > 90 ? "var(--risk-high-bg)" : v > 70 ? "var(--risk-medium-bg)" : "var(--risk-low-bg)";
@@ -40,6 +40,7 @@ export default function CapacityCost() {
     { key: "dashboard", label: "Dashboard" }, { key: "forecast", label: "Forecast" },
     { key: "usage", label: "Usage" }, { key: "jobs", label: "Automation Jobs" },
     { key: "cost", label: "Cost" },
+    { key: "about", label: "About" },
   ];
 
   const filteredForecast = svcFilter ? forecast.filter((f) => f.service === svcFilter) : forecast;
@@ -195,7 +196,30 @@ export default function CapacityCost() {
         </div>
       )}
 
+      {tab === "about" && <AboutTab />}
+
       <AgentChatPanel appName="Capacity & Cost" />
+    </div>
+  );
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Forecasts infrastructure needs and automates scaling." },
+    { title: "Key Features", items: ["7/30-day capacity forecast", "Current usage dashboard", "Scaling job management", "Cost analysis", "Threshold alerts"] },
+    { title: "KPIs & Metrics", items: ["CPU Utilization %", "Forecast Accuracy", "Scaling Events", "Cost per 1K Sessions"] },
+    { title: "Use Cases", items: ["Pre-match: live_event_starting → 3.2x → engineer approves", "CDN spend 40% above forecast → misconfig found", "CPU 75% → auto scale recommendation"] },
+    { title: "AI Model", content: "Forecasting → Sonnet · Automation → Haiku" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
     </div>
   );
 }

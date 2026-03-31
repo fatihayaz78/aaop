@@ -4,7 +4,7 @@ import MetricCard from "@/components/ui/MetricCard";
 import AgentChatPanel from "@/components/agent-chat/AgentChatPanel";
 import { apiGet, apiPost } from "@/lib/api";
 
-type Tab = "dashboard" | "chat" | "runbooks";
+type Tab = "dashboard" | "chat" | "runbooks" | "about";
 
 export default function DevOpsAssistant() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -41,7 +41,7 @@ export default function DevOpsAssistant() {
   };
 
   const d = dash as any;
-  const TABS: {key:Tab;label:string}[] = [{key:"dashboard",label:"Dashboard"},{key:"chat",label:"Chat"},{key:"runbooks",label:"Runbooks"}];
+  const TABS: {key:Tab;label:string}[] = [{key:"dashboard",label:"Dashboard"},{key:"chat",label:"Chat"},{key:"runbooks",label:"Runbooks"},{key:"about",label:"About"}];
 
   return (<div>
     <h2 className="text-2xl font-bold mb-6" style={{color:"var(--text-primary)"}}>DevOps Assistant</h2>
@@ -136,5 +136,28 @@ export default function DevOpsAssistant() {
         {runbooks.length===0&&<p className="text-sm text-center" style={{color:"var(--text-muted)"}}>No runbooks found</p>}
       </div>
     </div>)}
+
+    {tab === "about" && <AboutTab />}
   </div>);
+}
+
+function AboutTab() {
+  const sections = [
+    { title: "Purpose", content: "Conversational AI for platform engineers with full platform context." },
+    { title: "Key Features", items: ["NL chat with platform context", "Risk-labeled command suggestions", "Service health diagnostics", "Deployment history", "Runbook guided execution"] },
+    { title: "KPIs & Metrics", items: ["Queries Answered", "Commands Suggested", "High-Risk Flagged", "Services Monitored"] },
+    { title: "Use Cases", items: ["'Why is CDN error rate high?' → metrics + incidents → answer", "Restart edge cache → MEDIUM risk → confirmed → logged", "DRM failover runbook stepped through"] },
+    { title: "AI Model", content: "Q&A → Sonnet · Runbook retrieval → Haiku" },
+  ];
+  return (
+    <div className="space-y-4 max-w-3xl">
+      {sections.map((s) => (
+        <div key={s.title} className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{s.title}</h3>
+          {s.content && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.content}</p>}
+          {s.items && <ul className="space-y-1">{s.items.map((item, i) => <li key={i} className="text-sm" style={{ color: "var(--text-secondary)" }}>• {item}</li>)}</ul>}
+        </div>
+      ))}
+    </div>
+  );
 }
