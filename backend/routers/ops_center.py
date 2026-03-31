@@ -30,6 +30,13 @@ class ChatRequest(BaseModel):
     incident_id: str | None = None
 
 
+class IncidentCreate(BaseModel):
+    title: str
+    severity: str  # P0, P1, P2, P3
+    description: str | None = None
+    affected_service: str | None = None
+
+
 # ── Endpoints ──
 
 
@@ -184,6 +191,42 @@ async def list_incidents(
 
     logger.info("ops_list_incidents", tenant_id=tid, total=total, returned=len(rows))
     return {"items": rows, "total": total, "limit": limit, "offset": offset}
+
+
+@router.post("/incidents", status_code=201)
+async def create_incident(
+    body: IncidentCreate,
+    ctx: TenantContext = Depends(get_tenant_context),
+    duck: DuckDBClient = Depends(get_duckdb),
+) -> dict[str, Any]:
+    """Create a new incident."""
+    import uuid
+    from datetime import datetime, timezone
+
+    if body.severity not in ("P0", "P1", "P2", "P3"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid severity. Must be P0, P1, P2, or P3")
+
+    incident_id = f"INC-{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    affected = f'["{body.affected_service}"]' if body.affected_service else "[]"
+
+    duck.execute(
+        """INSERT INTO shared_analytics.incidents
+           (incident_id, tenant_id, severity, title, status, source_app,
+            correlation_ids, affected_svcs, metrics_at_time, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'open', 'manual', '[]', ?, '{}', ?, ?)""",
+        [incident_id, ctx.tenant_id, body.severity, body.title, affected, now, now],
+    )
+    logger.info("incident_created", incident_id=incident_id, severity=body.severity, tenant_id=ctx.tenant_id)
+
+    return {
+        "incident_id": incident_id,
+        "title": body.title,
+        "severity": body.severity,
+        "status": "open",
+        "created_at": now,
+    }
 
 
 @router.get("/incidents/{incident_id}")

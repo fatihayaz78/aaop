@@ -347,3 +347,68 @@ async def evaluate_alerts(
     except Exception as exc:
         logger.warning("alert_evaluate_error", error=str(exc))
         return {"evaluated": 0, "routed": 0, "suppressed": 0, "incidents": []}
+
+
+# ── Channel test + config (S-API-FIX-01) ────────────────────────
+
+VALID_CHANNELS = {"slack", "pagerduty", "email"}
+
+
+class ChannelConfig(BaseModel):
+    webhook_url: str | None = None
+    api_key: str | None = None
+    enabled: bool = True
+
+
+@router.post("/test/{channel_type}")
+async def test_channel(
+    channel_type: str,
+    ctx: TenantContext = Depends(get_tenant_context),
+) -> dict[str, str]:
+    """Simulate a test notification for a channel."""
+    if channel_type not in VALID_CHANNELS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid channel. Must be one of: {', '.join(VALID_CHANNELS)}")
+
+    logger.info("channel_test_sent", channel=channel_type, tenant_id=ctx.tenant_id)
+    return {"channel": channel_type, "status": "test_sent", "message": f"Test notification simulated for {channel_type}"}
+
+
+@router.patch("/channels/{channel_type}")
+async def update_channel(
+    channel_type: str,
+    body: ChannelConfig,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: SQLiteClient = Depends(get_sqlite),
+) -> dict[str, Any]:
+    """Update or create channel configuration."""
+    if channel_type not in VALID_CHANNELS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid channel type")
+
+    await _ensure_schema(db)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+
+    existing = await db.fetch_one(
+        "SELECT id FROM alert_channels WHERE tenant_id = ? AND channel_type = ?",
+        (ctx.tenant_id, channel_type),
+    )
+
+    config_data = json.dumps({"webhook_url": body.webhook_url, "api_key": body.api_key})
+
+    if existing:
+        await db.execute(
+            "UPDATE alert_channels SET config_json = ?, is_active = ?, created_at = ? WHERE id = ?",
+            (config_data, 1 if body.enabled else 0, now, existing["id"]),
+        )
+    else:
+        import uuid
+        ch_id = f"ch-{uuid.uuid4().hex[:8]}"
+        await db.execute(
+            "INSERT INTO alert_channels (id, tenant_id, channel_type, name, config_json, is_active) VALUES (?, ?, ?, ?, ?, ?)",
+            (ch_id, ctx.tenant_id, channel_type, channel_type.capitalize(), config_data, 1 if body.enabled else 0),
+        )
+
+    logger.info("channel_config_updated", channel=channel_type, tenant_id=ctx.tenant_id, enabled=body.enabled)
+    return {"channel": channel_type, "enabled": body.enabled, "updated_at": now}

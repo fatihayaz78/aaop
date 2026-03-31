@@ -87,6 +87,8 @@ GET    /metrics/platform    → {total_events_24h, active_tenants, agent_decisio
 ```
 GET    /ops/health                   → {status, module}
 POST   /ops/incidents/analyze       Body: IncidentEvent → AgentDecisionResult
+POST   /ops/incidents               Body: {title, severity, description?, affected_service?}
+                                  → {incident_id, title, severity, status, created_at} (S-API-FIX-01)
 GET    /ops/incidents               Query: tenant_id, status, severity, limit → [Incident]
 GET    /ops/incidents/{id}          → IncidentDetail (with RCA if available)
 PATCH  /ops/incidents/{id}/status   Body: StatusUpdate → UpdatedIncident
@@ -235,7 +237,12 @@ POST   /alerts/rules                Body: AlertRule → AlertRule
 PUT    /alerts/rules/{id}           Body: AlertRule → AlertRule
 DELETE /alerts/rules/{id}           → 204
 GET    /alerts/channels             Query: tenant_id → [AlertChannel]
-POST   /alerts/test                 Body: {channel_id, message} → TestResult
+POST   /alerts/test/{channel_type}  → {channel, status, message} (S-API-FIX-01)
+                                    channel_type: slack | pagerduty | email
+PATCH  /alerts/channels/{type}      Body: {webhook_url?, api_key?, enabled}
+                                    → {channel, enabled, updated_at} (S-API-FIX-01)
+GET    /alerts/suppression          Query: tenant_id → [SuppressionRule]
+POST   /alerts/suppression          Body: {name, start_time, end_time} → SuppressionRule
 WS     /ws/alerts/stream            WebSocket: real-time alert stream
 POST   /alerts/evaluate                  Body: {tenant_id} → {evaluated, routed, suppressed}
 ```

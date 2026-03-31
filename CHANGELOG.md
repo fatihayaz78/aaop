@@ -8,6 +8,17 @@
 
 ---
 
+### S-API-FIX-01 — 2026-03-31
+- backend/routers/ops_center.py: POST /ops/incidents — manual incident creation
+  - Severity validation (P0-P3), DuckDB INSERT, auto UUID
+- backend/routers/alert_center.py: POST /alerts/test/{channel_type} — channel test simulation
+  - Valid channels: slack, pagerduty, email
+- backend/routers/alert_center.py: PATCH /alerts/channels/{channel_type} — channel config upsert
+  - SQLite alert_channels table, webhook_url + api_key + enabled
+- Tests: 181 passed, 0 failure
+
+---
+
 ### S-ALERT-FIX-01 — 2026-03-31
 - alert-center/page.tsx: Live Feed + Alerts tab — fixed API path (/alerts → /alerts/list)
   - Fixed tenant_id: bein_sports → ott_co (default from header)
