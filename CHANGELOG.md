@@ -8,6 +8,18 @@
 
 ---
 
+### S-DATA-RESEED-01 — 2026-03-31
+- analytics.duckdb: tenant_id migrated (s_sport_plus/bein_sports/aaop_company → ott_co)
+  - 50 incidents, 204 agent_decisions, 200 qoe_metrics, 15 live_events, 100 retention_scores all → ott_co
+- shared/ingest/log_queries.py: tenant→schema mapping eklendi
+  - `_resolve_schema(tenant_id)`: ott_co → aaop_company (DuckDB schema)
+  - `_resolve_row_tenant(tenant_id)`: ott_co → aaop_company (row-level tenant_id)
+  - 11 fonksiyon + 38 WHERE clause güncellendi
+- scripts/migrate_tenant_data.py: one-shot migration script
+- Tests: 181 passed, 0 failure
+
+---
+
 ### S-SHARED-SPEC-01 — 2026-03-30
 - shared/SHARED_MODULES.md: kapsamlı shared modül spec dosyası (~400 satır)
   - 12 modül bölümü, cross-module bağımlılık haritası, kırılma noktaları, test gereksinimleri

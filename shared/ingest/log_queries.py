@@ -22,6 +22,36 @@ def _get_logs_db() -> LogsDuckDBClient:
     return _get_logs_db._instance
 
 
+# Tenant → DuckDB schema mapping for log queries.
+# In multi-tenant setup, tenant_id (ott_co) maps to a duckdb_schema (aaop_company/sport_stream).
+# Legacy data uses aaop_company as both schema and tenant_id in rows.
+_TENANT_SCHEMA_MAP: dict[str, str] = {
+    "ott_co": "aaop_company",
+    "tel_co": "tv_plus",
+    "airline_co": "fly_ent",
+    "aaop_company": "aaop_company",
+    "sport_stream": "sport_stream",
+}
+
+# The tenant_id stored in log rows — legacy data uses "aaop_company"
+_TENANT_ROW_ID_MAP: dict[str, str] = {
+    "ott_co": "aaop_company",
+    "tel_co": "tel_co",
+    "airline_co": "airline_co",
+    "aaop_company": "aaop_company",
+}
+
+
+def _resolve_schema(tenant_id: str) -> str:
+    """Resolve tenant_id to DuckDB schema name."""
+    return _TENANT_SCHEMA_MAP.get(tenant_id, tenant_id.replace("-", "_"))
+
+
+def _resolve_row_tenant(tenant_id: str) -> str:
+    """Resolve tenant_id to the value stored in log rows."""
+    return _TENANT_ROW_ID_MAP.get(tenant_id, tenant_id)
+
+
 def _safe_query(db: LogsDuckDBClient, tenant_id: str, sql: str) -> list[dict]:
     """Execute query, return [] on error."""
     try:
@@ -41,12 +71,12 @@ def _hours_ago(hours: int) -> str:
 def get_cdn_metrics(tenant_id: str, hours: int = 24) -> dict:
     """CDN metrics from medianova_logs."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.medianova_logs"
     since = _hours_ago(hours)
 
     total_row = _safe_query(db, tenant_id,
-        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
     total = total_row[0]["cnt"] if total_row else 0
     if total == 0:
         return {"total_requests": 0, "error_rate_pct": 0, "cache_hit_rate_pct": 0,
@@ -54,26 +84,26 @@ def get_cdn_metrics(tenant_id: str, hours: int = 24) -> dict:
                 "requests_by_hour": [], "status_code_distribution": {}}
 
     err_row = _safe_query(db, tenant_id,
-        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND status_code >= 400")
+        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND status_code >= 400")
     errors = err_row[0]["cnt"] if err_row else 0
 
     cache_row = _safe_query(db, tenant_id,
-        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND cache_hit = 1")
+        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND cache_hit = 1")
     cache_hits = cache_row[0]["cnt"] if cache_row else 0
 
     agg = _safe_query(db, tenant_id,
-        f"SELECT AVG(response_time_ms) as avg_rt, SUM(bytes_sent) as total_bytes FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+        f"SELECT AVG(response_time_ms) as avg_rt, SUM(bytes_sent) as total_bytes FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
     avg_rt = round(agg[0]["avg_rt"] or 0, 1) if agg else 0
     bw_gb = round((agg[0]["total_bytes"] or 0) / 1e9, 2) if agg else 0
 
     top_err = _safe_query(db, tenant_id,
-        f"SELECT error_code, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND error_code IS NOT NULL GROUP BY error_code ORDER BY cnt DESC LIMIT 10")
+        f"SELECT error_code, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND error_code IS NOT NULL GROUP BY error_code ORDER BY cnt DESC LIMIT 10")
 
     hourly = _safe_query(db, tenant_id,
-        f"SELECT EXTRACT(HOUR FROM timestamp) as hr, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY hr ORDER BY hr")
+        f"SELECT EXTRACT(HOUR FROM timestamp) as hr, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' GROUP BY hr ORDER BY hr")
 
     status_dist = _safe_query(db, tenant_id,
-        f"SELECT status_code, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY status_code ORDER BY cnt DESC")
+        f"SELECT status_code, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' GROUP BY status_code ORDER BY cnt DESC")
 
     return {
         "total_requests": total,
@@ -90,7 +120,7 @@ def get_cdn_metrics(tenant_id: str, hours: int = 24) -> dict:
 def get_cdn_anomalies(tenant_id: str, hours: int = 24) -> list[dict]:
     """Detect CDN anomalies: error_rate > 5% in 5-min windows."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.medianova_logs"
     since = _hours_ago(hours)
 
@@ -99,7 +129,7 @@ def get_cdn_anomalies(tenant_id: str, hours: int = 24) -> list[dict]:
                COUNT(*) as total,
                SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as errors
         FROM {table}
-        WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'
+        WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'
         GROUP BY bucket
         HAVING errors * 100.0 / total > 5
         ORDER BY bucket
@@ -112,7 +142,7 @@ def get_cdn_anomalies(tenant_id: str, hours: int = 24) -> list[dict]:
 def get_drm_status(tenant_id: str, hours: int = 24) -> dict:
     """DRM status from widevine + fairplay logs."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     since = _hours_ago(hours)
 
     result = {"widevine": {"total": 0, "error_rate_pct": 0, "top_errors": []},
@@ -121,15 +151,15 @@ def get_drm_status(tenant_id: str, hours: int = 24) -> dict:
 
     for drm, tbl in [("widevine", f"{t}.widevine_drm_logs"), ("fairplay", f"{t}.fairplay_drm_logs")]:
         total_row = _safe_query(db, tenant_id,
-            f"SELECT COUNT(*) as cnt FROM {tbl} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+            f"SELECT COUNT(*) as cnt FROM {tbl} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
         total = total_row[0]["cnt"] if total_row else 0
 
         err_row = _safe_query(db, tenant_id,
-            f"SELECT COUNT(*) as cnt FROM {tbl} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND status != 'success'")
+            f"SELECT COUNT(*) as cnt FROM {tbl} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND status != 'success'")
         errs = err_row[0]["cnt"] if err_row else 0
 
         top_err = _safe_query(db, tenant_id,
-            f"SELECT error_code, COUNT(*) as cnt FROM {tbl} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND error_code IS NOT NULL GROUP BY error_code ORDER BY cnt DESC LIMIT 5")
+            f"SELECT error_code, COUNT(*) as cnt FROM {tbl} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND error_code IS NOT NULL GROUP BY error_code ORDER BY cnt DESC LIMIT 5")
 
         result[drm] = {
             "total": total,
@@ -140,7 +170,7 @@ def get_drm_status(tenant_id: str, hours: int = 24) -> dict:
     # Affected devices
     dev_rows = _safe_query(db, tenant_id, f"""
         SELECT device_type, COUNT(*) as cnt FROM {t}.widevine_drm_logs
-        WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND status != 'success'
+        WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND status != 'success'
         GROUP BY device_type ORDER BY cnt DESC LIMIT 10""")
     result["affected_devices"] = [{"device_type": r["device_type"], "error_count": r["cnt"]} for r in dev_rows]
 
@@ -150,34 +180,34 @@ def get_drm_status(tenant_id: str, hours: int = 24) -> dict:
 def get_api_health(tenant_id: str, hours: int = 24) -> dict:
     """API gateway health from api_logs_logs."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.api_logs_logs"
     since = _hours_ago(hours)
 
     total_row = _safe_query(db, tenant_id,
-        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
     total = total_row[0]["cnt"] if total_row else 0
     if total == 0:
         return {"total_requests": 0, "error_rate_pct": 0, "avg_response_time_ms": 0,
                 "p99_response_time_ms": 0, "top_endpoints": [], "status_distribution": {}}
 
     err_row = _safe_query(db, tenant_id,
-        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND status_code >= 400")
+        f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND status_code >= 400")
     errors = err_row[0]["cnt"] if err_row else 0
 
     agg = _safe_query(db, tenant_id,
-        f"SELECT AVG(response_time_ms) as avg_rt, PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms) as p99 FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+        f"SELECT AVG(response_time_ms) as avg_rt, PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms) as p99 FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
     avg_rt = round(agg[0]["avg_rt"] or 0, 1) if agg else 0
     p99 = round(agg[0]["p99"] or 0, 1) if agg else 0
 
     top_ep = _safe_query(db, tenant_id, f"""
         SELECT endpoint, COUNT(*) as cnt,
                SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as err_rate
-        FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'
+        FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'
         GROUP BY endpoint ORDER BY cnt DESC LIMIT 10""")
 
     status = _safe_query(db, tenant_id,
-        f"SELECT status_code, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY status_code ORDER BY cnt DESC")
+        f"SELECT status_code, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' GROUP BY status_code ORDER BY cnt DESC")
 
     return {
         "total_requests": total,
@@ -192,7 +222,7 @@ def get_api_health(tenant_id: str, hours: int = 24) -> dict:
 def get_infrastructure_health(tenant_id: str, hours: int = 24) -> dict:
     """Infrastructure health from newrelic_apm_logs."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.newrelic_apm_logs"
     since = _hours_ago(hours)
 
@@ -204,7 +234,7 @@ def get_infrastructure_health(tenant_id: str, hours: int = 24) -> dict:
                AVG(cpu_pct) as avg_cpu,
                AVG(response_time_ms) as avg_mem
         FROM {table}
-        WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND service_name IS NOT NULL
+        WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND service_name IS NOT NULL
         GROUP BY service_name""")
 
     services = [{"service_name": r["service_name"],
@@ -223,7 +253,7 @@ def get_infrastructure_health(tenant_id: str, hours: int = 24) -> dict:
 def get_player_qoe(tenant_id: str, hours: int = 24) -> dict:
     """Player QoE from player_events_logs."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.player_events_logs"
     since = _hours_ago(hours)
 
@@ -233,7 +263,7 @@ def get_player_qoe(tenant_id: str, hours: int = 24) -> dict:
                AVG(bitrate_kbps) as avg_br,
                AVG(buffer_ratio) as avg_buf
         FROM {table}
-        WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'""")
+        WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'""")
 
     if not agg or not agg[0].get("sessions"):
         return {"avg_qoe_score": 0, "sessions_total": 0, "error_sessions_pct": 0,
@@ -241,16 +271,16 @@ def get_player_qoe(tenant_id: str, hours: int = 24) -> dict:
 
     a = agg[0]
     err_row = _safe_query(db, tenant_id,
-        f"SELECT COUNT(DISTINCT session_id) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND error_code IS NOT NULL")
+        f"SELECT COUNT(DISTINCT session_id) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND error_code IS NOT NULL")
 
     by_device = _safe_query(db, tenant_id, f"""
         SELECT device_type, AVG(qoe_score) as avg_qoe FROM {table}
-        WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND device_type IS NOT NULL
+        WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND device_type IS NOT NULL
         GROUP BY device_type ORDER BY avg_qoe""")
 
     by_hour = _safe_query(db, tenant_id, f"""
         SELECT EXTRACT(HOUR FROM timestamp) as hr, AVG(qoe_score) as avg_qoe FROM {table}
-        WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'
+        WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'
         GROUP BY hr ORDER BY hr""")
 
     sessions = a["sessions"] or 0
@@ -316,20 +346,20 @@ def detect_incidents_from_logs(tenant_id: str, hours: int = 1) -> list[dict]:
 def get_app_reviews(tenant_id: str, hours: int = 168) -> dict:
     """App review summary from app_reviews_logs (default 7 days)."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.app_reviews_logs"
     since = _hours_ago(hours)
 
-    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
     total = total_row[0]["cnt"] if total_row else 0
     if total == 0:
         return {"total_reviews": 0, "avg_rating": 0, "sentiment_breakdown": {}, "top_categories": []}
 
-    avg_row = _safe_query(db, tenant_id, f"SELECT AVG(rating) as avg_r FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+    avg_row = _safe_query(db, tenant_id, f"SELECT AVG(rating) as avg_r FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
     avg_rating = round(avg_row[0]["avg_r"] or 0, 2) if avg_row else 0
 
-    sent = _safe_query(db, tenant_id, f"SELECT sentiment, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY sentiment")
-    cats = _safe_query(db, tenant_id, f"SELECT category, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY category ORDER BY cnt DESC LIMIT 5")
+    sent = _safe_query(db, tenant_id, f"SELECT sentiment, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' GROUP BY sentiment")
+    cats = _safe_query(db, tenant_id, f"SELECT category, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' GROUP BY category ORDER BY cnt DESC LIMIT 5")
 
     return {
         "total_reviews": total, "avg_rating": avg_rating,
@@ -341,15 +371,15 @@ def get_app_reviews(tenant_id: str, hours: int = 168) -> dict:
 def get_epg_schedule(tenant_id: str) -> dict:
     """EPG schedule summary from epg_logs."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.epg_logs"
 
-    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}'")
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}'")
     total = total_row[0]["cnt"] if total_row else 0
 
-    channels = _safe_query(db, tenant_id, f"SELECT channel, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' GROUP BY channel ORDER BY cnt DESC")
-    live = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND event_type = 'live_sport'")
-    pre_scale = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND pre_scale_required = 1")
+    channels = _safe_query(db, tenant_id, f"SELECT channel, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' GROUP BY channel ORDER BY cnt DESC")
+    live = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND event_type = 'live_sport'")
+    pre_scale = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND pre_scale_required = 1")
 
     return {
         "total_programs": total,
@@ -362,17 +392,17 @@ def get_epg_schedule(tenant_id: str) -> dict:
 def get_churn_metrics(tenant_id: str) -> dict:
     """CRM churn metrics from crm_subscriber_logs."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.crm_subscriber_logs"
 
-    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}'")
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}'")
     total = total_row[0]["cnt"] if total_row else 0
     if total == 0:
         return {"total_subscribers": 0, "avg_churn_risk": 0, "at_risk_count": 0, "tier_breakdown": {}}
 
-    avg_row = _safe_query(db, tenant_id, f"SELECT AVG(churn_risk) as avg_cr FROM {table} WHERE tenant_id = '{tenant_id}'")
-    at_risk = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND churn_risk > 0.7")
-    tiers = _safe_query(db, tenant_id, f"SELECT subscription_tier, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' GROUP BY subscription_tier")
+    avg_row = _safe_query(db, tenant_id, f"SELECT AVG(churn_risk) as avg_cr FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}'")
+    at_risk = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND churn_risk > 0.7")
+    tiers = _safe_query(db, tenant_id, f"SELECT subscription_tier, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' GROUP BY subscription_tier")
 
     return {
         "total_subscribers": total,
@@ -385,18 +415,18 @@ def get_churn_metrics(tenant_id: str) -> dict:
 def get_billing_summary(tenant_id: str, hours: int = 720) -> dict:
     """Billing summary from billing_logs (default 30 days)."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     table = f"{t}.billing_logs"
     since = _hours_ago(hours)
 
-    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}'")
+    total_row = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}'")
     total = total_row[0]["cnt"] if total_row else 0
     if total == 0:
         return {"total_transactions": 0, "total_revenue_tl": 0, "failed_count": 0, "event_types": {}}
 
-    rev = _safe_query(db, tenant_id, f"SELECT SUM(amount) as total FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND payment_status = 'success'")
-    failed = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' AND payment_status = 'failed'")
-    types = _safe_query(db, tenant_id, f"SELECT event_type, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{tenant_id}' AND timestamp >= '{since}' GROUP BY event_type ORDER BY cnt DESC")
+    rev = _safe_query(db, tenant_id, f"SELECT SUM(amount) as total FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND payment_status = 'success'")
+    failed = _safe_query(db, tenant_id, f"SELECT COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' AND payment_status = 'failed'")
+    types = _safe_query(db, tenant_id, f"SELECT event_type, COUNT(*) as cnt FROM {table} WHERE tenant_id = '{_resolve_row_tenant(tenant_id)}' AND timestamp >= '{since}' GROUP BY event_type ORDER BY cnt DESC")
 
     return {
         "total_transactions": total,
@@ -409,7 +439,7 @@ def get_billing_summary(tenant_id: str, hours: int = 720) -> dict:
 def get_data_source_stats(tenant_id: str) -> dict:
     """Row counts per table in logs.duckdb for admin dashboard."""
     db = _get_logs_db()
-    t = tenant_id.replace("-", "_")
+    t = _resolve_schema(tenant_id)
     sources = [
         "medianova", "origin_server", "widevine_drm", "fairplay_drm",
         "player_events", "npaw_analytics", "api_logs", "newrelic_apm",
