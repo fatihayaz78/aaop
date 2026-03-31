@@ -67,6 +67,13 @@ export default function OpsCenter() {
   const [rcaPolling, setRcaPolling] = useState<string | null>(null);
   const [rcaResult, setRcaResult] = useState<RCAResult | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [showAddIncident, setShowAddIncident] = useState(false);
+  const [addForm, setAddForm] = useState({ title: "", severity: "P2", description: "", affected_service: "" });
+  const [addError, setAddError] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [rcaIncidentId, setRcaIncidentId] = useState("");
+  const [rcaLoading, setRcaLoading] = useState(false);
+  const [rcaData, setRcaData] = useState<Record<string, unknown> | null>(null);
   const { incidents: wsIncidents } = useOpsWebSocket();
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -100,15 +107,16 @@ export default function OpsCenter() {
   const loadData = useCallback(async () => {
     try {
       const [rawMetrics, rawInc, dec] = await Promise.all([
-        apiGet<Record<string, unknown>>("/ops/dashboard?tenant_id=s_sport_plus"),
-        apiGet<Record<string, unknown>>("/ops/incidents?tenant_id=s_sport_plus&limit=50"),
-        apiGet<AgentDecision[]>("/ops/decisions?tenant_id=s_sport_plus&limit=100").catch(() => []),
+        apiGet<Record<string, unknown>>("/ops/dashboard?tenant_id=ott_co"),
+        apiGet<Record<string, unknown>>("/ops/incidents?tenant_id=ott_co&limit=50"),
+        apiGet<Record<string, unknown>>("/ops/decisions?tenant_id=ott_co&limit=100").catch(() => ({ items: [] })),
       ]);
       setDashboardRaw(rawMetrics);
       setMetrics(mapMetrics(rawMetrics));
-      const items = (rawMetrics as any).items ?? (rawInc as any).items ?? rawInc;
-      setIncidents(Array.isArray(items) ? items.map(mapIncident) : []);
-      setDecisions(Array.isArray(dec) ? dec : ((dec as any).items ?? []));
+      const incItems = (rawInc as any).items ?? rawInc;
+      setIncidents(Array.isArray(incItems) ? incItems.map(mapIncident) : []);
+      const decItems = (dec as any).items ?? dec;
+      setDecisions(Array.isArray(decItems) ? decItems : []);
     } catch {
       // Backend not running — use empty state
     }
@@ -135,7 +143,7 @@ export default function OpsCenter() {
     try {
       const job = await apiPost<{ job_id: string }>("/ops/rca/trigger", {
         incident_id: incidentId,
-        tenant_id: "s_sport_plus",
+        tenant_id: "ott_co",
       });
       setRcaPolling(job.job_id);
     } catch { /* handle error */ }
@@ -267,6 +275,64 @@ export default function OpsCenter() {
       {/* ══════════ Tab: Incidents ══════════ */}
       {tab === "incidents" && (
         <div>
+          {/* Add Incident + Filters */}
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => setShowAddIncident(true)}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+              style={{ backgroundColor: "var(--brand-primary)" }}>
+              + Add Incident
+            </button>
+          </div>
+
+          {/* Add Incident Slide-over */}
+          {showAddIncident && (
+            <div className="fixed inset-0 z-50 flex">
+              <div className="flex-1 bg-black/40" onClick={() => setShowAddIncident(false)} />
+              <div className="w-96 h-full p-6 overflow-y-auto" style={{ backgroundColor: "var(--background-card)", borderLeft: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>New Incident</h3>
+                  <button onClick={() => setShowAddIncident(false)} className="text-lg" style={{ color: "var(--text-muted)" }}>x</button>
+                </div>
+                <form onSubmit={async (e) => {
+                  e.preventDefault(); setAddError(""); setAddLoading(true);
+                  try {
+                    await apiPost("/ops/incidents", { ...addForm, tenant_id: "ott_co" });
+                    setShowAddIncident(false); setAddForm({ title: "", severity: "P2", description: "", affected_service: "" }); loadData();
+                  } catch (err) { setAddError("Failed to create incident. Endpoint may not be available."); }
+                  setAddLoading(false);
+                }} className="space-y-4">
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Title *</label>
+                    <input required value={addForm.title} onChange={(e) => setAddForm({ ...addForm, title: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-sm border" style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Severity *</label>
+                    <select value={addForm.severity} onChange={(e) => setAddForm({ ...addForm, severity: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-sm border" style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                      <option value="P0">P0 — Critical</option><option value="P1">P1 — Major</option>
+                      <option value="P2">P2 — Minor</option><option value="P3">P3 — Low</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Description</label>
+                    <textarea value={addForm.description} onChange={(e) => setAddForm({ ...addForm, description: e.target.value })} rows={3}
+                      className="w-full px-3 py-2 rounded-lg text-sm border resize-none" style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Affected Service</label>
+                    <input value={addForm.affected_service} onChange={(e) => setAddForm({ ...addForm, affected_service: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-sm border" style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }} placeholder="cdn, player, api..." />
+                  </div>
+                  {addError && <p className="text-xs text-red-400">{addError}</p>}
+                  <button type="submit" disabled={addLoading} className="w-full py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700">
+                    {addLoading ? "Creating..." : "Create Incident"}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* Filters */}
           <div className="flex gap-3 mb-4 flex-wrap">
             <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)}
@@ -404,31 +470,75 @@ export default function OpsCenter() {
 
       {/* ══════════ Tab: RCA Explorer ══════════ */}
       {tab === "rca" && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>RCA decisions for P0/P1 incidents</p>
-            {rcaPolling && (
-              <span className="text-sm animate-pulse" style={{ color: "var(--brand-primary)" }}>RCA in progress...</span>
-            )}
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Root Cause Analysis for P0/P1 incidents</p>
+
+          {/* Incident selector + trigger */}
+          <div className="rounded-xl border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-3">
+              <select value={rcaIncidentId} onChange={(e) => setRcaIncidentId(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-lg text-sm border"
+                style={{ backgroundColor: "var(--background)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+                <option value="">Select P0/P1 incident...</option>
+                {incidents.filter((i) => i.severity === "P0" || i.severity === "P1").map((i) => (
+                  <option key={i.incidentId} value={i.incidentId}>{i.incidentId} — [{i.severity}] {i.title}</option>
+                ))}
+              </select>
+              <button onClick={async () => {
+                if (!rcaIncidentId) return;
+                setRcaLoading(true); setRcaData(null);
+                try {
+                  const result = await apiGet<Record<string, unknown>>(`/ops/incidents/${rcaIncidentId}/rca`);
+                  setRcaData(result);
+                } catch { setRcaData({ error: "RCA request failed" }); }
+                setRcaLoading(false);
+              }} disabled={!rcaIncidentId || rcaLoading}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                style={{ backgroundColor: "var(--brand-primary)" }}>
+                {rcaLoading ? "Analyzing..." : "Trigger RCA"}
+              </button>
+            </div>
           </div>
-          {rcaResult && (
-            <div className="rounded-lg border p-4 mb-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-              <h4 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>RCA Result: {rcaResult.rcaId}</h4>
-              <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}><strong>Root Cause:</strong> {rcaResult.rootCause}</p>
-              <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}><strong>Confidence:</strong> {(rcaResult.confidenceScore * 100).toFixed(0)}%</p>
-              {rcaResult.remediationPlan && (
-                <p className="text-sm" style={{ color: "var(--text-secondary)" }}><strong>Plan:</strong> {rcaResult.remediationPlan}</p>
+
+          {/* RCA Result */}
+          {rcaData && (
+            <div className="rounded-xl border p-5" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
+              {rcaData.error ? (
+                <p className="text-sm text-red-400">{String(rcaData.error)}</p>
+              ) : rcaData.rca_available === false ? (
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>No RCA data available for this incident yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>RCA Result</h4>
+                  {rcaData.summary_tr && <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{String(rcaData.summary_tr)}</p>}
+                  {Array.isArray(rcaData.root_causes) && (
+                    <div>
+                      <p className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>Root Causes</p>
+                      {(rcaData.root_causes as string[]).map((c, i) => (
+                        <p key={i} className="text-sm ml-2" style={{ color: "var(--text-secondary)" }}>- {c}</p>
+                      ))}
+                    </div>
+                  )}
+                  {Array.isArray(rcaData.timeline) && (
+                    <div>
+                      <p className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>Timeline</p>
+                      {(rcaData.timeline as { time: string; event: string }[]).map((t, i) => (
+                        <p key={i} className="text-xs ml-2" style={{ color: "var(--text-muted)" }}>{t.time}: {t.event}</p>
+                      ))}
+                    </div>
+                  )}
+                  {Array.isArray(rcaData.recommended_actions) && (
+                    <div>
+                      <p className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>Recommended Actions</p>
+                      {(rcaData.recommended_actions as string[]).map((a, i) => (
+                        <p key={i} className="text-sm ml-2" style={{ color: "var(--risk-medium)" }}>{i + 1}. {a}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
-          <div className="rounded-lg border p-4" style={{ backgroundColor: "var(--background-card)", borderColor: "var(--border)" }}>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>No RCA results yet. Trigger RCA from an incident.</p>
-            <button onClick={() => triggerRca("INC-DEMO-001")} disabled={!!rcaPolling}
-              className="mt-3 px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
-              style={{ backgroundColor: "var(--brand-primary)", color: "#fff" }}>
-              Trigger RCA (Demo)
-            </button>
-          </div>
         </div>
       )}
 

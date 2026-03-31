@@ -8,6 +8,18 @@
 
 ---
 
+### S-OPS-FIX-01 — 2026-03-31
+- ops-center/page.tsx: Add Incident slide-over form (title, severity, description, affected_service)
+  - POST /ops/incidents submit (graceful error if endpoint missing)
+- ops-center/page.tsx: RCA Explorer — P0/P1 incident dropdown + GET /incidents/{id}/rca
+  - Root causes, timeline, recommended actions display
+- ops-center/page.tsx: Decision Log — fixed data fetching, snake_case→camelCase mapping
+- ops-center/page.tsx: s_sport_plus → ott_co (tüm API çağrıları)
+- Note: POST /ops/incidents backend endpoint henüz mevcut değil — S-OPS-API-01'de eklenecek
+- Tests: 181 passed, 0 failure
+
+---
+
 ### S-DASH-FIX-01 — 2026-03-31
 - frontend/src/app/page.tsx: statik 72 satır → API-wired 180+ satır dashboard
   - 4 KPI kartı: Active Incidents, Events 24h, MTTR P50, Avg QoE Score
